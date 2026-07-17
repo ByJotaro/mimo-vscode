@@ -1,0 +1,317 @@
+import * as vscode from "vscode";
+import { MimoService } from "./MimoService";
+import type { HostMessage, WebviewMessage } from "./shared/messages";
+import { parseWebviewMessage } from "./shared/messages";
+
+export class MimoViewProvider implements vscode.WebviewViewProvider {
+  public static readonly viewType = "mimo.chatView";
+
+  private _view?: vscode.WebviewView;
+  private _pending: HostMessage[] = [];
+  private _ready = false;
+
+  constructor(
+    private readonly _extensionUri: vscode.Uri,
+    private readonly _service: MimoService,
+  ) {}
+
+  public resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this._view = webviewView;
+    this._ready = false;
+
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, "out")],
+    };
+
+    webviewView.webview.html = this._html(webviewView.webview);
+
+    webviewView.webview.onDidReceiveMessage(async (data: unknown) => {
+      const msg = parseWebviewMessage(data);
+      if (!msg) return;
+      await this._handle(msg);
+    });
+  }
+
+  private async _handle(msg: WebviewMessage) {
+    switch (msg.type) {
+      case "ready":
+        await this._handleReady();
+        break;
+      case "loadSessions":
+        await this._sendSessions();
+        break;
+      case "loadMessages":
+        await this._sendMessages(msg.sessionId);
+        break;
+      case "sendPrompt":
+        await this._sendPrompt(msg.text, msg.sessionId);
+        break;
+      case "newSession":
+        this._service.setActiveSessionId(undefined);
+        this._post({ type: "init", ready: this._service.isReady, serverUrl: this._service.getServerUrl() ?? "", sessions: await this._safeSessions() });
+        break;
+      case "loadAgents":
+        await this._sendAgents();
+        break;
+      case "loadMcp":
+        await this._sendMcp();
+        break;
+      case "loadConfig":
+        await this._sendConfig();
+        break;
+      case "fetchRaw":
+        await this._sendRaw(msg.topic, msg.days);
+        break;
+      case "sessionAction":
+        await this._sessionAction(msg.action, msg.sessionId, msg.sanitize);
+        break;
+      case "pluginAction":
+        await this._pluginAction(msg.module, msg.global, msg.force);
+        break;
+      case "debugAction":
+        await this._debugAction(msg.sub);
+        break;
+      case "editor-selection":
+        // forward to webview (e.g. to insert a file mention) - already handled if view ready
+        this._post(msg as unknown as HostMessage);
+        break;
+    }
+  }
+
+  private async _safeSessions() {
+    try {
+      return await this._service.getSessions();
+    } catch {
+      return [];
+    }
+  }
+
+  private async _handleReady() {
+    // Wait for mimo serve to be up so the chat is immediately usable.
+    try {
+      await this._service.whenReady();
+    } catch {
+      /* serve failed; still send init so the UI can show an error */
+    }
+    const [sessions, version] = await Promise.all([this._safeSessions(), this._safeVersion()]);
+    this._post({
+      type: "init",
+      ready: this._service.isReady,
+      serverUrl: this._service.getServerUrl() ?? "",
+      sessions,
+      version,
+    });
+    this._ready = true;
+    for (const m of this._pending) this._post(m);
+    this._pending = [];
+  }
+
+  private async _safeVersion(): Promise<string | undefined> {
+    try {
+      return (await this._service.getVersion()).trim();
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async _sendSessions() {
+    this._post({ type: "sessions", sessions: await this._safeSessions() });
+  }
+
+  private async _sendAgents() {
+    try {
+      const agents = await this._service.getAgents();
+      this._post({ type: "agents", agents: agents as any[] });
+    } catch (e) {
+      this._post({ type: "error", message: `Failed to load agents: ${(e as Error).message}` });
+    }
+  }
+
+  private async _sendMcp() {
+    try {
+      const servers = await this._service.getMcp();
+      this._post({ type: "mcp", servers });
+    } catch (e) {
+      this._post({ type: "error", message: `Failed to load MCP servers: ${(e as Error).message}` });
+    }
+  }
+
+  private async _sendConfig() {
+    try {
+      const config = await this._service.getConfig();
+      this._post({ type: "config", config });
+    } catch (e) {
+      this._post({ type: "error", message: `Failed to load config: ${(e as Error).message}` });
+    }
+  }
+
+  private async _sendRaw(
+    topic: "models" | "providers" | "providers-whoami" | "stats" | "version",
+    days?: number,
+  ) {
+    try {
+      let text = "";
+      switch (topic) {
+        case "models":
+          text = await this._service.getModels(true);
+          break;
+        case "providers":
+          text = await this._service.getProviders();
+          break;
+        case "providers-whoami":
+          text = await this._service.getProvidersWhoami();
+          break;
+        case "stats":
+          text = await this._service.getStats(days);
+          break;
+        case "version":
+          text = await this._service.getVersion();
+          break;
+      }
+      this._post({ type: "raw", topic, text, ok: true });
+    } catch (e) {
+      this._post({ type: "raw", topic, text: (e as Error).message, ok: false });
+    }
+  }
+
+  private async _sessionAction(action: "delete" | "export", sessionId: string, sanitize?: boolean) {
+    try {
+      const text =
+        action === "delete"
+          ? await this._service.deleteSession(sessionId)
+          : await this._service.exportSession(sessionId, sanitize);
+      this._post({ type: "raw", topic: action, text, ok: true });
+      if (action === "delete") this._post({ type: "sessions", sessions: await this._safeSessions() });
+    } catch (e) {
+      this._post({ type: "raw", topic: action, text: (e as Error).message, ok: false });
+    }
+  }
+
+  private async _pluginAction(module: string, global?: boolean, force?: boolean) {
+    try {
+      const text = await this._service.installPlugin(module, global, force);
+      this._post({ type: "raw", topic: "plugin", text, ok: true });
+    } catch (e) {
+      this._post({ type: "raw", topic: "plugin", text: (e as Error).message, ok: false });
+    }
+  }
+
+  private async _debugAction(sub: string) {
+    try {
+      const text = await this._service.debugCommand(sub);
+      this._post({ type: "raw", topic: "debug", text, ok: true });
+    } catch (e) {
+      this._post({ type: "raw", topic: "debug", text: (e as Error).message, ok: false });
+    }
+  }
+
+  private async _sendMessages(sessionId: string) {
+    try {
+      const raw = await this._service.getMessages(sessionId);
+      const messages = raw
+        .filter((m: any) => m && (m.role === "user" || m.role === "assistant") && m.parts)
+        .map((m: any): any => ({
+          id: m.id,
+          role: m.role,
+          text: (m.parts || [])
+            .filter((p: any) => p && p.type === "text" && typeof p.text === "string")
+            .map((p: any) => p.text)
+            .join(""),
+        }));
+      this._post({ type: "messages", sessionId, messages });
+    } catch (e) {
+      this._post({ type: "error", message: `Failed to load messages: ${(e as Error).message}` });
+    }
+  }
+
+  private async _sendPrompt(text: string, sessionId: string | undefined) {
+    const useSession = sessionId ?? this._service.getActiveSessionId();
+    this._post({ type: "thinking", sessionId: useSession ?? "", value: true });
+
+    let acc = "";
+    let msgId = `msg_${Date.now()}`;
+    let assistant: any = null;
+
+    try {
+      const returnedId = await this._service.sendPrompt(text, useSession, {
+        onText: (t, id) => {
+          msgId = id;
+          acc += t;
+          if (!assistant) {
+            assistant = { id: msgId, role: "assistant", text: acc, streaming: true };
+            this._post({ type: "message", sessionId: useSession ?? "", message: assistant });
+          } else {
+            this._post({ type: "delta", sessionId: useSession ?? "", messageId: msgId, text: t });
+          }
+        },
+        onDone: (id) => {
+          msgId = id;
+          this._post({ type: "thinking", sessionId: useSession ?? "", value: false });
+        },
+        onError: (err) => {
+          this._post({ type: "error", message: err });
+          this._post({ type: "thinking", sessionId: useSession ?? "", value: false });
+        },
+      });
+
+      // opencode-style: --continue forks a child session; continue the chain from it
+      this._service.setActiveSessionId(returnedId);
+      this._post({ type: "thinking", sessionId: useSession ?? "", value: false });
+      // refresh session list so the new child appears
+      this._post({ type: "sessions", sessions: await this._safeSessions() });
+    } catch (e) {
+      this._post({ type: "error", message: `Failed to send prompt: ${(e as Error).message}` });
+      this._post({ type: "thinking", sessionId: useSession ?? "", value: false });
+    }
+  }
+
+  private _post(msg: HostMessage) {
+    if (this._view) {
+      if (this._ready || msg.type === "init") {
+        this._view.webview.postMessage(msg);
+      } else {
+        this._pending.push(msg);
+      }
+    } else {
+      this._pending.push(msg);
+    }
+  }
+
+  public postToWebview(msg: HostMessage) {
+    this._post(msg);
+  }
+
+  private _html(webview: vscode.Webview): string {
+    const scriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, "out", "main.js"),
+    );
+    const styleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, "out", "main.css"),
+    );
+    const nonce = getNonce();
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:* ${webview.cspSource};" />
+  <link href="${styleUri}" rel="stylesheet" />
+  <title>MiMo Code</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>`;
+  }
+}
+
+function getNonce(): string {
+  let text = "";
+  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  for (let i = 0; i < 32; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
+}

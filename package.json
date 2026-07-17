@@ -1,0 +1,93 @@
+{
+  "name": "mimo-vscode",
+  "displayName": "MiMo Code",
+  "description": "VS Code extension embedding MiMo Code (mimo CLI) with a visual chat UI",
+  "version": "0.1.0",
+  "publisher": "ByJotaro",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByJotaro/mimo-vscode.git"
+  },
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "keywords": [
+    "mimo",
+    "ai",
+    "agent",
+    "chat",
+    "coding"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mimo",
+          "title": "MiMo Code",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "mimo": [
+        {
+          "type": "webview",
+          "id": "mimo.chatView",
+          "name": "Chat"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "mimo.addSelectionToPrompt",
+        "title": "Add Selection to Prompt",
+        "category": "MiMo Code"
+      },
+      {
+        "command": "mimo.newSession",
+        "title": "New Chat Session",
+        "category": "MiMo Code"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "mimo.addSelectionToPrompt",
+          "when": "editorTextFocus",
+          "group": "navigation@9"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "npm run build:extension && npm run build:webview",
+    "build:extension": "vite build --config vite.config.extension.ts",
+    "build:webview": "vite build --config vite.config.ts",
+    "watch": "concurrently \"npm run watch:extension\" \"npm run watch:webview\"",
+    "watch:extension": "vite build --config vite.config.extension.ts --watch --mode development",
+    "watch:webview": "vite build --config vite.config.ts --watch --mode development",
+    "package": "npm run build && vsce package",
+    "publish": "npm run build && vsce publish --skip-duplicate"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.74.0",
+    "@vscode/test-electron": "^3.0.0",
+    "@vscode/vsce": "^2.24.0",
+    "concurrently": "^8.2.2",
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0",
+    "vite-plugin-solid": "^2.10.2"
+  },
+  "dependencies": {
+    "solid-js": "^1.8.15"
+  }
+}

@@ -1,0 +1,10 @@
+node_modules/
+.vscode-test/
+.wscode/
+out/
+dist/
+*.vsix
+*.tsbuildinfo
+.mimocode/
+scripts/cli-help.txt
+PLAN.md
