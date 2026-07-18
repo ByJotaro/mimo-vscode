@@ -1,4 +1,4 @@
-﻿/* =========================
+/* =========================
    Base
    ========================= */
 body {
@@ -11,6 +11,7 @@ body {
     height: 100vh;
     background-color: transparent;
     position: relative;
+    overflow: hidden;
     --card-header-size: 0.9em;
 }
 
@@ -322,7 +323,7 @@ body > *:not(.bg) {
 }
 
 .session-panel {
-    position: absolute;
+    position: fixed;
     top: 44px;
     left: 12px;
     right: 12px;

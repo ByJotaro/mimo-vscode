@@ -3893,6 +3893,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     this.handleWebviewLivenessAck(data);
                     break;
                 }
+                case "fetchSlashCommands": {
+                    try {
+                        const cmds = await this.client.fetchSlashCommands();
+                        const wv = this._view?.webview;
+                        if (wv) wv.postMessage({ type: 'slashCommands', commands: cmds });
+                    } catch (e) {
+                        rtLog(`FETCH_SLASH_ERR: ${String(e).slice(0, 80)}`);
+                    }
+                    break;
+                }
                 case "sendMessage": {
                     // this.uiDebugChannel.appendLine(
                     //     `[EXT][SEND_RX] sessionId=${this.currentSessionId || 'NULL'} ` +
@@ -8850,19 +8860,32 @@ ${attachmentLines.join('\n')}`
         this.currentSessionId = sessionId;
         this.client.setSessionId(sessionId);
         try {
-            const exportData = await this.client.exportSessionRecent(sessionId, this.recentSessionLoadLimit || 200);
+            const t0 = Date.now();
+            const exportData = await this.client.exportSessionRecent(sessionId, 5);
+            rtLog(`LOAD_SESSION export_ms=${Date.now() - t0}`);
             const formatted = this.formatSession(exportData);
-            const finalFormatted = await this.injectChangeLists(sessionId, formatted);
+            // Rebuild messages to include patch/tool_use parts (not just text)
+            const rawMessages = Array.isArray(exportData?.messages) ? exportData.messages : [];
+            const enrichedMessages = formatted.messages.map((m: any) => {
+                const raw = rawMessages.find((r: any) => r?.info?.id === m.id);
+                if (!raw) return m;
+                const patchParts = Array.isArray(raw.parts)
+                    ? raw.parts.filter((p: any) => (p.type === 'patch' || p.type === 'tool_use') && typeof p.text === 'string')
+                    : [];
+                if (!patchParts.length) return m;
+                const patchText = patchParts.map((p: any) => p.type === 'patch' ? '\n[Diff]\n' + p.text : '\n[Tool] ' + p.text).join('\n');
+                return { ...m, text: m.text + patchText };
+            });
             liveWebview.postMessage({
                 type: 'sessionData',
                 sessionId,
-                title: finalFormatted.title,
-                messages: finalFormatted.messages,
+                title: formatted.title,
+                messages: enrichedMessages,
                 meta: {
                     source: 'select',
-                    timelineMessageIds: finalFormatted.messages
-                        .filter((m: any) => typeof m.id === 'string' && m.id.startsWith('msg_'))
-                        .map((m: any) => m.id)
+                    timelineMessageIds: enrichedMessages
+                        .filter((mm: any) => typeof mm.id === 'string' && mm.id.startsWith('msg_'))
+                        .map((mm: any) => mm.id)
                 }
             });
         } catch (err) {
@@ -9129,7 +9152,6 @@ ${attachmentLines.join('\n')}`
             </head>
             <body>
                 <div class="bg" id="bg">
-                    <div class="bg__grad"></div>
                     <canvas class="bg__stars" id="bgStars"></canvas>
                     <canvas class="bg__comets" id="bgComets"></canvas>
                 </div>
@@ -9165,7 +9187,7 @@ ${attachmentLines.join('\n')}`
                         })();
                     </script>
 
-                <div class="slash-palette hidden" id="slashPalette">
+                <div class="slash-palette" id="slashPalette" style="display:none">
                     <div class="slash-palette-header">SLASH COMMANDS</div>
                     <div class="slash-palette-list" id="slashPaletteList"></div>
                 </div>
@@ -9180,7 +9202,7 @@ ${attachmentLines.join('\n')}`
                         function render(filter) {
                             listEl.innerHTML = '';
                             var items = SLASH.filter(function (c) { return !filter || c.name.toLowerCase().indexOf(filter.toLowerCase()) >= 0; });
-                            if (!items.length) { palette.classList.add('hidden'); return; }
+                            if (!items.length) { palette.style.display = 'none'; return; }
                             items.forEach(function (c, i) {
                                 var row = document.createElement('div');
                                 row.className = 'slash-item' + (i === activeIndex ? ' active' : '');
@@ -9188,7 +9210,7 @@ ${attachmentLines.join('\n')}`
                                 row.onmousedown = function (e) { e.preventDefault(); apply('/' + c.name + ' '); };
                                 listEl.appendChild(row);
                             });
-                            palette.classList.remove('hidden');
+                            palette.style.display = '';
                         }
                         function hide() { palette.classList.add('hidden'); activeIndex = -1; }
                         function apply(text) {
@@ -9208,7 +9230,7 @@ ${attachmentLines.join('\n')}`
                             if (m) { activeIndex = 0; render(m[1]); } else { hide(); }
                         });
                         document.addEventListener('keydown', function (e) {
-                            if (palette.classList.contains('hidden')) return;
+                            if (palette.style.display === 'none') return;
                             var items = listEl.children;
                             if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = Math.min(items.length - 1, activeIndex + 1); render(currentFilter()); }
                             else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = Math.max(0, activeIndex - 1); render(currentFilter()); }
@@ -9225,7 +9247,15 @@ ${attachmentLines.join('\n')}`
                             if (d && d.type === 'init' && Array.isArray(d.slashCommands)) {
                                 SLASH = d.slashCommands;
                             }
+                            if (d && d.type === 'slashCommands' && Array.isArray(d.commands)) {
+                                SLASH = d.commands;
+                            }
                         });
+                        // Fallback: request slash commands directly in case init missed
+                        try {
+                            var v = acquireVsCodeApi ? acquireVsCodeApi() : null;
+                            if (v) v.postMessage({ type: 'fetchSlashCommands' });
+                        } catch (e) {}
                     })();
                 </script>
 
@@ -9326,5 +9356,6 @@ ${attachmentLines.join('\n')}`
             </html>`;
     }
 }
+
 
 
