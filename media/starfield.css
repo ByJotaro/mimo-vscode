@@ -18,22 +18,12 @@
   position: absolute;
   color: rgb(237, 220, 170);
   font-family: "Courier New", ui-monospace, monospace;
-  font-size: 22px;
+  font-size: 48px;
   line-height: 1;
   transform: translate(-50%, -50%);
-  animation: star-twinkle 4s ease-in-out infinite;
-  text-shadow: 0 0 6px rgba(237, 220, 170, 0.55);
+  text-shadow: 0 0 6px rgba(237, 220, 170, 0.5);
   user-select: none;
-}
-
-.bg__star--hot {
-  color: #fff;
-  text-shadow: 0 0 9px rgba(237, 220, 170, 0.9);
-}
-
-@keyframes star-twinkle {
-  0%, 100% { opacity: 0.2; transform: translate(-50%, -50%) scale(0.85); }
-  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.12); }
+  transition: opacity 0.1s ease;
 }
 
 .bg__comets {
@@ -46,25 +36,6 @@
   width: 3px;
   height: 3px;
   animation: comet-fly linear infinite;
-}
-
-.bg__comet-head {
-  position: absolute;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 8px 2px rgb(180, 215, 255);
-}
-
-.bg__comet-tail {
-  position: absolute;
-  top: 1.5px;
-  right: 3px;
-  width: 130px;
-  height: 1.5px;
-  transform: translateY(-50%);
-  background: linear-gradient(90deg, transparent, rgb(180, 215, 255));
 }
 
 @keyframes comet-fly {
