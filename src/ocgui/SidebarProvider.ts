@@ -1,4 +1,4 @@
-import * as vscode from "vscode";
+﻿import * as vscode from "vscode";
 import * as crypto from "crypto";
 import * as fs from "fs";
 import * as pathModule from "path";
@@ -3891,6 +3891,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                 }
                 case "webviewLivenessAck": {
                     this.handleWebviewLivenessAck(data);
+                    break;
+                }
+                case "selectSession": {
+                    const selId = typeof data.sessionId === 'string' && data.sessionId.trim()
+                        ? data.sessionId.trim()
+                        : undefined;
+                    rtLog(`SELECT_SESSION id=${selId || 'null'}`);
+                    if (selId) {
+                        void this.loadSessionMessages(selId, false);
+                    }
                     break;
                 }
                 case "fetchSlashCommands": {
@@ -9222,14 +9232,23 @@ ${attachmentLines.join('\n')}`
         }
         hide();
     }
-    // Listen on keyup (not input) so it works with React-controlled inputs
-    document.addEventListener('keyup', function (e) {
+    function getActiveVal() {
         var el = document.activeElement;
-        if (!el || (el.tagName !== 'TEXTAREA' && el.tagName !== 'INPUT')) return;
-        var val = el.value;
+        if (!el) return null;
+        if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') return el.value || '';
+        if (el.isContentEditable) return el.textContent || '';
+        return null;
+    }
+    function onActivity() {
+        var val = getActiveVal();
+        if (val === null) return;
         var m = val.match(/\/([a-zA-Z0-9_-]*)$/);
         if (m) { activeIndex = 0; render(m[1]); } else { hide(); }
-    });
+    }
+    // Capture phase so React synthetic events don't swallow them
+    document.addEventListener('keyup', function () { onActivity(); }, true);
+    document.addEventListener('input', function () { onActivity(); }, true);
+    document.addEventListener('click', function () { onActivity(); }, true);
     document.addEventListener('keydown', function (e) {
         if (palette.style.display === 'none') return;
         var items = listEl.children;
@@ -9239,12 +9258,9 @@ ${attachmentLines.join('\n')}`
         else if (e.key === 'Escape') { hide(); }
     });
     function currentFilter() {
-        var el = document.activeElement;
-        if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) {
-            var m = el.value.match(/\/([a-zA-Z0-9_-]*)$/);
-            return m ? m[1] : '';
-        }
-        return '';
+        var val = getActiveVal() || '';
+        var m = val.match(/\/([a-zA-Z0-9_-]*)$/);
+        return m ? m[1] : '';
     }
     window.addEventListener('message', function (ev) {
         var d = ev.data;
@@ -9252,7 +9268,6 @@ ${attachmentLines.join('\n')}`
             SLASH = d.slashCommands || d.commands;
         }
     });
-    // Fallback: request slash commands directly (init may arrive before listener)
     try { acquireVsCodeApi().postMessage({ type: 'fetchSlashCommands' }); } catch (e) {}
 })();
 </script>
@@ -9354,6 +9369,7 @@ ${attachmentLines.join('\n')}`
             </html>`;
     }
 }
+
 
 
 
