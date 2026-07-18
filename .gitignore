@@ -1,10 +1,21 @@
 node_modules/
-.vscode-test/
-.wscode/
 out/
-dist/
+scripts/
+test/
 *.vsix
-*.tsbuildinfo
-.mimocode/
-scripts/cli-help.txt
-PLAN.md
+*.log
+
+# Legacy saffron-based hybrid (excluded from build, not part of the working extension)
+src/webview/
+src/webview.bak/
+src/shared/
+src/MimoService.ts
+src/MimoViewProvider.ts
+src/MimoProxy.ts
+src/mimoBin.ts
+src/messages.ts
+src/extension.ts
+
+# OS / editor
+.DS_Store
+.vscode-test/

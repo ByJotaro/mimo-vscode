@@ -1,93 +1,129 @@
 {
   "name": "mimo-vscode",
   "displayName": "MiMo Code",
-  "description": "VS Code extension embedding MiMo Code (mimo CLI) with a visual chat UI",
+  "publisher": "mimo",
+  "description": "VS Code UI for MiMo Code CLI (OpenCode-compatible) with subagents, code diff, change lists, and undo/restore.",
+  "icon": "media/marketplace-icon.png",
   "version": "0.1.0",
-  "publisher": "ByJotaro",
-  "icon": "media/icon.png",
+  "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ByJotaro/mimo-vscode.git"
+    "url": "https://github.com/Shiyong-Tan/OpenCodeGUI.git"
   },
   "engines": {
-    "vscode": "^1.74.0"
+    "vscode": "^1.80.0"
   },
   "categories": [
     "AI",
-    "Chat"
+    "Other"
   ],
   "keywords": [
-    "mimo",
-    "ai",
-    "agent",
-    "chat",
-    "coding"
+    "MiMo Code",
+    "open code",
+    "ai coding",
+    "code agent",
+    "ai assistant",
+    "coding assistant",
+    "developer tools",
+    "cli tools",
+    "ai dev tools",
+    "ai development",
+    "llm",
+    "openai"
   ],
-  "activationEvents": [],
-  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:mimo.checkVersion",
+    "onView:mimo.sidebar",
+    "onStartupFinished"
+  ],
+  "main": "./out/ocgui/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "mimo",
+          "id": "mimo-activitybar",
           "title": "MiMo Code",
           "icon": "media/icon.svg"
         }
       ]
     },
     "views": {
-      "mimo": [
+      "mimo-activitybar": [
         {
           "type": "webview",
-          "id": "mimo.chatView",
+          "id": "mimo.sidebar",
           "name": "Chat"
         }
       ]
     },
     "commands": [
       {
-        "command": "mimo.addSelectionToPrompt",
-        "title": "Add Selection to Prompt",
-        "category": "MiMo Code"
+        "command": "mimo.checkVersion",
+        "title": "MiMo Code: Check Version"
       },
       {
-        "command": "mimo.newSession",
-        "title": "New Chat Session",
-        "category": "MiMo Code"
+        "command": "mimo.clearAttachmentsCache",
+        "title": "MiMo Code: Clear Attachments Cache"
+      },
+      {
+        "command": "mimo.sendSelectionToChat",
+        "title": "MiMo Code: Send Selection to UI"
+      },
+      {
+        "command": "mimo.sendOutputSelectionToChat",
+        "title": "MiMo Code: Send Output Selection to UI"
+      },
+      {
+        "command": "mimo.debugTuiControlSchema",
+        "title": "MiMo Code: Debug TUI Control Schema"
+      },
+      {
+        "command": "mimo.debugWebviewLivenessMissedAck",
+        "title": "MiMo Code: Debug Webview Liveness Missed Ack"
+      },
+      {
+        "command": "mimo.debugWebviewLivenessAckDropOn",
+        "title": "MiMo Code: Debug Webview Liveness Ack Drop On"
+      },
+      {
+        "command": "mimo.debugWebviewLivenessAckDropOff",
+        "title": "MiMo Code: Debug Webview Liveness Ack Drop Off"
       }
     ],
     "menus": {
       "editor/context": [
         {
-          "command": "mimo.addSelectionToPrompt",
-          "when": "editorTextFocus",
-          "group": "navigation@9"
+          "command": "mimo.sendSelectionToChat",
+          "when": "editorTextFocus && editorHasSelection"
+        },
+        {
+          "command": "mimo.sendOutputSelectionToChat",
+          "when": "resourceScheme == 'output' && editorHasSelection"
         }
       ]
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run build",
-    "build": "npm run build:extension && npm run build:webview",
-    "build:extension": "vite build --config vite.config.extension.ts",
-    "build:webview": "vite build --config vite.config.ts",
-    "watch": "concurrently \"npm run watch:extension\" \"npm run watch:webview\"",
-    "watch:extension": "vite build --config vite.config.extension.ts --watch --mode development",
-    "watch:webview": "vite build --config vite.config.ts --watch --mode development",
-    "package": "npm run build && vsce package",
-    "publish": "npm run build && vsce publish --skip-duplicate"
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
-    "@types/vscode": "^1.74.0",
-    "@vscode/test-electron": "^3.0.0",
-    "@vscode/vsce": "^2.24.0",
-    "concurrently": "^8.2.2",
-    "typescript": "^5.4.0",
-    "vite": "^5.2.0",
-    "vite-plugin-solid": "^2.10.2"
+    "@types/diff-match-patch": "^1.0.36",
+    "@types/dompurify": "^3.0.5",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.80.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.0.0"
   },
   "dependencies": {
-    "solid-js": "^1.8.15"
+    "diff-match-patch": "^1.0.5",
+    "dompurify": "^3.0.8",
+    "markdown-it": "^14.1.0"
   }
 }
+
