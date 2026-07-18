@@ -1,7 +1,7 @@
 import * as crypto from 'crypto';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { diff_match_patch } from 'diff-match-patch';
+import { diff_match_patch } from './vendor/diff-match-patch';
 
 type FileState = {
     filePath: string;

@@ -3902,7 +3902,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     const contextItems = Array.isArray(data.contextItems) ? data.contextItems : [];
                     const hasContext = contextItems.some((item: any) => typeof item?.text === 'string' && item.text.length > 0);
                     if (!data.value && !hasContext && !(Array.isArray(data.attachments) && data.attachments.length)) {
-                        // this.uiDebugChannel.appendLine(`[EXT][SEND_DROP] reason=empty-value`);
+                        const selId = typeof data.sessionId === 'string' && data.sessionId.trim() ? data.sessionId.trim() : undefined;
+                        if (selId) {
+                            void this.loadSessionMessages(selId);
+                        }
                         return;
                     }
 
@@ -6080,6 +6083,14 @@ ${attachmentLines.join('\n')}`
                 `currentSessionId=${initSessionId || 'null'} selectedModel=${this.selectedModel || 'NULL'} selectedMode=${resolvedMode || 'null'} modeCount=${this.availableModes.length}`
             );
 
+            let slashCommands: Array<{ name: string; description: string }> = [];
+            try {
+                slashCommands = await this.client.fetchSlashCommands();
+                rtLog(`SENDINIT slashCommands=${slashCommands.length}`);
+            } catch (error) {
+                rtLog(`SENDINIT slashCommands FAIL: ${String(error)}`);
+            }
+
             liveWebview.postMessage({
                 type: 'init',
                 models,
@@ -6091,7 +6102,8 @@ ${attachmentLines.join('\n')}`
                 currentSessionId: initSessionId,
                 sessionId: initSessionId,
                 panelId: this.getWebviewLivenessPanelId(),
-                webviewInstanceId: this._webviewInstanceId
+                webviewInstanceId: this._webviewInstanceId,
+                slashCommands
             });
             if (initSessionId) {
                 liveWebview.postMessage({
@@ -8831,6 +8843,33 @@ ${attachmentLines.join('\n')}`
         return { title, messages };
     }
 
+    private async loadSessionMessages(sessionId: string): Promise<void> {
+        rtLog(`LOAD_SESSION id=${sessionId}`);
+        const liveWebview = this._view?.webview;
+        if (!liveWebview) return;
+        this.currentSessionId = sessionId;
+        this.client.setSessionId(sessionId);
+        try {
+            const exportData = await this.client.exportSessionRecent(sessionId, this.recentSessionLoadLimit || 200);
+            const formatted = this.formatSession(exportData);
+            const finalFormatted = await this.injectChangeLists(sessionId, formatted);
+            liveWebview.postMessage({
+                type: 'sessionData',
+                sessionId,
+                title: finalFormatted.title,
+                messages: finalFormatted.messages,
+                meta: {
+                    source: 'select',
+                    timelineMessageIds: finalFormatted.messages
+                        .filter((m: any) => typeof m.id === 'string' && m.id.startsWith('msg_'))
+                        .map((m: any) => m.id)
+                }
+            });
+        } catch (err) {
+            rtLog(`LOAD_SESSION_ERR id=${sessionId} err=${String(err).slice(0, 200)}`);
+        }
+    }
+
     private stripModeInjectionBlock(input: string): string {
         if (!input) return '';
         // Remove [analyze-mode]/[search-mode] injected block through trailing separator line,
@@ -9091,39 +9130,105 @@ ${attachmentLines.join('\n')}`
             <body>
                 <div class="bg" id="bg">
                     <div class="bg__grad"></div>
-                    <div class="bg__stars" id="bgStars"></div>
-                    <div class="bg__comets" id="bgComets"></div>
+                    <canvas class="bg__stars" id="bgStars"></canvas>
+                    <canvas class="bg__comets" id="bgComets"></canvas>
                 </div>
                 <script>
                     (function () {
-                        var stars = document.getElementById('bgStars');
-                        if (stars) {
-                            var glyphs = ['✦', '✧', '✶'];
-                            for (var i = 0; i < 70; i++) {
-                                var s = document.createElement('span');
-                                s.className = 'bg__star' + (Math.random() < 0.18 ? ' bg__star--hot' : '');
-                                s.textContent = glyphs[Math.floor(Math.random() * glyphs.length)];
-                                s.style.left = (Math.random() * 100) + 'vw';
-                                s.style.top = (Math.random() * 100) + 'vh';
-                                s.style.fontSize = (8 + Math.random() * 12) + 'px';
-                                s.style.animationDelay = (Math.random() * 4) + 's';
-                                stars.appendChild(s);
+                        var DENSITY = 0.00394, METEOR_INTERVAL = 8000, METEOR_DURATION = 3600, METEOR_ANGLE = 0.36, METEOR_TAIL = 32;
+                            function brailleBit(col, row) { return col === 0 ? (row === 3 ? 6 : row) : (row === 3 ? 7 : 3 + row); }
+                            function brailleChar(bits) { var c = 0x2800; for (var i = 0; i < bits.length; i++) if (bits[i]) c |= (1 << bits[i]); return String.fromCharCode(c); }
+                            function brailleStar(b) { var bits = []; for (var i = 0; i < 8; i++) bits.push(Math.random() < b ? 1 : 0); if (bits.every(function (x) { return !x; })) bits[Math.floor(Math.random() * 8)] = 1; return brailleChar(bits); }
+                            var starC = document.getElementById('bgStars'), meteorC = document.getElementById('bgComets');
+                            var sctx, mctx, W = 0, H = 0, dpr = window.devicePixelRatio || 1, field = [], meteors = [], lastMeteor = 0;
+                            function resize() {
+                                W = starC.clientWidth; H = starC.clientHeight;
+                                [starC, meteorC].forEach(function (c) { c.width = W * dpr; c.height = H * dpr; });
+                                sctx = starC.getContext('2d'); mctx = meteorC.getContext('2d');
+                                sctx.scale(dpr, dpr); mctx.scale(dpr, dpr);
+                                field = []; var cols = Math.ceil(W / 6), rows = Math.ceil(H / 12);
+                                for (var y = 0; y < rows; y++) { var row = []; for (var x = 0; x < cols; x++) { if (Math.random() < DENSITY * 40) { var b = 0.15 + Math.random() * 0.4; row.push({ ch: brailleStar(b), b: b }); } else row.push(null); } field.push(row); }
                             }
-                        }
-                        var comets = document.getElementById('bgComets');
-                        if (comets) {
-                            for (var c = 0; c < 3; c++) {
-                                var k = document.createElement('div');
-                                k.className = 'bg__comet';
-                                k.style.top = (10 + Math.random() * 70) + 'vh';
-                                k.style.animationDuration = (7 + Math.random() * 6) + 's';
-                                k.style.animationDelay = (Math.random() * 10) + 's';
-                                k.innerHTML = '<div class="bg__comet-head"></div><div class="bg__comet-tail"></div>';
-                                comets.appendChild(k);
+                            function drawStars() {
+                                if (!sctx) return; sctx.clearRect(0, 0, W, H); sctx.font = '12px monospace'; sctx.textBaseline = 'top';
+                                for (var y = 0; y < field.length; y++) for (var x = 0; x < field[y].length; x++) { var cell = field[y][x]; if (!cell) continue; sctx.fillStyle = cell.b > 0.85 ? 'rgba(255,221,148,0.9)' : 'rgba(230,236,245,0.6)'; sctx.fillText(cell.ch, x * 6, y * 12); }
                             }
+                            function spawnMeteor() { meteors.push({ x: Math.random() * W, y: -20, life: 0 }); }
+                            function drawMeteors() {
+                                if (!mctx) return; mctx.clearRect(0, 0, W, H); var dx = Math.cos(METEOR_ANGLE), dy = Math.sin(METEOR_ANGLE);
+                                for (var i = meteors.length - 1; i >= 0; i--) { var m = meteors[i]; m.life += 50 / 1000; m.x += dx * 4; m.y += dy * 4; var a = 1 - (m.life * 1000) / METEOR_DURATION; if (a <= 0 || m.y > H + 40) { meteors.splice(i, 1); continue; } mctx.strokeStyle = 'rgba(255,236,200,' + (a * 0.8) + ')'; mctx.lineWidth = 2; mctx.beginPath(); mctx.moveTo(m.x, m.y); mctx.lineTo(m.x - dx * METEOR_TAIL, m.y - dy * METEOR_TAIL); mctx.stroke(); }
+                            }
+                            function loop() { if (Math.random() < 0.05) { var y = Math.floor(Math.random() * field.length), x = Math.floor(Math.random() * (field[0] ? field[0].length : 0)); if (field[y] && field[y][x] && field[y][x].b < 0.85) field[y][x].b = 0.15 + Math.random() * 0.4; } drawStars(); drawMeteors(); requestAnimationFrame(loop); }
+                            window.addEventListener('resize', resize); resize();
+                            setInterval(function () { if (Date.now() - lastMeteor > METEOR_INTERVAL) { spawnMeteor(); lastMeteor = Date.now(); } }, METEOR_INTERVAL);
+                            loop();
+                        })();
+                    </script>
+
+                <div class="slash-palette hidden" id="slashPalette">
+                    <div class="slash-palette-header">SLASH COMMANDS</div>
+                    <div class="slash-palette-list" id="slashPaletteList"></div>
+                </div>
+
+                <script>
+                    (function () {
+                        var SLASH = [];
+                        window.__mimoSlashCommands = function (list) { SLASH = Array.isArray(list) ? list : []; };
+                        var palette = document.getElementById('slashPalette');
+                        var listEl = document.getElementById('slashPaletteList');
+                        var activeIndex = -1;
+                        function render(filter) {
+                            listEl.innerHTML = '';
+                            var items = SLASH.filter(function (c) { return !filter || c.name.toLowerCase().indexOf(filter.toLowerCase()) >= 0; });
+                            if (!items.length) { palette.classList.add('hidden'); return; }
+                            items.forEach(function (c, i) {
+                                var row = document.createElement('div');
+                                row.className = 'slash-item' + (i === activeIndex ? ' active' : '');
+                                row.innerHTML = '<span class="slash-name">/' + c.name + '</span><span class="slash-desc">' + (c.description || '') + '</span>';
+                                row.onmousedown = function (e) { e.preventDefault(); apply('/' + c.name + ' '); };
+                                listEl.appendChild(row);
+                            });
+                            palette.classList.remove('hidden');
                         }
+                        function hide() { palette.classList.add('hidden'); activeIndex = -1; }
+                        function apply(text) {
+                            var input = document.querySelector('textarea, input[type=text]');
+                            if (input) {
+                                input.value = text;
+                                input.focus();
+                                input.dispatchEvent(new Event('input', { bubbles: true }));
+                            }
+                            hide();
+                        }
+                        document.addEventListener('input', function (e) {
+                            var t = e.target;
+                            if (!t || (t.tagName !== 'TEXTAREA' && t.tagName !== 'INPUT')) return;
+                            var val = t.value;
+                            var m = val.match(/\/([a-zA-Z0-9_-]*)$/);
+                            if (m) { activeIndex = 0; render(m[1]); } else { hide(); }
+                        });
+                        document.addEventListener('keydown', function (e) {
+                            if (palette.classList.contains('hidden')) return;
+                            var items = listEl.children;
+                            if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = Math.min(items.length - 1, activeIndex + 1); render(currentFilter()); }
+                            else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = Math.max(0, activeIndex - 1); render(currentFilter()); }
+                            else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); var item = items[activeIndex]; if (item) item.onmousedown({ preventDefault: function () {} }); }
+                            else if (e.key === 'Escape') { hide(); }
+                        });
+                        function currentFilter() {
+                            var input = document.querySelector('textarea, input[type=text]');
+                            var m = input && input.value.match(/\/([a-zA-Z0-9_-]*)$/);
+                            return m ? m[1] : '';
+                        }
+                        window.addEventListener('message', function (ev) {
+                            var d = ev.data;
+                            if (d && d.type === 'init' && Array.isArray(d.slashCommands)) {
+                                SLASH = d.slashCommands;
+                            }
+                        });
                     })();
                 </script>
+
                 <div class="session-header">
                     <div class="session-header-left">
                         <span class="server-status-dot status-connected" id="server-status-dot" title="Connected"></span>
@@ -9221,4 +9326,5 @@ ${attachmentLines.join('\n')}`
             </html>`;
     }
 }
+
 

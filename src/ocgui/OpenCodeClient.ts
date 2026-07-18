@@ -6603,9 +6603,14 @@ export class OpenCodeClient {
 
     private async resolveAntigravityOAuthConstants(): Promise<AntigravityOAuthConstants | null> {
         try {
-            const loaded = require('opencode-antigravity-auth/dist/src/constants.js') as Record<string, unknown>;
-            const clientId = typeof loaded.ANTIGRAVITY_CLIENT_ID === 'string' ? loaded.ANTIGRAVITY_CLIENT_ID.trim() : '';
-            const clientSecret = typeof loaded.ANTIGRAVITY_CLIENT_SECRET === 'string' ? loaded.ANTIGRAVITY_CLIENT_SECRET.trim() : '';
+            let loaded: Record<string, unknown> | null = null;
+            try {
+                loaded = require('opencode-antigravity-auth/dist/src/constants.js') as Record<string, unknown>;
+            } catch {
+                loaded = null;
+            }
+            const clientId = loaded && typeof loaded.ANTIGRAVITY_CLIENT_ID === 'string' ? loaded.ANTIGRAVITY_CLIENT_ID.trim() : '';
+            const clientSecret = loaded && typeof loaded.ANTIGRAVITY_CLIENT_SECRET === 'string' ? loaded.ANTIGRAVITY_CLIENT_SECRET.trim() : '';
             if (clientId && clientSecret) {
                 this.logUiDebug('EXT: quota.antigravity.auth-source | source=opencode-antigravity-auth');
                 return { clientId, clientSecret };
@@ -9043,9 +9048,26 @@ export class OpenCodeClient {
 
     public async exportSession(sessionId: string): Promise<any> {
         await this.ensureServer();
-        const messages = await this.requestJson<any[]>( 'GET', `/session/${sessionId}/message`);
+        const messages = await this.requestJson<any[]>('GET', `/session/${sessionId}/message`);
         const info = await this.requestJson<any>('GET', `/session/${sessionId}`);
         return { session: info, messages };
+    }
+
+    /** Fetch available slash commands from the MiMo CLI. Returns [{name, description}]. */
+    public async fetchSlashCommands(): Promise<Array<{ name: string; description: string }>> {
+        try {
+            await this.ensureServer();
+            const raw = await this.requestJson<any>('GET', `/command`);
+            const list = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.commands) ? raw.commands : []);
+            const out: Array<{ name: string; description: string }> = [];
+            for (const item of list) {
+                if (!item || typeof item.name !== 'string') continue;
+                out.push({ name: item.name, description: typeof item.description === 'string' ? item.description : '' });
+            }
+            return out;
+        } catch {
+            return [];
+        }
     }
 
     public async exportSessionRecent(sessionId: string, limit = 200): Promise<any> {

@@ -11,6 +11,7 @@
     "rootDir": "src",
     "strict": true,
     "skipLibCheck": true,
+    "allowJs": true,
     "esModuleInterop": true,
     "types": [
       "node",

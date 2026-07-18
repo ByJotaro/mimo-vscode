@@ -1,7 +1,8 @@
 import * as fs from "fs";
 import * as os from "os";
 
-const LOG_PATH = `${os.homedir()}\\.mimo-vscode-debug.log`;
+const TMP = os.tmpdir();
+const LOG_PATH = `${TMP}\\mimo-vscode-debug.log`;
 
 export function rtLog(msg: string): void {
     try {
