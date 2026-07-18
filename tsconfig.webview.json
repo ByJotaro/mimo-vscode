@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    "target": "ES2022",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
     "moduleResolution": "bundler",
@@ -19,5 +19,6 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src/webview"],
+  "exclude": ["src/webview/ocgui", "src/webview.bak", "**/*.bak", "src/webview/uikit.tsx", "src/webview/state/MockSyncProvider.tsx", "src/webview/uikit.html", "src/webview/standalone.html"],
   "composite": true
 }

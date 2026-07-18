@@ -1,8 +1,24 @@
-import { render } from "solid-js/web";
-import App from "./App";
-import "./styles/App.css";
+import { render } from 'solid-js/web';
+import App from './App';
+import { Background } from './components/Background';
+import { OpenCodeProvider } from './hooks/useOpenCode';
+import { SyncProvider } from './state/sync';
+import './App.css';
 
-const root = document.getElementById("root");
-if (root) {
-  render(() => <App />, root);
+try {
+  render(
+    () => (
+      <>
+        <Background />
+        <OpenCodeProvider>
+          <SyncProvider>
+            <App />
+          </SyncProvider>
+        </OpenCodeProvider>
+      </>
+    ),
+    document.getElementById('root')!
+  );
+} catch (error) {
+  console.error('[OpenCode] Error rendering webview:', error);
 }

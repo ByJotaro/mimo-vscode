@@ -1,315 +1,659 @@
 import * as vscode from "vscode";
+import { execFile } from "child_process";
 import { MimoService } from "./MimoService";
-import type { HostMessage, WebviewMessage } from "./shared/messages";
+import { getLogger } from "./extension";
+import type {
+  HostMessage,
+  WebviewMessage,
+  IncomingMessage,
+} from "./shared/messages";
 import { parseWebviewMessage } from "./shared/messages";
+import { parseFileReferenceTarget } from "./shared/fileReferences";
+import {
+  SseClient,
+  SseConnectionState,
+  SseEvent,
+  SseLogger,
+} from "./transport/SseClient";
+
+const LAST_AGENT_KEY = "mimo.lastUsedAgent";
+
+interface DevServerConfig {
+  origin: string;
+  port: number;
+  viteClientUrl: string;
+  mainEntryUrl: string;
+  wsOrigin: string;
+}
 
 export class MimoViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "mimo.chatView";
-
   private _view?: vscode.WebviewView;
-  private _pending: HostMessage[] = [];
-  private _ready = false;
+  private _sseClients = new Map<string, SseClient>();
+  private _proxyFetchControllers = new Map<string, AbortController>();
+  private _webviewReady = false;
+  private _pendingMessages: HostMessage[] = [];
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
-    private readonly _service: MimoService,
+    private readonly _openCodeService: MimoService,
+    private readonly _globalState: vscode.Memento,
   ) {}
 
-  public resolveWebviewView(webviewView: vscode.WebviewView): void {
+  public resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken,
+  ) {
+    const logger = getLogger();
+    logger.info("resolveWebviewView called");
+    const devServerConfig = this._getDevServerConfig();
+    if (devServerConfig) {
+      logger.info("[ViewProvider] Using dev server for webview", {
+        origin: devServerConfig.origin,
+        port: devServerConfig.port,
+        viteClientUrl: devServerConfig.viteClientUrl,
+        mainEntryUrl: devServerConfig.mainEntryUrl,
+      });
+    }
+
     this._view = webviewView;
-    this._ready = false;
+    this._webviewReady = false;
 
     webviewView.webview.options = {
       enableScripts: true,
       localResourceRoots: [vscode.Uri.joinPath(this._extensionUri, "out")],
+      portMapping: devServerConfig
+        ? [{ webviewPort: devServerConfig.port, extensionHostPort: devServerConfig.port }]
+        : [],
     };
 
-    webviewView.webview.html = this._html(webviewView.webview);
+    const html = this._getHtmlForWebview(webviewView.webview, devServerConfig);
+    logger.info("Generated webview HTML length:", html.length);
+    webviewView.webview.html = html;
 
     webviewView.webview.onDidReceiveMessage(async (data: unknown) => {
-      const msg = parseWebviewMessage(data);
-      if (!msg) return;
-      await this._handle(msg);
+      // Handle proxy messages directly (they don't go through parseWebviewMessage)
+      if (typeof data === "object" && data !== null) {
+        const msg = data as Record<string, unknown>;
+
+        // Handle log messages from webview
+        if (msg.type === "log") {
+          const logger = getLogger();
+          const level = msg.level as "debug" | "info" | "error";
+          const message = msg.message as string;
+          const logData = msg.data;
+          if (level === "error") {
+            logger.error(`[Webview] ${message}`, logData);
+          } else if (level === "info") {
+            logger.info(`[Webview] ${message}`, logData);
+          } else {
+            logger.debug(`[Webview] ${message}`, logData);
+          }
+          return;
+        }
+
+        if (msg.type === "proxyFetch") {
+          await this._handleProxyFetch(
+            msg as {
+              id: string;
+              url: string;
+              init?: {
+                method?: string;
+                headers?: Record<string, string>;
+                body?: string;
+              };
+            },
+          );
+          return;
+        }
+        if (msg.type === "proxyFetchAbort") {
+          this._handleProxyFetchAbort(msg.id as string);
+          return;
+        }
+        if (msg.type === "sseSubscribe") {
+          this._handleSSESubscribe(msg as { id: string; url: string });
+          return;
+        }
+        if (msg.type === "sseClose") {
+          this._handleSSEClose(msg.id as string);
+          return;
+        }
+      }
+
+      const message = parseWebviewMessage(data);
+      if (!message) {
+        console.warn(
+          "[ViewProvider] Received invalid message from webview:",
+          data,
+        );
+        return;
+      }
+      await this._handleWebviewMessage(message);
     });
   }
 
-  private async _handle(msg: WebviewMessage) {
-    switch (msg.type) {
+  private async _handleWebviewMessage(message: WebviewMessage) {
+    switch (message.type) {
       case "ready":
         await this._handleReady();
         break;
-      case "loadSessions":
-        await this._sendSessions();
+      case "agent-changed":
+        await this._handleAgentChanged(message.agent);
         break;
-      case "loadMessages":
-        await this._sendMessages(msg.sessionId);
+      case "open-file":
+        await this._handleOpenFile(
+          message.url,
+          message.startLine,
+          message.endLine,
+        );
         break;
-      case "sendPrompt":
-        await this._sendPrompt(msg.text, msg.sessionId);
-        break;
-      case "newSession":
-        this._service.setActiveSessionId(undefined);
-        this._post({ type: "init", ready: this._service.isReady, serverUrl: this._service.getServerUrl() ?? "", sessions: await this._safeSessions() });
-        break;
-      case "loadAgents":
-        await this._sendAgents();
-        break;
-      case "loadMcp":
-        await this._sendMcp();
-        break;
-      case "loadConfig":
-        await this._sendConfig();
-        break;
-      case "fetchRaw":
-        await this._sendRaw(msg.topic, msg.days);
-        break;
-      case "sessionAction":
-        await this._sessionAction(msg.action, msg.sessionId, msg.sanitize);
-        break;
-      case "pluginAction":
-        await this._pluginAction(msg.module, msg.global, msg.force);
-        break;
-      case "debugAction":
-        await this._debugAction(msg.sub);
-        break;
-      case "editor-selection":
-        // forward to webview (e.g. to insert a file mention) - already handled if view ready
-        this._post(msg as unknown as HostMessage);
+      case "search-files":
+        await this._handleSearchFiles(message.query);
         break;
     }
   }
 
-  private async _safeSessions() {
+  private async _handleOpenFile(
+    url: string,
+    startLine?: number,
+    endLine?: number,
+  ) {
     try {
-      return await this._service.getSessions();
-    } catch {
-      return [];
+      const parsedTarget = parseFileReferenceTarget(url);
+      const targetUrl = parsedTarget?.url ?? url;
+      const resolvedStartLine = startLine ?? parsedTarget?.startLine;
+      const resolvedEndLine = endLine ?? parsedTarget?.endLine;
+
+      const uri = vscode.Uri.parse(targetUrl);
+      const document = await vscode.workspace.openTextDocument(uri);
+      const editor = await vscode.window.showTextDocument(document, {
+        preview: true,
+      });
+      if (resolvedStartLine !== undefined) {
+        const start = new vscode.Position(Math.max(resolvedStartLine - 1, 0), 0);
+        const end = new vscode.Position(
+          Math.max((resolvedEndLine ?? resolvedStartLine) - 1, 0),
+          0,
+        );
+        const range = new vscode.Range(start, end);
+        editor.selection = new vscode.Selection(range.start, range.end);
+        editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
+      }
+    } catch (error) {
+      const logger = getLogger();
+      logger.error("[ViewProvider] Failed to open file", { url, error });
+      vscode.window.showErrorMessage("OpenCode: Failed to open file.");
+    }
+  }
+
+  private async _handleSearchFiles(query: string) {
+    try {
+      const logger = getLogger();
+      logger.info("[ViewProvider] Searching files", { query });
+
+      const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+      if (!workspaceFolder) {
+        this._sendMessage({ type: "search-files-result", files: [] });
+        return;
+      }
+
+      const cwd = workspaceFolder.uri.fsPath;
+      const lowerQuery = query.toLowerCase();
+
+      const files = await new Promise<string[]>((resolve) => {
+        execFile(
+          "git",
+          ["ls-files", "--cached", "--others", "--exclude-standard"],
+          { cwd, maxBuffer: 10 * 1024 * 1024 },
+          (error, stdout) => {
+            if (error) {
+              logger.error("[ViewProvider] git ls-files failed", { error });
+              resolve([]);
+              return;
+            }
+            const matches = stdout
+              .split("\n")
+              .filter((f) => f && f.toLowerCase().includes(lowerQuery))
+              .slice(0, 50);
+            resolve(matches);
+          },
+        );
+      });
+
+      logger.info("[ViewProvider] File search complete", {
+        query,
+        count: files.length,
+      });
+
+      this._sendMessage({
+        type: "search-files-result",
+        files,
+      });
+    } catch (error) {
+      const logger = getLogger();
+      logger.error("[ViewProvider] Failed to search files", { query, error });
+      this._sendMessage({
+        type: "search-files-result",
+        files: [],
+      });
     }
   }
 
   private async _handleReady() {
-    // Wait for mimo serve to be up so the chat is immediately usable.
     try {
-      await this._service.whenReady();
-    } catch {
-      /* serve failed; still send init so the UI can show an error */
-    }
-    const [sessions, version] = await Promise.all([this._safeSessions(), this._safeVersion()]);
-    this._post({
-      type: "init",
-      ready: this._service.isReady,
-      serverUrl: this._service.getServerUrl() ?? "",
-      sessions,
-      version,
-    });
-    this._ready = true;
-    for (const m of this._pending) this._post(m);
-    this._pending = [];
-  }
+      const currentSessionId =
+        this._openCodeService.getCurrentSessionId() ?? undefined;
+      const currentSessionTitle =
+        this._openCodeService.getCurrentSessionTitle();
 
-  private async _safeVersion(): Promise<string | undefined> {
-    try {
-      return (await this._service.getVersion()).trim();
-    } catch {
-      return undefined;
-    }
-  }
-
-  private async _sendSessions() {
-    this._post({ type: "sessions", sessions: await this._safeSessions() });
-  }
-
-  private async _sendAgents() {
-    try {
-      const agents = await this._service.getAgents();
-      this._post({ type: "agents", agents: agents as any[] });
-    } catch (e) {
-      this._post({ type: "error", message: `Failed to load agents: ${(e as Error).message}` });
-    }
-  }
-
-  private async _sendMcp() {
-    try {
-      const servers = await this._service.getMcp();
-      this._post({ type: "mcp", servers });
-    } catch (e) {
-      this._post({ type: "error", message: `Failed to load MCP servers: ${(e as Error).message}` });
-    }
-  }
-
-  private async _sendConfig() {
-    try {
-      const config = await this._service.getConfig();
-      this._post({ type: "config", config });
-    } catch (e) {
-      this._post({ type: "error", message: `Failed to load config: ${(e as Error).message}` });
-    }
-  }
-
-  private async _sendRaw(
-    topic: "models" | "providers" | "providers-whoami" | "stats" | "version",
-    days?: number,
-  ) {
-    try {
-      let text = "";
-      switch (topic) {
-        case "models":
-          text = await this._service.getModels(true);
-          break;
-        case "providers":
-          text = await this._service.getProviders();
-          break;
-        case "providers-whoami":
-          text = await this._service.getProvidersWhoami();
-          break;
-        case "stats":
-          text = await this._service.getStats(days);
-          break;
-        case "version":
-          text = await this._service.getVersion();
-          break;
+      let messages: IncomingMessage[] | undefined;
+      if (currentSessionId) {
+        try {
+          const sdkMessages =
+            await this._openCodeService.getMessages(currentSessionId);
+          // Transform SDK Message[] to IncomingMessage[]
+          messages = sdkMessages.map((msg) => ({
+            id: msg.id,
+            role: msg.role,
+          }));
+        } catch (error) {
+          console.error("Error loading session messages:", error);
+          this._sendMessage({
+            type: "error",
+            message: `Failed to load session messages: ${(error as Error).message}`,
+          });
+        }
       }
-      this._post({ type: "raw", topic, text, ok: true });
-    } catch (e) {
-      this._post({ type: "raw", topic, text: (e as Error).message, ok: false });
+
+      this._sendMessage({
+        type: "init",
+        ready: this._openCodeService.isReady,
+        workspaceRoot: this._openCodeService.getWorkspaceRoot(),
+        serverUrl: this._openCodeService.getServerUrl(),
+        currentSessionId,
+        currentSessionTitle,
+        currentSessionMessages: messages,
+        defaultAgent: this._globalState.get<string>(LAST_AGENT_KEY),
+      });
+      this._webviewReady = true;
+      this._flushPendingMessages();
+    } catch (error) {
+      console.error("Error handling ready:", error);
+      this._sendMessage({
+        type: "error",
+        message: `Failed to initialize: ${(error as Error).message}`,
+      });
+      this._sendMessage({
+        type: "init",
+        ready: this._openCodeService.isReady,
+        workspaceRoot: this._openCodeService.getWorkspaceRoot(),
+        serverUrl: this._openCodeService.getServerUrl(),
+        currentSessionId: undefined,
+      });
+      this._webviewReady = true;
+      this._flushPendingMessages();
     }
   }
 
-  private async _sessionAction(action: "delete" | "export", sessionId: string, sanitize?: boolean) {
+  private async _handleAgentChanged(agent: string) {
+    await this._globalState.update(LAST_AGENT_KEY, agent);
+    const logger = getLogger();
+    logger.info("[ViewProvider] Agent selection persisted:", agent);
+  }
+
+  // SSE Proxy handlers using resilient SseClient
+  private _handleSSESubscribe(message: { id: string; url: string }) {
+    const { id, url } = message;
+    const logger = getLogger();
+
+    if (typeof id !== "string" || typeof url !== "string") {
+      logger.warn("[ViewProvider] Invalid sseSubscribe message", message);
+      return;
+    }
+
+    const serverUrl = this._openCodeService.getServerUrl();
+    if (!serverUrl) {
+      this._sendMessage({
+        type: "sseError",
+        id,
+        error: "OpenCode server URL not configured",
+      } as HostMessage);
+      return;
+    }
+
+    let target: URL;
+    let allowed: URL;
     try {
-      const text =
-        action === "delete"
-          ? await this._service.deleteSession(sessionId)
-          : await this._service.exportSession(sessionId, sanitize);
-      this._post({ type: "raw", topic: action, text, ok: true });
-      if (action === "delete") this._post({ type: "sessions", sessions: await this._safeSessions() });
-    } catch (e) {
-      this._post({ type: "raw", topic: action, text: (e as Error).message, ok: false });
+      target = new URL(url);
+      allowed = new URL(serverUrl);
+    } catch {
+      this._sendMessage({
+        type: "sseError",
+        id,
+        error: "Invalid URL for SSE subscription",
+      } as HostMessage);
+      return;
+    }
+
+    if (target.origin !== allowed.origin) {
+      this._sendMessage({
+        type: "sseError",
+        id,
+        error: "SSE only allowed to OpenCode server origin",
+      } as HostMessage);
+      return;
+    }
+
+    // Close existing connection with this id
+    this._handleSSEClose(id);
+
+    // Create logger adapter for SseClient
+    const sseLogger: SseLogger = {
+      info: (msg, ...args) => logger.info(msg, ...args),
+      warn: (msg, ...args) => logger.warn(msg, ...args),
+      error: (msg, ...args) => logger.error(msg, ...args),
+    };
+
+    // Build headers including x-opencode-directory
+    const headers: Record<string, string> = {};
+    const workspaceRoot = this._openCodeService.getWorkspaceRoot();
+    if (workspaceRoot) {
+      // Encode directory as per SDK client (percent-encode non-ASCII)
+      headers["x-opencode-directory"] = encodeURIComponent(workspaceRoot);
+    }
+
+    const client = new SseClient(url, {
+      onEvent: (event: SseEvent) => {
+        this._sendMessage({
+          type: "sseEvent",
+          id,
+          data: event.data,
+        } as HostMessage);
+      },
+      onStateChange: (state: SseConnectionState) => {
+        logger.info("[ViewProvider] SSE state change", { id, state });
+
+        // Send status to webview for observability
+        if (state.status === "connecting") {
+          this._sendMessage({
+            type: "sseStatus",
+            id,
+            status: "connecting",
+          } as HostMessage);
+        } else if (state.status === "connected") {
+          this._sendMessage({
+            type: "sseStatus",
+            id,
+            status: "connected",
+          } as HostMessage);
+        } else if (state.status === "reconnecting") {
+          this._sendMessage({
+            type: "sseStatus",
+            id,
+            status: "reconnecting",
+            attempt: state.attempt,
+            nextRetryMs: state.nextRetryMs,
+          } as HostMessage);
+        } else if (state.status === "closed") {
+          this._sendMessage({
+            type: "sseStatus",
+            id,
+            status: "closed",
+            reason: state.reason,
+          } as HostMessage);
+          this._sendMessage({ type: "sseClosed", id } as HostMessage);
+          this._sseClients.delete(id);
+        }
+      },
+      onError: (error: Error) => {
+        logger.error("[ViewProvider] SSE unrecoverable error", {
+          id,
+          error: error.message,
+        });
+        this._sendMessage({
+          type: "sseError",
+          id,
+          error: error.message,
+        } as HostMessage);
+        this._sseClients.delete(id);
+      },
+      logger: sseLogger,
+      headers,
+    });
+
+    this._sseClients.set(id, client);
+    client.connect();
+    logger.info(
+      "[ViewProvider] SSE subscription started with resilient client:",
+      id,
+    );
+  }
+
+  private _handleSSEClose(id: string) {
+    const client = this._sseClients.get(id);
+    if (client) {
+      client.close();
+      this._sseClients.delete(id);
     }
   }
 
-  private async _pluginAction(module: string, global?: boolean, force?: boolean) {
-    try {
-      const text = await this._service.installPlugin(module, global, force);
-      this._post({ type: "raw", topic: "plugin", text, ok: true });
-    } catch (e) {
-      this._post({ type: "raw", topic: "plugin", text: (e as Error).message, ok: false });
+  private _handleProxyFetchAbort(id: string) {
+    const controller = this._proxyFetchControllers.get(id);
+    if (controller) {
+      controller.abort();
+      this._proxyFetchControllers.delete(id);
     }
   }
 
-  private async _debugAction(sub: string) {
-    try {
-      const text = await this._service.debugCommand(sub);
-      this._post({ type: "raw", topic: "debug", text, ok: true });
-    } catch (e) {
-      this._post({ type: "raw", topic: "debug", text: (e as Error).message, ok: false });
+  private async _handleProxyFetch(message: {
+    id: string;
+    url: string;
+    init?: {
+      method?: string;
+      headers?: Record<string, string>;
+      body?: string;
+    };
+  }) {
+    const { id, url, init } = message;
+    const logger = getLogger();
+
+    if (typeof id !== "string" || typeof url !== "string") {
+      logger.warn("[ViewProvider] Invalid proxyFetch message", message);
+      return;
     }
-  }
 
-  private async _sendMessages(sessionId: string) {
-    try {
-      const raw = await this._service.getMessages(sessionId);
-      const messages = raw
-        .filter((m: any) => m && (m.role === "user" || m.role === "assistant") && m.parts)
-        .map((m: any): any => ({
-          id: m.id,
-          role: m.role,
-          text: (m.parts || [])
-            .filter((p: any) => p && p.type === "text" && typeof p.text === "string")
-            .map((p: any) => p.text)
-            .join(""),
-        }));
-      this._post({ type: "messages", sessionId, messages });
-    } catch (e) {
-      this._post({ type: "error", message: `Failed to load messages: ${(e as Error).message}` });
+    const serverUrl = this._openCodeService.getServerUrl();
+
+    if (!serverUrl) {
+      this._sendMessage({
+        type: "proxyFetchResult",
+        id,
+        ok: false,
+        error: "Proxy fetch disabled: OpenCode server URL not configured",
+      } as HostMessage);
+      return;
     }
-  }
 
-  private async _sendPrompt(text: string, sessionId: string | undefined) {
-    const useSession = sessionId ?? this._service.getActiveSessionId();
-    this._post({ type: "thinking", sessionId: useSession ?? "", value: true });
+    let target: URL;
+    let allowed: URL;
+    try {
+      target = new URL(url);
+      allowed = new URL(serverUrl);
+    } catch {
+      this._sendMessage({
+        type: "proxyFetchResult",
+        id,
+        ok: false,
+        error: "Invalid URL for proxy fetch",
+      } as HostMessage);
+      return;
+    }
 
-    let acc = "";
-    let msgId = `msg_${Date.now()}`;
-    let assistant: any = null;
+    if (target.origin !== allowed.origin) {
+      this._sendMessage({
+        type: "proxyFetchResult",
+        id,
+        ok: false,
+        error: "Proxy fetch only allowed to OpenCode server origin",
+      } as HostMessage);
+      return;
+    }
+
+    const controller = new AbortController();
+    this._proxyFetchControllers.set(id, controller);
 
     try {
-      const returnedId = await this._service.sendPrompt(text, useSession, {
-        onText: (t, id) => {
-          msgId = id;
-          acc += t;
-          if (!assistant) {
-            assistant = { id: msgId, role: "assistant", text: acc, streaming: true };
-            this._post({ type: "message", sessionId: useSession ?? "", message: assistant });
-          } else {
-            this._post({ type: "delta", sessionId: useSession ?? "", messageId: msgId, text: t });
-          }
-        },
-        onDone: (id) => {
-          msgId = id;
-          this._post({ type: "thinking", sessionId: useSession ?? "", value: false });
-        },
-        onError: (err) => {
-          this._post({ type: "error", message: err });
-          this._post({ type: "thinking", sessionId: useSession ?? "", value: false });
-        },
+      const res = await fetch(url, {
+        method: init?.method,
+        headers: init?.headers,
+        body: init?.body,
+        signal: controller.signal,
       });
 
-      // opencode-style: --continue forks a child session; continue the chain from it
-      this._service.setActiveSessionId(returnedId);
-      this._post({ type: "thinking", sessionId: useSession ?? "", value: false });
-      // refresh session list so the new child appears
-      this._post({ type: "sessions", sessions: await this._safeSessions() });
-    } catch (e) {
-      this._post({ type: "error", message: `Failed to send prompt: ${(e as Error).message}` });
-      this._post({ type: "thinking", sessionId: useSession ?? "", value: false });
-    }
-  }
+      const bodyText = await res.text();
 
-  private _post(msg: HostMessage) {
-    if (this._view) {
-      if (this._ready || msg.type === "init") {
-        this._view.webview.postMessage(msg);
+      const headers: Record<string, string> = {};
+      res.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+
+      this._sendMessage({
+        type: "proxyFetchResult",
+        id,
+        ok: true,
+        status: res.status,
+        statusText: res.statusText,
+        headers,
+        bodyText,
+      } as HostMessage);
+    } catch (error) {
+      if ((error as Error).name === "AbortError") {
+        logger.info("[ViewProvider] Proxy fetch aborted", { url, id });
+        this._sendMessage({
+          type: "proxyFetchResult",
+          id,
+          ok: false,
+          error: "Aborted",
+        } as HostMessage);
       } else {
-        this._pending.push(msg);
+        logger.error("[ViewProvider] Proxy fetch failed", { url, error });
+        this._sendMessage({
+          type: "proxyFetchResult",
+          id,
+          ok: false,
+          error: String((error as Error)?.message ?? error),
+        } as HostMessage);
       }
-    } else {
-      this._pending.push(msg);
+    } finally {
+      this._proxyFetchControllers.delete(id);
     }
   }
 
-  public postToWebview(msg: HostMessage) {
-    this._post(msg);
+  private _sendMessage(message: HostMessage) {
+    if (this._view) {
+      this._view.webview.postMessage(message);
+    }
   }
 
-  private _html(webview: vscode.Webview): string {
+  public sendHostMessage(message: HostMessage) {
+    if (this._view && this._webviewReady) {
+      this._view.webview.postMessage(message);
+      return;
+    }
+    this._pendingMessages.push(message);
+  }
+
+  private _flushPendingMessages() {
+    if (!this._view || this._pendingMessages.length === 0) return;
+    const pending = this._pendingMessages;
+    this._pendingMessages = [];
+    for (const message of pending) {
+      this._sendMessage(message);
+    }
+  }
+
+  private _getDevServerConfig(): DevServerConfig | null {
+    const raw = process.env.OPENCODE_DEV_SERVER_URL?.trim();
+    if (!raw) return null;
+
+    try {
+      const parsed = new URL(raw);
+      const originRoot = `${parsed.origin}/`;
+      const viteClientUrl = new URL("/@vite/client", originRoot).toString();
+      const mainEntryUrl = new URL("/src/webview/main.tsx", originRoot).toString();
+
+      const wsUrl = new URL(originRoot);
+      wsUrl.protocol = wsUrl.protocol === "https:" ? "wss:" : "ws:";
+
+      const port =
+        parsed.port.length > 0
+          ? Number(parsed.port)
+          : parsed.protocol === "https:"
+            ? 443
+            : 80;
+
+      return {
+        origin: parsed.origin,
+        port,
+        viteClientUrl,
+        mainEntryUrl,
+        wsOrigin: wsUrl.origin,
+      };
+    } catch {
+      getLogger().warn("[ViewProvider] Invalid OPENCODE_DEV_SERVER_URL; falling back to bundled webview");
+      return null;
+    }
+  }
+
+  private _getHtmlForWebview(webview: vscode.Webview, devServerConfig: DevServerConfig | null) {
+    if (devServerConfig) {
+      return `<!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline' ${devServerConfig.origin}; script-src 'unsafe-inline' ${devServerConfig.origin}; connect-src ${devServerConfig.origin} ${devServerConfig.wsOrigin} http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:* ${webview.cspSource};">
+          <title>OpenCode</title>
+        </head>
+        <body>
+          <div id="root"></div>
+          <script type="module" src="${devServerConfig.viteClientUrl}"></script>
+          <script type="module" src="${devServerConfig.mainEntryUrl}"></script>
+        </body>
+        </html>`;
+    }
+
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, "out", "main.js"),
     );
     const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "out", "main.css"),
+      vscode.Uri.joinPath(this._extensionUri, "out", "App.css"),
     );
+
     const nonce = getNonce();
+
     return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:* ${webview.cspSource};" />
-  <link href="${styleUri}" rel="stylesheet" />
-  <title>MiMo Code</title>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
-</body>
-</html>`;
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; connect-src http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:* ${webview.cspSource};">
+        <link href="${styleUri}" rel="stylesheet">
+        <title>OpenCode</title>
+      </head>
+      <body>
+        <div id="root"></div>
+        <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
+      </body>
+      </html>`;
   }
 }
 
-function getNonce(): string {
+function getNonce() {
   let text = "";
-  const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  const possible =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   for (let i = 0; i < 32; i++) {
     text += possible.charAt(Math.floor(Math.random() * possible.length));
   }

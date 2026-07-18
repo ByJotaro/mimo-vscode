@@ -1,7 +1,6 @@
 import { spawn, type ChildProcess } from "child_process";
 import * as net from "net";
 import { findMimoBin } from "./mimoBin";
-import { MimoProxy } from "./MimoProxy";
 import * as vscode from "vscode";
 import type { Session } from "./shared/messages";
 
@@ -36,8 +35,6 @@ export class MimoService {
   private server?: ChildProcess;
   private serverUrl?: string;
   private serverPort?: number;
-  private proxy?: MimoProxy;
-  private proxyUrl?: string;
   private _ready = false;
   private readyWaiters: Array<(url: string) => void> = [];
   private logger?: vscode.LogOutputChannel;
@@ -56,10 +53,7 @@ export class MimoService {
   }
 
   getServerUrl() {
-    // The OpenCode GUI webview talks to an OpenCode-compatible REST+SSE API.
-    // We expose that contract through a local MimoProxy (which wraps mimo
-    // serve + mimo run), so the SDK client points at the proxy, not mimo serve.
-    return this.proxyUrl ?? this.serverUrl;
+    return this.serverUrl;
   }
 
   getActiveSessionId() {
@@ -68,19 +62,6 @@ export class MimoService {
 
   setActiveSessionId(id: string | undefined) {
     this.activeSessionId = id;
-  }
-
-  /** Workspace root handed to the OpenCode GUI so its SSE/file APIs resolve. */
-  getWorkspaceRoot(): string | undefined {
-    return process.cwd();
-  }
-
-  getCurrentSessionId(): string | undefined {
-    return this.activeSessionId;
-  }
-
-  getCurrentSessionTitle(): string {
-    return this.activeSessionId ? `Session ${this.activeSessionId}` : "New Session";
   }
 
   /** Spawn `mimo serve`, wait until it prints the listening URL. */
@@ -141,21 +122,7 @@ export class MimoService {
     const url = await ready;
     this.readyWaiters.forEach((r) => r(url));
     this.readyWaiters = [];
-
-    // Start the OpenCode-compatible proxy in front of mimo serve so the
-    // OpenCode GUI webview can talk to it via @opencode-ai/sdk.
-    try {
-      const bin = findMimoBin();
-      if (bin) {
-        this.proxy = new MimoProxy({ mimoBin: bin, serveUrl: url });
-        this.proxyUrl = await this.proxy.start();
-        this.log(`mimo proxy listening at ${this.proxyUrl}`);
-      }
-    } catch (e) {
-      this.log(`failed to start mimo proxy: ${String(e)}`);
-    }
-
-    return this.proxyUrl ?? url;
+    return url;
   }
 
   async whenReady(): Promise<string> {
@@ -170,16 +137,13 @@ export class MimoService {
     return (await res.json()) as Session[];
   }
 
-  async getMessages(
-    sessionId: string,
-  ): Promise<Array<{ id: string; role?: "user" | "assistant" }>> {
+  async getMessages(sessionId: string): Promise<unknown[]> {
     const base = await this.whenReady();
     const res = await fetch(`${base}/session/${encodeURIComponent(sessionId)}/message`, {
       signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) throw new Error(`GET /session/${sessionId}/message failed: ${res.status}`);
-    const data = (await res.json()) as Array<{ id: string; role?: "user" | "assistant" }>;
-    return data;
+    return (await res.json()) as unknown[];
   }
 
   async createSession(): Promise<Session> {
@@ -404,15 +368,6 @@ export class MimoService {
   }
 
   dispose() {
-    if (this.proxy) {
-      try {
-        this.proxy.stop();
-      } catch {
-        /* ignore */
-      }
-      this.proxy = undefined;
-      this.proxyUrl = undefined;
-    }
     if (this.server) {
       try {
         this.server.kill("SIGTERM");

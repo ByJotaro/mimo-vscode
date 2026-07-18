@@ -1,40 +1,30 @@
-import { For, Show } from "solid-js";
-import type { Session } from "../../shared/messages";
+import { SessionSwitcher } from "./SessionSwitcher";
+import { NewSessionButton } from "./NewSessionButton";
+import type { Session } from "../types";
+import type { SessionStatus } from "../state/types";
 
-interface Props {
+interface TopBarProps {
   sessions: Session[];
-  activeSessionId?: string;
-  onSelect: (id: string) => void;
-  onNew: () => void;
+  currentSessionId: string | null;
+  currentSessionTitle: string;
+  sessionStatus: (sessionId: string) => SessionStatus | null;
+  onSessionSelect: (sessionId: string) => void;
+  onNewSession: () => void;
+  onRefreshSessions: () => Promise<void>;
 }
 
-export function TopBar(props: Props) {
+export function TopBar(props: TopBarProps) {
   return (
-    <header class="topbar">
-      <div class="topbar__brand">
-        <span class="topbar__dot" />
-        <span class="topbar__title">MiMo Code</span>
-      </div>
-      <div class="topbar__sessions">
-        <For each={props.sessions.slice(0, 12)}>
-          {(s) => (
-            <button
-              class="session-chip"
-              classList={{ "session-chip--active": s.id === props.activeSessionId }}
-              title={s.title}
-              onClick={() => props.onSelect(s.id)}
-            >
-              {s.title.replace(/^New session - /, "") || s.slug}
-            </button>
-          )}
-        </For>
-        <Show when={props.sessions.length === 0}>
-          <span class="topbar__hint">No sessions yet</span>
-        </Show>
-      </div>
-      <button class="topbar__new" title="New chat" onClick={props.onNew}>
-        +
-      </button>
-    </header>
+    <div class="top-bar">
+      <SessionSwitcher
+        sessions={props.sessions}
+        currentSessionId={props.currentSessionId}
+        currentSessionTitle={props.currentSessionTitle}
+        sessionStatus={props.sessionStatus}
+        onSessionSelect={props.onSessionSelect}
+        onRefreshSessions={props.onRefreshSessions}
+      />
+      <NewSessionButton onClick={props.onNewSession} />
+    </div>
   );
 }

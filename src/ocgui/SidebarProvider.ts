@@ -9167,14 +9167,14 @@ ${attachmentLines.join('\n')}`
                 </div>
                 <script>
                     (function () {
-                        var DENSITY = 0.00394, METEOR_INTERVAL = 8000, METEOR_DURATION = 3600, METEOR_ANGLE = 0.36, METEOR_TAIL = 32;
+                        var DENSITY = 0.0079, METEOR_INTERVAL = 8000, METEOR_DURATION = 3600, METEOR_ANGLE = 0.36, METEOR_TAIL = 32;
                             function brailleBit(col, row) { return col === 0 ? (row === 3 ? 6 : row) : (row === 3 ? 7 : 3 + row); }
                             function brailleChar(bits) { var c = 0x2800; for (var i = 0; i < bits.length; i++) if (bits[i]) c |= (1 << bits[i]); return String.fromCharCode(c); }
                             function brailleStar(b) { var bits = []; for (var i = 0; i < 8; i++) bits.push(Math.random() < b ? 1 : 0); if (bits.every(function (x) { return !x; })) bits[Math.floor(Math.random() * 8)] = 1; return brailleChar(bits); }
                             var starC = document.getElementById('bgStars'), meteorC = document.getElementById('bgComets');
                             var sctx, mctx, W = 0, H = 0, dpr = window.devicePixelRatio || 1, field = [], meteors = [], lastMeteor = 0;
                             function resize() {
-                                W = starC.clientWidth; H = starC.clientHeight;
+                                                                W = window.innerWidth || starC.clientWidth || document.documentElement.clientWidth; H = window.innerHeight || starC.clientHeight || document.documentElement.clientHeight;
                                 [starC, meteorC].forEach(function (c) { c.width = W * dpr; c.height = H * dpr; });
                                 sctx = starC.getContext('2d'); mctx = meteorC.getContext('2d');
                                 sctx.scale(dpr, dpr); mctx.scale(dpr, dpr);
@@ -9182,8 +9182,8 @@ ${attachmentLines.join('\n')}`
                                 for (var y = 0; y < rows; y++) { var row = []; for (var x = 0; x < cols; x++) { if (Math.random() < DENSITY * 40) { var b = 0.15 + Math.random() * 0.4; row.push({ ch: brailleStar(b), b: b }); } else row.push(null); } field.push(row); }
                             }
                             function drawStars() {
-                                if (!sctx) return; sctx.clearRect(0, 0, W, H); sctx.font = '12px monospace'; sctx.textBaseline = 'top';
-                                for (var y = 0; y < field.length; y++) for (var x = 0; x < field[y].length; x++) { var cell = field[y][x]; if (!cell) continue; sctx.fillStyle = cell.b > 0.85 ? 'rgba(255,221,148,0.9)' : 'rgba(230,236,245,0.6)'; sctx.fillText(cell.ch, x * 6, y * 12); }
+                                if (!sctx) return; sctx.clearRect(0, 0, W, H); sctx.font = '16px monospace'; sctx.textBaseline = 'top';
+                                for (var y = 0; y < field.length; y++) for (var x = 0; x < field[y].length; x++) { var cell = field[y][x]; if (!cell) continue; sctx.fillStyle = cell.b > 0.85 ? 'rgba(255,221,148,0.9)' : 'rgba(230,236,245,0.6)'; sctx.fillText(cell.ch, x * 8, y * 16); }
                             }
                             function spawnMeteor() { meteors.push({ x: Math.random() * W, y: -20, life: 0 }); }
                             function drawMeteors() {
@@ -9369,6 +9369,8 @@ ${attachmentLines.join('\n')}`
             </html>`;
     }
 }
+
+
 
 
 

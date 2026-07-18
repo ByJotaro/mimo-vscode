@@ -2,34 +2,64 @@ import * as path from "path";
 import * as fs from "fs";
 
 /**
- * Resolve the absolute path to the mimo CLI node bin.
+ * Resolve the absolute path to the mimo CLI executable.
  *
- * On Windows the `mimo` command is a PowerShell wrapper (mimo.ps1); we must
- * spawn the real node bin (`@mimo-ai/cli/bin/mimo`) directly, otherwise stdout
- * parsing and stdio control break.
+ * `mimo` ships as a native Go binary. On Windows the npm package installs a
+ * node wrapper (`@mimo-ai/cli/bin/mimo`) that re-spawns the real Go binary via
+ * `spawnSync(..., { stdio: "inherit" })`. If we spawn that wrapper, Windows pops
+ * a visible console window and stdio piping for JSON events breaks. So we
+ * resolve the native binary directly (mimo.exe on Windows) and run it with
+ * `windowsHide: true`.
  */
 export function findMimoBin(): string | undefined {
+  const isWin = process.platform === "win32";
   const candidates: string[] = [];
 
-  // 1. Global npm root (where `npm i -g @mimo-ai/cli` installs)
+  const pushDir = (dir: string, exe: string) => {
+    if (isWin) {
+      // Look for the bundled platform binary first.
+      candidates.push(
+        path.join(dir, "node_modules", "@mimo-ai", "mimocode-windows-x64", "bin", "mimo.exe"),
+        path.join(dir, "node_modules", "@mimo-ai", "mimocode-windows-x64-baseline", "bin", "mimo.exe"),
+        path.join(dir, "bin", "mimo.exe"),
+      );
+    } else {
+      candidates.push(path.join(dir, "bin", "mimo"));
+    }
+  };
+
+  const pushGlobal = () => {
+    try {
+      const { execSync } = require("child_process");
+      const globalRoot = execSync("npm root -g", { encoding: "utf8" }).trim();
+      pushDir(globalRoot, "mimo");
+      const home = process.env.USERPROFILE || process.env.HOME || "";
+      pushDir(path.join(home, "AppData", "Roaming", "npm", "node_modules", "@mimo-ai", "cli"), "mimo");
+      pushDir(path.join(home, ".npm-global", "lib", "node_modules", "@mimo-ai", "cli"), "mimo");
+    } catch {
+      /* ignore */
+    }
+  };
+
+  pushGlobal();
+
+  // require.resolve fallback (if bundled inside the extension)
   try {
-    const { execSync } = require("child_process");
-    const globalRoot = execSync("npm root -g", { encoding: "utf8" }).trim();
-    candidates.push(path.join(globalRoot, "@mimo-ai", "cli", "bin", "mimo"));
+    const resolved = require.resolve("@mimo-ai/cli/bin/mimo");
+    const dir = path.dirname(resolved);
+    const base = path.resolve(dir, "..");
+    pushDir(base, "mimo");
+    candidates.push(resolved);
   } catch {
     /* ignore */
   }
 
-  // 2. Common global locations
-  const home = process.env.USERPROFILE || process.env.HOME || "";
-  candidates.push(
-    path.join(home, "AppData", "Roaming", "npm", "node_modules", "@mimo-ai", "cli", "bin", "mimo"),
-    path.join(home, ".npm-global", "lib", "node_modules", "@mimo-ai", "cli", "bin", "mimo"),
-  );
-
-  // 3. require.resolve from this extension's node_modules (if bundled)
+  // PATH lookup (works on all platforms)
   try {
-    candidates.push(require.resolve("@mimo-ai/cli/bin/mimo"));
+    const { execSync } = require("child_process");
+    const which = isWin ? "where mimo" : "which mimo";
+    const out = execSync(which, { encoding: "utf8" }).trim().split(/\r?\n/)[0];
+    if (out) candidates.push(out);
   } catch {
     /* ignore */
   }

@@ -1,12 +1,25 @@
-export function ThinkingIndicator() {
+
+import { Show, createSignal, onCleanup } from "solid-js";
+
+interface ThinkingIndicatorProps {
+  when: boolean;
+}
+
+export function ThinkingIndicator(props: ThinkingIndicatorProps) {
+  const frames = ['\\', '|', '/', '-'];
+  const [frameIndex, setFrameIndex] = createSignal(0);
+
+  const interval = setInterval(() => {
+    setFrameIndex((prev) => (prev + 1) % frames.length);
+  }, 150);
+
+  onCleanup(() => clearInterval(interval));
+
   return (
-    <div class="bubble bubble--assistant thinking">
-      <div class="bubble__role">MiMo</div>
-      <div class="thinking__dots">
-        <span />
-        <span />
-        <span />
+    <Show when={props.when}>
+      <div class="loading-indicator">
+        {frames[frameIndex()]}
       </div>
-    </div>
+    </Show>
   );
 }
