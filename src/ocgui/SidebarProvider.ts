@@ -3903,11 +3903,6 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     }
                     break;
                 }
-                case "loadFullSession": {
-                    const fsid = typeof data.sessionId === 'string' && data.sessionId.trim() ? data.sessionId.trim() : this.currentSessionId;
-                    if (fsid) void this.loadSessionMessages(fsid, true);
-                    break;
-                }
                 case "sendMessage": {
                     // this.uiDebugChannel.appendLine(
                     //     `[EXT][SEND_RX] sessionId=${this.currentSessionId || 'NULL'} ` +
@@ -8809,11 +8804,11 @@ ${attachmentLines.join('\n')}`
                 this.uiDebugChannel.appendLine(`sessionData.skipMessage | reason | invalid-msg-id | id | ${resolvedId || 'null'}`);
                 continue;
             }
-            if (role === 'assistant' && !finalAssistantIds.has(resolvedId)) {
-                continue;
-            }
+            // Show EVERY message (no finalAssistantIds filter) so tool_use / edits / steps all render.
             const parts = Array.isArray(message?.parts)
-                ? message.parts.filter((part: any) => part.type === 'text' && typeof part.text === 'string')
+                ? message.parts.filter((part: any) =>
+                    (part.type === 'text' || part.type === 'patch' || part.type === 'tool_use' || part.type === 'tool_result' || part.type === 'system' || part.type === 'reasoning') &&
+                    typeof part.text === 'string')
                 : [];
             const text = parts.map((part: any) => part.text).join('');
             if (!text) continue;
@@ -8866,7 +8861,7 @@ ${attachmentLines.join('\n')}`
         this.client.setSessionId(sessionId);
         try {
             const t0 = Date.now();
-            const exportData = await this.client.exportSessionRecent(sessionId, full ? 200 : 5);
+            const exportData = await this.client.exportSessionRecent(sessionId, full ? 200 : 50);
             rtLog(`LOAD_SESSION export_ms=${Date.now() - t0}`);
             const formatted = this.formatSession(exportData);
             // Rebuild messages to include patch/tool_use parts (not just text)
@@ -9193,91 +9188,74 @@ ${attachmentLines.join('\n')}`
                     </script>
 
                 <div class="slash-palette" id="slashPalette" style="display:none">
-                    <div class="slash-palette-header">SLASH COMMANDS</div>
-                    <div class="slash-palette-list" id="slashPaletteList"></div>
-                </div>
+    <div class="slash-palette-header">SLASH COMMANDS</div>
+    <div class="slash-palette-list" id="slashPaletteList"></div>
+</div>
 
-                <button class="load-full-btn" id="loadFullBtn" style="display:none">Load full history</button>
-
-                <script>
-                    (function () {
-                        var SLASH = [];
-                        var LOAD_SESSION_ID = '';
-                        window.__mimoSlashCommands = function (list) { SLASH = Array.isArray(list) ? list : []; };
-                        var palette = document.getElementById('slashPalette');
-                        var listEl = document.getElementById('slashPaletteList');
-                        var activeIndex = -1;
-                        function render(filter) {
-                            listEl.innerHTML = '';
-                            var items = SLASH.filter(function (c) { return !filter || c.name.toLowerCase().indexOf(filter.toLowerCase()) >= 0; });
-                            if (!items.length) { palette.style.display = 'none'; return; }
-                            items.forEach(function (c, i) {
-                                var row = document.createElement('div');
-                                row.className = 'slash-item' + (i === activeIndex ? ' active' : '');
-                                row.innerHTML = '<span class="slash-name">/' + c.name + '</span><span class="slash-desc">' + (c.description || '') + '</span>';
-                                row.onmousedown = function (e) { e.preventDefault(); apply('/' + c.name + ' '); };
-                                listEl.appendChild(row);
-                            });
-                            palette.style.display = '';
-                        }
-                        function hide() { palette.classList.add('hidden'); activeIndex = -1; }
-                        function apply(text) {
-                            var input = document.querySelector('textarea, input[type=text]');
-                            if (input) {
-                                input.value = text;
-                                input.focus();
-                                input.dispatchEvent(new Event('input', { bubbles: true }));
-                            }
-                            hide();
-                        }
-                        document.addEventListener('input', function (e) {
-                            var t = e.target;
-                            if (!t || (t.tagName !== 'TEXTAREA' && t.tagName !== 'INPUT')) return;
-                            var val = t.value;
-                            var m = val.match(/\/([a-zA-Z0-9_-]*)$/);
-                            if (m) { activeIndex = 0; render(m[1]); } else { hide(); }
-                        });
-                        document.addEventListener('keydown', function (e) {
-                            if (palette.style.display === 'none') return;
-                            var items = listEl.children;
-                            if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = Math.min(items.length - 1, activeIndex + 1); render(currentFilter()); }
-                            else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = Math.max(0, activeIndex - 1); render(currentFilter()); }
-                            else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); var item = items[activeIndex]; if (item) item.onmousedown({ preventDefault: function () {} }); }
-                            else if (e.key === 'Escape') { hide(); }
-                        });
-                        function currentFilter() {
-                            var input = document.querySelector('textarea, input[type=text]');
-                            var m = input && input.value.match(/\/([a-zA-Z0-9_-]*)$/);
-                            return m ? m[1] : '';
-                        }
-                        window.addEventListener('message', function (ev) {
-                            var d = ev.data;
-                            if (d && d.type === 'init' && Array.isArray(d.slashCommands)) {
-                                SLASH = d.slashCommands;
-                            }
-                            if (d && d.type === 'slashCommands' && Array.isArray(d.commands)) {
-                                SLASH = d.commands;
-                            }
-                            if (d && d.type === 'sessionData' && d.sessionId) {
-                                LOAD_SESSION_ID = d.sessionId;
-                                var btn = document.getElementById('loadFullBtn');
-                                if (btn && d.meta && d.meta.source === 'select') btn.style.display = '';
-                            }
-                        });
-                        document.addEventListener('click', function (e) {
-                            var btn = document.getElementById('loadFullBtn');
-                            if (btn && btn.contains(e.target)) {
-                                try { acquireVsCodeApi().postMessage({ type: 'loadFullSession', sessionId: LOAD_SESSION_ID }); } catch (e) {}
-                                btn.style.display = 'none';
-                            }
-                        });
-                        // Fallback: request slash commands directly in case init missed
-                        try {
-                            var v = acquireVsCodeApi ? acquireVsCodeApi() : null;
-                            if (v) v.postMessage({ type: 'fetchSlashCommands' });
-                        } catch (e) {}
-                    })();
-                </script>
+<script>
+(function () {
+    var SLASH = [];
+    var palette = document.getElementById('slashPalette');
+    var listEl = document.getElementById('slashPaletteList');
+    var activeIndex = -1;
+    function render(filter) {
+        listEl.innerHTML = '';
+        if (!SLASH.length) { palette.style.display = 'none'; return; }
+        var items = SLASH.filter(function (c) { return !filter || c.name.toLowerCase().indexOf(filter.toLowerCase()) >= 0; });
+        if (!items.length) { palette.style.display = 'none'; return; }
+        items.forEach(function (c, i) {
+            var row = document.createElement('div');
+            row.className = 'slash-item' + (i === activeIndex ? ' active' : '');
+            row.innerHTML = '<span class="slash-name">/' + c.name + '</span><span class="slash-desc">' + (c.description || '') + '</span>';
+            row.onmousedown = function (e) { e.preventDefault(); apply('/' + c.name + ' '); };
+            listEl.appendChild(row);
+        });
+        palette.style.display = '';
+    }
+    function hide() { palette.style.display = 'none'; activeIndex = -1; }
+    function apply(text) {
+        var el = document.activeElement;
+        if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) {
+            el.value = text;
+            el.focus();
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        hide();
+    }
+    // Listen on keyup (not input) so it works with React-controlled inputs
+    document.addEventListener('keyup', function (e) {
+        var el = document.activeElement;
+        if (!el || (el.tagName !== 'TEXTAREA' && el.tagName !== 'INPUT')) return;
+        var val = el.value;
+        var m = val.match(/\/([a-zA-Z0-9_-]*)$/);
+        if (m) { activeIndex = 0; render(m[1]); } else { hide(); }
+    });
+    document.addEventListener('keydown', function (e) {
+        if (palette.style.display === 'none') return;
+        var items = listEl.children;
+        if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = Math.min(items.length - 1, activeIndex + 1); render(currentFilter()); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = Math.max(0, activeIndex - 1); render(currentFilter()); }
+        else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); if (items[activeIndex]) items[activeIndex].onmousedown({ preventDefault: function () {} }); }
+        else if (e.key === 'Escape') { hide(); }
+    });
+    function currentFilter() {
+        var el = document.activeElement;
+        if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) {
+            var m = el.value.match(/\/([a-zA-Z0-9_-]*)$/);
+            return m ? m[1] : '';
+        }
+        return '';
+    }
+    window.addEventListener('message', function (ev) {
+        var d = ev.data;
+        if (d && (d.type === 'init' || d.type === 'slashCommands') && Array.isArray(d.slashCommands || d.commands)) {
+            SLASH = d.slashCommands || d.commands;
+        }
+    });
+    // Fallback: request slash commands directly (init may arrive before listener)
+    try { acquireVsCodeApi().postMessage({ type: 'fetchSlashCommands' }); } catch (e) {}
+})();
+</script>
 
                 <div class="session-header">
                     <div class="session-header-left">
@@ -9376,6 +9354,7 @@ ${attachmentLines.join('\n')}`
             </html>`;
     }
 }
+
 
 
 

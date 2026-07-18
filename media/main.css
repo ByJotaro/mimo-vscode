@@ -524,6 +524,7 @@ body > *:not(.bg) {
     flex: 1;
     padding: 10px;
     overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -2884,22 +2885,6 @@ select#mode-select {
     color: var(--vscode-descriptionForeground);
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.load-full-btn {
-    position: absolute;
-    bottom: 52px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 15;
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border: none;
-    border-radius: 6px;
-    padding: 6px 16px;
-    cursor: pointer;
-    font-size: 0.8em;
     white-space: nowrap;
 }
 .load-full-btn:hover {
