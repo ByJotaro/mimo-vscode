@@ -213,6 +213,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     private _webviewInstanceId?: string;
     private client: OpenCodeClient;
     private currentSessionId?: string;
+    private _loadedSessions = new Map<string, any[]>();
     private userOwnedSessionIds = new Set<string>();
     private userOwnedSessionsLoaded: Promise<void>;
     private activeSubagentSessionIds = new Set<string>();
@@ -3899,7 +3900,36 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                         : undefined;
                     rtLog(`SELECT_SESSION id=${selId || 'null'}`);
                     if (selId) {
-                        void this.loadSessionMessages(selId, false);
+                        void this.loadSessionMessages(selId);
+                    }
+                    break;
+                }
+                case "loadMoreSession": {
+                    const msId = typeof data.sessionId === 'string' && data.sessionId.trim()
+                        ? data.sessionId.trim()
+                        : this.currentSessionId;
+                    if (!msId) break;
+                    const cur = this._loadedSessions.get(msId) ?? [];
+                    const moreCt = typeof data.count === 'number' ? Math.max(20, data.count) : 60;
+                    rtLog(`LOAD_MORE id=${msId} have=${cur.length} want=${moreCt}`);
+                    if (cur.length >= moreCt) break; // already have enough
+                    try {
+                        const moreData = await this.client.querySessionFromDb(msId, moreCt);
+                        const msgs = moreData?.messages ?? [];
+                        this._loadedSessions.set(msId, msgs);
+                        const fmt = this.formatDbMessages(msgs);
+                        const wv = this._view?.webview;
+                        if (wv) {
+                            wv.postMessage({
+                                type: 'sessionData',
+                                sessionId: msId,
+                                title: moreData?.session?.title || msId,
+                                messages: fmt,
+                                meta: { source: 'select', time: Date.now(), loadMore: true },
+                            });
+                        }
+                    } catch (e) {
+                        rtLog(`LOAD_MORE_ERR ${String(e).slice(0, 80)}`);
                     }
                     break;
                 }
@@ -8874,44 +8904,87 @@ ${attachmentLines.join('\n')}`
         return { title, messages };
     }
 
-    private async loadSessionMessages(sessionId: string, full: boolean = false): Promise<void> {
-        rtLog(`LOAD_SESSION id=${sessionId} full=${full}`);
+    private async loadSessionMessages(sessionId: string): Promise<void> {
+        rtLog(`LOAD_SESSION id=${sessionId}`);
         const liveWebview = this._view?.webview;
         if (!liveWebview) return;
         this.currentSessionId = sessionId;
         this.client.setSessionId(sessionId);
         try {
             const t0 = Date.now();
-            const exportData = await this.client.exportSessionRecent(sessionId, full ? 200 : 200);
-            rtLog(`LOAD_SESSION export_ms=${Date.now() - t0}`);
-            const formatted = this.formatSession(exportData);
-            // Rebuild messages to include patch/tool_use parts (not just text)
-            const rawMessages = Array.isArray(exportData?.messages) ? exportData.messages : [];
-            const enrichedMessages = formatted.messages.map((m: any) => {
-                const raw = rawMessages.find((r: any) => r?.info?.id === m.id);
-                if (!raw) return m;
-                const patchParts = Array.isArray(raw.parts)
-                    ? raw.parts.filter((p: any) => (p.type === 'patch' || p.type === 'tool_use') && typeof p.text === 'string')
-                    : [];
-                if (!patchParts.length) return m;
-                const patchText = patchParts.map((p: any) => p.type === 'patch' ? '\n[Diff]\n' + p.text : '\n[Tool] ' + p.text).join('\n');
-                return { ...m, text: m.text + patchText };
-            });
+            // Read FULL session from DB (includes reasoning, tool, file parts the API drops)
+            const exportData = await this.client.querySessionFromDb(sessionId, 60);
+            rtLog(`LOAD_SESSION db_ms=${Date.now() - t0}`);
+            const messages = this.formatDbMessages(exportData?.messages ?? []);
+            this._loadedSessions.set(sessionId, exportData?.messages ?? []);
             liveWebview.postMessage({
                 type: 'sessionData',
                 sessionId,
-                title: formatted.title,
-                messages: enrichedMessages,
-                meta: {
-                    source: 'select',
-                    timelineMessageIds: enrichedMessages
-                        .filter((mm: any) => typeof mm.id === 'string' && mm.id.startsWith('msg_'))
-                        .map((mm: any) => mm.id)
-                }
+                title: exportData?.session?.title || sessionId,
+                messages,
+                meta: { source: 'select', time: Date.now() },
             });
-        } catch (err) {
-            rtLog(`LOAD_SESSION_ERR id=${sessionId} err=${String(err).slice(0, 200)}`);
+            rtLog(`LOAD_SESSION done msgs=${messages.length}`);
+        } catch (e) {
+            rtLog(`LOAD_SESSION_ERR ${String(e).slice(0, 120)}`);
+            try {
+                // Fallback to API
+                const exportData = await this.client.exportSessionRecent(sessionId, 60);
+                const formatted = this.formatSession(exportData);
+                liveWebview.postMessage({
+                    type: 'sessionData', sessionId, title: formatted.title,
+                    messages: formatted.messages, meta: { source: 'select', time: Date.now() },
+                });
+            } catch (e2) {
+                rtLog(`LOAD_SESSION_FALLBACK_ERR ${String(e2).slice(0, 120)}`);
+            }
         }
+    }
+
+    /** Convert DB rows (flat per-part) into webview-ready messages with rich labels. */
+    private formatDbMessages(dbRows: any[]): any[] {
+        const result: any[] = [];
+        for (const msg of dbRows) {
+            const cleanParts = (msg.parts || []).filter((p: any) =>
+                p.type !== 'step-start' && p.type !== 'step-finish' && p.type !== 'compaction'
+            );
+            if (!cleanParts.length) continue;
+            let fullText = '';
+            for (const p of cleanParts) {
+                switch (p.type) {
+                    case 'reasoning':
+                        fullText += '\n💭 [thinking]\n' + (p.text || '') + '\n';
+                        break;
+                    case 'tool': {
+                        const toolName = p.tool || 'tool';
+                        const cmd = p.cmd || '';
+                        fullText += '\n🔧 [' + toolName + ']' + (cmd ? ' ' + cmd : '') + '\n';
+                        if (p.result) fullText += p.result + '\n';
+                        break;
+                    }
+                    case 'file':
+                        fullText += '\n📁 [file] ' + (p.path || p.text || '') + '\n';
+                        break;
+                    case 'patch': {
+                        const lines = (p.text || '').split('\n').length;
+                        fullText += '\n📝 [file edit] ' + lines + ' lines affected\n```diff\n' + (p.text || '') + '\n```\n';
+                        break;
+                    }
+                    default:
+                        fullText += p.text || '';
+                        break;
+                }
+            }
+            if (!fullText.trim()) continue;
+            const role = msg.role || 'assistant';
+            result.push({
+                id: msg.id,
+                role,
+                text: fullText,
+                time: msg.time ? { created: msg.time } : undefined,
+            });
+        }
+        return result;
     }
 
     private stripModeInjectionBlock(input: string): string {
@@ -9179,7 +9252,7 @@ ${attachmentLines.join('\n')}`
 
                 <script>
                     (function () {
-                        var DENSITY = 0.006, METEOR_INTERVAL = 8000, METEOR_DURATION = 3600;
+                        var DENSITY = 0.012, METEOR_INTERVAL = 8000, METEOR_DURATION = 3600;
                         function brailleBit(col, row) { return col === 0 ? (row === 3 ? 6 : row) : (row === 3 ? 7 : 3 + row); }
                         function brailleChar(bits) { var c = 0x2800; for (var i = 0; i < bits.length; i++) if (bits[i]) c |= (1 << bits[i]); return String.fromCharCode(c); }
                         function brailleStar(b) { var bits = []; for (var i = 0; i < 8; i++) bits.push(Math.random() < b ? 1 : 0); if (bits.every(function (x) { return !x; })) bits[Math.floor(Math.random() * 8)] = 1; return brailleChar(bits); }
@@ -9403,6 +9476,40 @@ ${attachmentLines.join('\n')}`
                 </div>
 
                 <script src="${scriptUri}"></script>
+                <script>
+                    (function () {
+                        var v = null; try { v = acquireVsCodeApi(); } catch (e) {}
+                        if (!v) return;
+                        var loadedSid = '';
+                        var loadedCount = 0;
+                        // Listen for sessionData to track what's loaded
+                        window.addEventListener('message', function (e) {
+                            var d = e.data;
+                            if (d && d.type === 'sessionData' && d.sessionId) {
+                                loadedSid = d.sessionId;
+                                loadedCount = Array.isArray(d.messages) ? d.messages.length : 0;
+                            }
+                        });
+                        // Watch for .chat-area and attach scroll-to-top lazy-load
+                        var observer = new MutationObserver(function () {
+                            var chat = document.querySelector('.chat-area');
+                            if (chat && !chat.__lazyScroll) {
+                                chat.__lazyScroll = true;
+                                chat.addEventListener('scroll', function () {
+                                    // scrollTop near 0 = user reached top → load more
+                                    if (this.scrollTop < 30 && loadedSid) {
+                                        var oldCount = loadedCount;
+                                        loadedCount += 60;
+                                        v.postMessage({ type: 'loadMoreSession', sessionId: loadedSid, count: loadedCount });
+                                        rtLog('LAZY_SCROLL old=' + oldCount + ' new=' + loadedCount);
+                                    }
+                                });
+                                observer.disconnect();
+                            }
+                        });
+                        observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+                    })();
+                </script>
             </body>
             </html>`;
     }

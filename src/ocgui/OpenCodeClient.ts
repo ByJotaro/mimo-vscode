@@ -9078,6 +9078,76 @@ export class OpenCodeClient {
         return { session: info, messages };
     }
 
+    /**
+     * Reads the FULL session from mimocode.db (via `mimo db "<sql>"`), bypassing the
+     * public API which drops reasoning/tool/file parts. Returns messages grouped by
+     * message_id with their parts (text/tool/reasoning/patch/file/step-*).
+     */
+    public async querySessionFromDb(sessionId: string, limit = 60): Promise<any> {
+        try {
+            const safeLimit = Math.max(1, Math.floor(Number.isFinite(limit) ? limit : 60));
+            const sql =
+                "SELECT json_group_array(json_object(" +
+                "'mid', p.message_id, 'role', m.role, 'type', json_extract(p.data,'$.type'), 'text', json_extract(p.data,'$.text'), " +
+                "'tool', json_extract(p.data,'$.tool'), 'cmd', json_extract(p.data,'$.state.input.command'), 'path', json_extract(p.data,'$.state.input.path'), " +
+                "'result', json_extract(p.data,'$.state.output'), 'callID', json_extract(p.data,'$.callID'), 'time', p.time_created)) " +
+                "FROM part p JOIN (SELECT DISTINCT message_id FROM part WHERE session_id = '" + sessionId + "' ORDER BY time_created DESC LIMIT " + safeLimit + ") sm ON p.message_id = sm.message_id " +
+                "JOIN message m ON m.id = p.message_id WHERE p.session_id = '" + sessionId + "' ORDER BY p.time_created;";
+            const out = this.runMimoDb(sql);
+            const arr = JSON.parse(out) as any[];
+            // group by message_id preserving order
+            const byMsg = new Map<string, any>();
+            const order: string[] = [];
+            for (const row of arr) {
+                if (!byMsg.has(row.mid)) {
+                    byMsg.set(row.mid, { id: row.mid, role: row.role, parts: [] });
+                    order.push(row.mid);
+                }
+                byMsg.get(row.mid).parts.push(row);
+            }
+            const messages = order.map((id) => byMsg.get(id));
+            const titleRow = this.runMimoDb(
+                "SELECT title FROM session WHERE id = '" + sessionId + "' LIMIT 1;"
+            );
+            let title = sessionId;
+            try {
+                const t = JSON.parse(titleRow);
+                if (Array.isArray(t) && t[0] && t[0].title) title = t[0].title;
+            } catch { /* ignore */ }
+            return { session: { id: sessionId, title }, messages };
+        } catch (e) {
+            rtLog(`DB_QUERY_FAIL id=${sessionId} err=${String(e).slice(0, 120)}`);
+            // Fallback to API
+            return this.exportSessionRecent(sessionId, limit);
+        }
+    }
+
+    private runMimoDb(sql: string): string {
+        const bin = this.getMimoBin();
+        const res = cp.execFileSync(bin, ['db', sql], { encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 });
+        // `mimo db` echoes the query line, then the result; take the JSON array portion.
+        const idx = res.indexOf('[');
+        const end = res.lastIndexOf(']');
+        if (idx >= 0 && end > idx) return res.substring(idx, end + 1);
+        return res.trim();
+    }
+
+    private getMimoBin(): string {
+        // reuse the same binary resolution as the server launcher
+        const cfg: any = (this as any).config;
+        if (cfg && typeof cfg.mimoBinaryPath === 'string' && cfg.mimoBinaryPath) return cfg.mimoBinaryPath;
+        const envBin = process.env.MIMO_BIN;
+        if (envBin) return envBin;
+        const platform = process.platform;
+        if (platform === 'win32') {
+            const candidates = [
+                'C:\\Users\\jotaro\\AppData\\Roaming\\npm\\node_modules\\@mimo-ai\\cli\\node_modules\\@mimo-ai\\mimocode-windows-x64\\bin\\mimo.exe',
+            ];
+            for (const c of candidates) { try { fs.accessSync(c); return c; } catch { /* next */ } }
+        }
+        return 'mimo';
+    }
+
     public async listSessionMessages(sessionId: string): Promise<any[]> {
         await this.ensureServer();
         const messages = await this.requestJson<any[]>('GET', `/session/${sessionId}/message`);
