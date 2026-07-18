@@ -1,4 +1,4 @@
-/* ---------- MiMo Code symbolic starfield + meteors (СЛИ) ---------- */
+/* ---------- MiMo Code symbolic starfield + meteors (СЛИ exact) ---------- */
 .bg {
   position: fixed;
   inset: 0;
@@ -12,34 +12,14 @@
   position: absolute;
   inset: 0;
   display: block;
-}
-
-.bg__star {
-  position: absolute;
-  color: rgb(237, 220, 170);
-  font-family: "Courier New", ui-monospace, monospace;
-  font-size: 48px;
-  line-height: 1;
-  transform: translate(-50%, -50%);
-  text-shadow: 0 0 6px rgba(237, 220, 170, 0.5);
-  user-select: none;
-  transition: opacity 0.1s ease;
+  width: 100%;
+  height: 100%;
 }
 
 .bg__comets {
   position: absolute;
   inset: 0;
-}
-
-.bg__comet {
-  position: absolute;
-  width: 3px;
-  height: 3px;
-  animation: comet-fly linear infinite;
-}
-
-@keyframes comet-fly {
-  0% { opacity: 0; transform: translate(0, 0); }
-  10% { opacity: 1; }
-  100% { opacity: 0; transform: translate(70vw, 28vh); }
+  display: block;
+  width: 100%;
+  height: 100%;
 }

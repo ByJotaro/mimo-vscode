@@ -9245,59 +9245,61 @@ ${attachmentLines.join('\n')}`
                 <title>MiMo Code</title>
             </head>
             <body>
-                                                <div class="bg" id="bg">
-                    <div class="bg__stars" id="bgStars"></div>
-                    <div class="bg__comets" id="bgComets"></div>
+                                                                <div class="bg" id="bg">
+                    <canvas class="bg__stars" id="bgStars"></canvas>
+                    <canvas class="bg__comets" id="bgComets"></canvas>
                 </div>
 
                 <script>
                     (function () {
-                        var container = document.getElementById('bgStars');
-                        var meteorC = document.getElementById('bgComets');
-                        var lastMeteor = 0;
-                        var MIN_STARS = 20, MAX_STARS = 55;
+                        var DENSITY = 0.00394, METEOR_INTERVAL = 8000, METEOR_DURATION = 3600, METEOR_ANGLE = 0.36, METEOR_TAIL = 32;
+                        var FONT_SIZE = 32, STEP_X = 16, STEP_Y = 32;
                         function brailleBit(col, row) { return col === 0 ? (row === 3 ? 6 : row) : (row === 3 ? 7 : 3 + row); }
-                        function brailleChar(bits) { var c = 0x2800; for (var i = 0; i < bits.length; i++) c |= (bits[i] ? (1 << bits[i]) : 0); return String.fromCharCode(c); }
-                        function randomStarChar() {
-                            var bits = []; var prob = 0.25 + Math.random() * 0.45;
-                            for (var i = 0; i < 8; i++) bits.push(Math.random() < prob ? 1 : 0);
-                            if (!bits.some(function (b) { return b; })) bits[Math.floor(Math.random() * 8)] = 1;
-                            return brailleChar(bits);
+                        function brailleChar(bits) { var c = 0x2800; for (var i = 0; i < bits.length; i++) if (bits[i]) c |= (1 << bits[i]); return String.fromCharCode(c); }
+                        function brailleStar(b) { var bits = []; for (var i = 0; i < 8; i++) bits.push(Math.random() < b ? 1 : 0); if (bits.every(function (x) { return !x; })) bits[Math.floor(Math.random() * 8)] = 1; return brailleChar(bits); }
+                        var starC = document.getElementById('bgStars'), meteorC = document.getElementById('bgComets');
+                        var sctx, mctx, W = 0, H = 0, dpr = window.devicePixelRatio || 1, field = [], meteors = [], lastMeteor = 0;
+                        function resize() {
+                            W = starC.clientWidth; H = starC.clientHeight;
+                            if (W < 10 || H < 10) { W = window.innerWidth; H = window.innerHeight; }
+                            [starC, meteorC].forEach(function (c) { c.width = W * dpr; c.height = H * dpr; });
+                            sctx = starC.getContext('2d'); mctx = meteorC.getContext('2d');
+                            sctx.scale(dpr, dpr); mctx.scale(dpr, dpr);
+                            field = []; var cols = Math.ceil(W / STEP_X), rows = Math.ceil(H / STEP_Y);
+                            for (var y = 0; y < rows; y++) { var row = []; for (var x = 0; x < cols; x++) { if (Math.random() < DENSITY * 40) { var b = 0.15 + Math.random() * 0.4; row.push({ ch: brailleStar(b), b: b }); } else row.push(null); } field.push(row); }
+                            draw();
                         }
-                        function render() {
-                            container.innerHTML = '';
-                            var W = window.innerWidth || document.documentElement.clientWidth;
-                            var H = window.innerHeight || document.documentElement.clientHeight;
-                            var target = Math.max(MIN_STARS, Math.min(MAX_STARS, Math.round(W * H * 2 / 10000)));
-                            for (var i = 0; i < target; i++) {
-                                var s = document.createElement('span');
-                                s.className = 'bg__star';
-                                s.textContent = randomStarChar();
-                                s.style.left = (5 + Math.random() * (W - 10)) + 'px';
-                                s.style.top = (5 + Math.random() * (H - 10)) + 'px';
-                                var bright = 0.3 + Math.random() * 0.7;
-                                s.style.opacity = bright;
-                                var size = 36 + Math.random() * 28;
-                                s.style.fontSize = size + 'px';
-                                if (bright > 0.75) s.style.textShadow = '0 0 ' + (8 + Math.random() * 10) + 'px rgba(237,220,170,0.85)';
-                                container.appendChild(s);
-                            }
+                        function draw() {
+                            if (!sctx) return; sctx.clearRect(0, 0, W, H); sctx.font = FONT_SIZE + 'px monospace'; sctx.textBaseline = 'top';
+                            for (var y = 0; y < field.length; y++) for (var x = 0; x < field[y].length; x++) { var cell = field[y][x]; if (!cell) continue; sctx.fillStyle = cell.b > 0.85 ? 'rgba(255,221,148,0.9)' : cell.b > 0.55 ? 'rgba(237,220,170,0.6)' : 'rgba(237,220,170,0.3)'; sctx.fillText(cell.ch, x * STEP_X, y * STEP_Y); }
                         }
                         function spawnMeteor() {
-                            var m = document.createElement('div');
-                            m.className = 'bg__comet';
-                            m.style.left = (-15 + Math.random() * 60) + '%';
-                            m.style.top = (-10 + Math.random() * 40) + '%';
-                            m.style.animationDuration = '3.6s';
-                            m.style.transform = 'rotate(20.6deg)';
-                            meteorC.appendChild(m);
-                            setTimeout(function () { if (m.parentNode) m.parentNode.removeChild(m); }, 3800);
+                            if (!mctx) return;
+                            var sx = 30 + Math.random() * 40, sy = 5 + Math.random() * 20;
+                            var met = { angle: METEOR_ANGLE, x: sx, y: sy, spawn: Date.now(), speed: 0.4 + Math.random() * 0.3 };
+                            meteors.push(met);
                         }
-                        function loop() { if (Date.now() - lastMeteor > 8000) { lastMeteor = Date.now(); spawnMeteor(); } }
-                        render();
-                        window.addEventListener('resize', render);
-                        setInterval(loop, 500);
-                        setTimeout(loop, 200);
+                        function drawMeteors() {
+                            if (!mctx) return; mctx.clearRect(0, 0, W, H); var now = Date.now();
+                            for (var i = meteors.length - 1; i >= 0; i--) {
+                                var m = meteors[i]; var age = now - m.spawn;
+                                if (age > METEOR_DURATION) { meteors.splice(i, 1); continue; }
+                                var p = age / METEOR_DURATION, dist = p * W * 0.7;
+                                var mx = m.x / 100 * W + Math.cos(m.angle) * dist, my = m.y / 100 * H + Math.sin(m.angle) * dist;
+                                if (mx > W || my > H || mx < -50 || my < -50) { meteors.splice(i, 1); continue; }
+                                var fade = p < 0.05 ? p / 0.05 : p > 0.9 ? (1 - p) / 0.1 : 1;
+                                mctx.globalAlpha = fade * 0.8;
+                                for (var j = 0; j < METEOR_TAIL; j++) { var tp = j / METEOR_TAIL; mctx.fillStyle = 'rgba(237,220,170,' + (1 - tp * 0.8) + ')'; mctx.fillRect(mx - tp * 40 * Math.cos(m.angle) - 1, my - tp * 40 * Math.sin(m.angle) - 1, 2, 2); }
+                                mctx.globalAlpha = 1;
+                            }
+                        }
+                        function loop() {
+                            if (Date.now() - lastMeteor > METEOR_INTERVAL) { lastMeteor = Date.now(); spawnMeteor(); }
+                            drawMeteors(); requestAnimationFrame(loop);
+                        }
+                        resize();
+                        window.addEventListener('resize', function () { resize(); });
+                        requestAnimationFrame(loop);
                     })();
                 </script>
 
