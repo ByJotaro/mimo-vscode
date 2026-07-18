@@ -9086,13 +9086,14 @@ export class OpenCodeClient {
     public async querySessionFromDb(sessionId: string, limit = 60): Promise<any> {
         try {
             const safeLimit = Math.max(1, Math.floor(Number.isFinite(limit) ? limit : 60));
+            const esc = (s: string) => s.replace(/'/g, "''");
             const sql =
                 "SELECT json_group_array(json_object(" +
-                "'mid', p.message_id, 'role', m.role, 'type', json_extract(p.data,'$.type'), 'text', json_extract(p.data,'$.text'), " +
+                "'mid', p.message_id, 'role', json_extract(m.data,'$.role'), 'type', json_extract(p.data,'$.type'), 'text', json_extract(p.data,'$.text'), " +
                 "'tool', json_extract(p.data,'$.tool'), 'cmd', json_extract(p.data,'$.state.input.command'), 'path', json_extract(p.data,'$.state.input.path'), " +
                 "'result', json_extract(p.data,'$.state.output'), 'callID', json_extract(p.data,'$.callID'), 'time', p.time_created)) " +
-                "FROM part p JOIN (SELECT DISTINCT message_id FROM part WHERE session_id = '" + sessionId + "' ORDER BY time_created DESC LIMIT " + safeLimit + ") sm ON p.message_id = sm.message_id " +
-                "JOIN message m ON m.id = p.message_id WHERE p.session_id = '" + sessionId + "' ORDER BY p.time_created;";
+                "FROM part p JOIN (SELECT message_id, MAX(time_created) as mt FROM part WHERE session_id = '" + esc(sessionId) + "' GROUP BY message_id ORDER BY mt DESC LIMIT " + safeLimit + ") sm ON p.message_id = sm.message_id " +
+                "JOIN message m ON m.id = p.message_id WHERE p.session_id = '" + esc(sessionId) + "' ORDER BY p.time_created;";
             const out = this.runMimoDb(sql);
             const arr = JSON.parse(out) as any[];
             // group by message_id preserving order

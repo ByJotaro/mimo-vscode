@@ -9501,7 +9501,6 @@ ${attachmentLines.join('\n')}`
                                         var oldCount = loadedCount;
                                         loadedCount += 60;
                                         v.postMessage({ type: 'loadMoreSession', sessionId: loadedSid, count: loadedCount });
-                                        rtLog('LAZY_SCROLL old=' + oldCount + ' new=' + loadedCount);
                                     }
                                 });
                                 observer.disconnect();
