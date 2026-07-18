@@ -9245,47 +9245,42 @@ ${attachmentLines.join('\n')}`
                 <title>MiMo Code</title>
             </head>
             <body>
-                                <div class="bg" id="bg">
+                                                <div class="bg" id="bg">
                     <div class="bg__stars" id="bgStars"></div>
                     <div class="bg__comets" id="bgComets"></div>
                 </div>
 
                 <script>
                     (function () {
-                        var DENSITY = 0.012, METEOR_INTERVAL = 8000, METEOR_DURATION = 3600;
+                        var container = document.getElementById('bgStars');
+                        var meteorC = document.getElementById('bgComets');
+                        var lastMeteor = 0;
+                        var MIN_STARS = 20, MAX_STARS = 55;
                         function brailleBit(col, row) { return col === 0 ? (row === 3 ? 6 : row) : (row === 3 ? 7 : 3 + row); }
-                        function brailleChar(bits) { var c = 0x2800; for (var i = 0; i < bits.length; i++) if (bits[i]) c |= (1 << bits[i]); return String.fromCharCode(c); }
-                        function brailleStar(b) { var bits = []; for (var i = 0; i < 8; i++) bits.push(Math.random() < b ? 1 : 0); if (bits.every(function (x) { return !x; })) bits[Math.floor(Math.random() * 8)] = 1; return brailleChar(bits); }
-                        var starC = document.getElementById('bgStars'), meteorC = document.getElementById('bgComets');
-                        var field = [], meteors = [], lastMeteor = 0;
-                        function resize() {
-                            var W = window.innerWidth || starC.clientWidth || document.documentElement.clientWidth;
-                            var H = window.innerHeight || starC.clientHeight || document.documentElement.clientHeight;
-                            var cols = Math.ceil(W / 7), rows = Math.ceil(H / 14);
-                            field = [];
-                            for (var y = 0; y < rows; y++) {
-                                var row = [];
-                                for (var x = 0; x < cols; x++) {
-                                    if (Math.random() < DENSITY * 40) { var b = 0.15 + Math.random() * 0.4; row.push({ ch: brailleStar(b), b: b }); }
-                                    else row.push(null);
-                                }
-                                field.push(row);
-                            }
-                            renderStars();
+                        function brailleChar(bits) { var c = 0x2800; for (var i = 0; i < bits.length; i++) c |= (bits[i] ? (1 << bits[i]) : 0); return String.fromCharCode(c); }
+                        function randomStarChar() {
+                            var bits = []; var prob = 0.25 + Math.random() * 0.45;
+                            for (var i = 0; i < 8; i++) bits.push(Math.random() < prob ? 1 : 0);
+                            if (!bits.some(function (b) { return b; })) bits[Math.floor(Math.random() * 8)] = 1;
+                            return brailleChar(bits);
                         }
-                        function renderStars() {
-                            starC.innerHTML = '';
-                            for (var y = 0; y < field.length; y++) {
-                                for (var x = 0; x < field[y].length; x++) {
-                                    var cell = field[y][x];
-                                    if (!cell) continue;
-                                    var s = document.createElement('span');
-                                    s.className = 'bg__star' + (cell.b > 0.85 ? ' bg__star--hot' : '');
-                                    s.textContent = cell.ch;
-                                    s.style.left = (x * 7) + 'px';
-                                    s.style.top = (y * 14) + 'px';
-                                    starC.appendChild(s);
-                                }
+                        function render() {
+                            container.innerHTML = '';
+                            var W = window.innerWidth || document.documentElement.clientWidth;
+                            var H = window.innerHeight || document.documentElement.clientHeight;
+                            var target = Math.max(MIN_STARS, Math.min(MAX_STARS, Math.round(W * H * 2 / 10000)));
+                            for (var i = 0; i < target; i++) {
+                                var s = document.createElement('span');
+                                s.className = 'bg__star';
+                                s.textContent = randomStarChar();
+                                s.style.left = (5 + Math.random() * (W - 10)) + 'px';
+                                s.style.top = (5 + Math.random() * (H - 10)) + 'px';
+                                var bright = 0.3 + Math.random() * 0.7;
+                                s.style.opacity = bright;
+                                var size = 36 + Math.random() * 28;
+                                s.style.fontSize = size + 'px';
+                                if (bright > 0.75) s.style.textShadow = '0 0 ' + (8 + Math.random() * 10) + 'px rgba(237,220,170,0.85)';
+                                container.appendChild(s);
                             }
                         }
                         function spawnMeteor() {
@@ -9293,16 +9288,14 @@ ${attachmentLines.join('\n')}`
                             m.className = 'bg__comet';
                             m.style.left = (-15 + Math.random() * 60) + '%';
                             m.style.top = (-10 + Math.random() * 40) + '%';
-                            m.style.animationDuration = (METEOR_DURATION / 1000) + 's';
+                            m.style.animationDuration = '3.6s';
                             m.style.transform = 'rotate(20.6deg)';
                             meteorC.appendChild(m);
-                            setTimeout(function () { if (m.parentNode) m.parentNode.removeChild(m); }, METEOR_DURATION + 200);
+                            setTimeout(function () { if (m.parentNode) m.parentNode.removeChild(m); }, 3800);
                         }
-                        function loop() {
-                            if (Date.now() - lastMeteor > METEOR_INTERVAL) { lastMeteor = Date.now(); spawnMeteor(); }
-                        }
-                        resize();
-                        window.addEventListener('resize', function () { resize(); });
+                        function loop() { if (Date.now() - lastMeteor > 8000) { lastMeteor = Date.now(); spawnMeteor(); } }
+                        render();
+                        window.addEventListener('resize', render);
                         setInterval(loop, 500);
                         setTimeout(loop, 200);
                     })();
