@@ -1,4 +1,4 @@
-﻿/* =========================
+/* =========================
    Base
    ========================= */
 body {
@@ -569,9 +569,9 @@ body > *:not(.bg) {
 
 .message.bot {
     align-self: flex-start;
-    background-color: var(--vscode-editor-inactiveSelectionBackground);
+    background-color: transparent;
     color: var(--vscode-editor-foreground);
-    border-color: var(--vscode-widget-border);
+    border: none;
 }
 
 .message.bot .message-content strong,

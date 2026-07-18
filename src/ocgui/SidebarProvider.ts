@@ -1,4 +1,4 @@
-﻿import * as vscode from "vscode";
+import * as vscode from "vscode";
 import * as crypto from "crypto";
 import * as fs from "fs";
 import * as pathModule from "path";
@@ -8820,8 +8820,19 @@ ${attachmentLines.join('\n')}`
                     (part.type === 'text' || part.type === 'patch' || part.type === 'tool_use' || part.type === 'tool_result' || part.type === 'system' || part.type === 'reasoning') &&
                     typeof part.text === 'string')
                 : [];
-            const text = parts.map((part: any) => part.text).join('');
-            if (!text) continue;
+            if (!parts.length) continue;
+            const text = parts.map((part: any) => {
+                if (part.type === 'patch') {
+                    const lines = (part.text || '').split('\n').length;
+                    const head = '📝 [file edit] ' + lines + ' lines changed';
+                    return '\n' + head + '\n' + part.text + '\n';
+                }
+                if (part.type === 'tool_use') return '\n🔧 [tool call]\n' + (part.text || '') + '\n';
+                if (part.type === 'tool_result') return '\n📤 [tool result]\n' + (part.text || '') + '\n';
+                if (part.type === 'reasoning') return '\n💭 [thinking]\n' + (part.text || '') + '\n';
+                return part.text || '';
+            }).join('');
+            if (!text.trim()) continue;
             const mode = typeof message?.info?.mode === 'string' ? message.info.mode.toLowerCase() : '';
             const agent = typeof message?.info?.agent === 'string' ? message.info.agent.toLowerCase() : '';
             const isAutoResumeText = role === 'user' && text.trimStart().startsWith('[OC_UI_AUTORESUME');
@@ -8871,7 +8882,7 @@ ${attachmentLines.join('\n')}`
         this.client.setSessionId(sessionId);
         try {
             const t0 = Date.now();
-            const exportData = await this.client.exportSessionRecent(sessionId, full ? 200 : 50);
+            const exportData = await this.client.exportSessionRecent(sessionId, full ? 200 : 200);
             rtLog(`LOAD_SESSION export_ms=${Date.now() - t0}`);
             const formatted = this.formatSession(exportData);
             // Rebuild messages to include patch/tool_use parts (not just text)
@@ -9161,41 +9172,68 @@ ${attachmentLines.join('\n')}`
                 <title>MiMo Code</title>
             </head>
             <body>
-                <div class="bg" id="bg">
-                    <canvas class="bg__stars" id="bgStars"></canvas>
-                    <canvas class="bg__comets" id="bgComets"></canvas>
+                                <div class="bg" id="bg">
+                    <div class="bg__stars" id="bgStars"></div>
+                    <div class="bg__comets" id="bgComets"></div>
                 </div>
+
                 <script>
                     (function () {
-                        var DENSITY = 0.0079, METEOR_INTERVAL = 8000, METEOR_DURATION = 3600, METEOR_ANGLE = 0.36, METEOR_TAIL = 32;
-                            function brailleBit(col, row) { return col === 0 ? (row === 3 ? 6 : row) : (row === 3 ? 7 : 3 + row); }
-                            function brailleChar(bits) { var c = 0x2800; for (var i = 0; i < bits.length; i++) if (bits[i]) c |= (1 << bits[i]); return String.fromCharCode(c); }
-                            function brailleStar(b) { var bits = []; for (var i = 0; i < 8; i++) bits.push(Math.random() < b ? 1 : 0); if (bits.every(function (x) { return !x; })) bits[Math.floor(Math.random() * 8)] = 1; return brailleChar(bits); }
-                            var starC = document.getElementById('bgStars'), meteorC = document.getElementById('bgComets');
-                            var sctx, mctx, W = 0, H = 0, dpr = window.devicePixelRatio || 1, field = [], meteors = [], lastMeteor = 0;
-                            function resize() {
-                                                                W = window.innerWidth || starC.clientWidth || document.documentElement.clientWidth; H = window.innerHeight || starC.clientHeight || document.documentElement.clientHeight;
-                                [starC, meteorC].forEach(function (c) { c.width = W * dpr; c.height = H * dpr; });
-                                sctx = starC.getContext('2d'); mctx = meteorC.getContext('2d');
-                                sctx.scale(dpr, dpr); mctx.scale(dpr, dpr);
-                                field = []; var cols = Math.ceil(W / 6), rows = Math.ceil(H / 12);
-                                for (var y = 0; y < rows; y++) { var row = []; for (var x = 0; x < cols; x++) { if (Math.random() < DENSITY * 40) { var b = 0.15 + Math.random() * 0.4; row.push({ ch: brailleStar(b), b: b }); } else row.push(null); } field.push(row); }
+                        var DENSITY = 0.006, METEOR_INTERVAL = 8000, METEOR_DURATION = 3600;
+                        function brailleBit(col, row) { return col === 0 ? (row === 3 ? 6 : row) : (row === 3 ? 7 : 3 + row); }
+                        function brailleChar(bits) { var c = 0x2800; for (var i = 0; i < bits.length; i++) if (bits[i]) c |= (1 << bits[i]); return String.fromCharCode(c); }
+                        function brailleStar(b) { var bits = []; for (var i = 0; i < 8; i++) bits.push(Math.random() < b ? 1 : 0); if (bits.every(function (x) { return !x; })) bits[Math.floor(Math.random() * 8)] = 1; return brailleChar(bits); }
+                        var starC = document.getElementById('bgStars'), meteorC = document.getElementById('bgComets');
+                        var field = [], meteors = [], lastMeteor = 0;
+                        function resize() {
+                            var W = window.innerWidth || starC.clientWidth || document.documentElement.clientWidth;
+                            var H = window.innerHeight || starC.clientHeight || document.documentElement.clientHeight;
+                            var cols = Math.ceil(W / 7), rows = Math.ceil(H / 14);
+                            field = [];
+                            for (var y = 0; y < rows; y++) {
+                                var row = [];
+                                for (var x = 0; x < cols; x++) {
+                                    if (Math.random() < DENSITY * 40) { var b = 0.15 + Math.random() * 0.4; row.push({ ch: brailleStar(b), b: b }); }
+                                    else row.push(null);
+                                }
+                                field.push(row);
                             }
-                            function drawStars() {
-                                if (!sctx) return; sctx.clearRect(0, 0, W, H); sctx.font = '16px monospace'; sctx.textBaseline = 'top';
-                                for (var y = 0; y < field.length; y++) for (var x = 0; x < field[y].length; x++) { var cell = field[y][x]; if (!cell) continue; sctx.fillStyle = cell.b > 0.85 ? 'rgba(255,221,148,0.9)' : 'rgba(230,236,245,0.6)'; sctx.fillText(cell.ch, x * 8, y * 16); }
+                            renderStars();
+                        }
+                        function renderStars() {
+                            starC.innerHTML = '';
+                            for (var y = 0; y < field.length; y++) {
+                                for (var x = 0; x < field[y].length; x++) {
+                                    var cell = field[y][x];
+                                    if (!cell) continue;
+                                    var s = document.createElement('span');
+                                    s.className = 'bg__star' + (cell.b > 0.85 ? ' bg__star--hot' : '');
+                                    s.textContent = cell.ch;
+                                    s.style.left = (x * 7) + 'px';
+                                    s.style.top = (y * 14) + 'px';
+                                    starC.appendChild(s);
+                                }
                             }
-                            function spawnMeteor() { meteors.push({ x: Math.random() * W, y: -20, life: 0 }); }
-                            function drawMeteors() {
-                                if (!mctx) return; mctx.clearRect(0, 0, W, H); var dx = Math.cos(METEOR_ANGLE), dy = Math.sin(METEOR_ANGLE);
-                                for (var i = meteors.length - 1; i >= 0; i--) { var m = meteors[i]; m.life += 50 / 1000; m.x += dx * 4; m.y += dy * 4; var a = 1 - (m.life * 1000) / METEOR_DURATION; if (a <= 0 || m.y > H + 40) { meteors.splice(i, 1); continue; } mctx.strokeStyle = 'rgba(255,236,200,' + (a * 0.8) + ')'; mctx.lineWidth = 2; mctx.beginPath(); mctx.moveTo(m.x, m.y); mctx.lineTo(m.x - dx * METEOR_TAIL, m.y - dy * METEOR_TAIL); mctx.stroke(); }
-                            }
-                            function loop() { if (Math.random() < 0.05) { var y = Math.floor(Math.random() * field.length), x = Math.floor(Math.random() * (field[0] ? field[0].length : 0)); if (field[y] && field[y][x] && field[y][x].b < 0.85) field[y][x].b = 0.15 + Math.random() * 0.4; } drawStars(); drawMeteors(); requestAnimationFrame(loop); }
-                            window.addEventListener('resize', resize); resize();
-                            setInterval(function () { if (Date.now() - lastMeteor > METEOR_INTERVAL) { spawnMeteor(); lastMeteor = Date.now(); } }, METEOR_INTERVAL);
-                            loop();
-                        })();
-                    </script>
+                        }
+                        function spawnMeteor() {
+                            var m = document.createElement('div');
+                            m.className = 'bg__comet';
+                            m.style.left = (-15 + Math.random() * 60) + '%';
+                            m.style.top = (-10 + Math.random() * 40) + '%';
+                            m.style.animationDuration = (METEOR_DURATION / 1000) + 's';
+                            m.style.transform = 'rotate(20.6deg)';
+                            meteorC.appendChild(m);
+                            setTimeout(function () { if (m.parentNode) m.parentNode.removeChild(m); }, METEOR_DURATION + 200);
+                        }
+                        function loop() {
+                            if (Date.now() - lastMeteor > METEOR_INTERVAL) { lastMeteor = Date.now(); spawnMeteor(); }
+                        }
+                        resize();
+                        window.addEventListener('resize', function () { resize(); });
+                        setInterval(loop, 500);
+                        setTimeout(loop, 200);
+                    })();
+                </script>
 
                 <div class="slash-palette" id="slashPalette" style="display:none">
     <div class="slash-palette-header">SLASH COMMANDS</div>
@@ -9369,6 +9407,7 @@ ${attachmentLines.join('\n')}`
             </html>`;
     }
 }
+
 
 
 
