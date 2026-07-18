@@ -3903,6 +3903,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     }
                     break;
                 }
+                case "loadFullSession": {
+                    const fsid = typeof data.sessionId === 'string' && data.sessionId.trim() ? data.sessionId.trim() : this.currentSessionId;
+                    if (fsid) void this.loadSessionMessages(fsid, true);
+                    break;
+                }
                 case "sendMessage": {
                     // this.uiDebugChannel.appendLine(
                     //     `[EXT][SEND_RX] sessionId=${this.currentSessionId || 'NULL'} ` +
@@ -8853,15 +8858,15 @@ ${attachmentLines.join('\n')}`
         return { title, messages };
     }
 
-    private async loadSessionMessages(sessionId: string): Promise<void> {
-        rtLog(`LOAD_SESSION id=${sessionId}`);
+    private async loadSessionMessages(sessionId: string, full: boolean = false): Promise<void> {
+        rtLog(`LOAD_SESSION id=${sessionId} full=${full}`);
         const liveWebview = this._view?.webview;
         if (!liveWebview) return;
         this.currentSessionId = sessionId;
         this.client.setSessionId(sessionId);
         try {
             const t0 = Date.now();
-            const exportData = await this.client.exportSessionRecent(sessionId, 5);
+            const exportData = await this.client.exportSessionRecent(sessionId, full ? 200 : 5);
             rtLog(`LOAD_SESSION export_ms=${Date.now() - t0}`);
             const formatted = this.formatSession(exportData);
             // Rebuild messages to include patch/tool_use parts (not just text)
@@ -9192,9 +9197,12 @@ ${attachmentLines.join('\n')}`
                     <div class="slash-palette-list" id="slashPaletteList"></div>
                 </div>
 
+                <button class="load-full-btn" id="loadFullBtn" style="display:none">Load full history</button>
+
                 <script>
                     (function () {
                         var SLASH = [];
+                        var LOAD_SESSION_ID = '';
                         window.__mimoSlashCommands = function (list) { SLASH = Array.isArray(list) ? list : []; };
                         var palette = document.getElementById('slashPalette');
                         var listEl = document.getElementById('slashPaletteList');
@@ -9249,6 +9257,18 @@ ${attachmentLines.join('\n')}`
                             }
                             if (d && d.type === 'slashCommands' && Array.isArray(d.commands)) {
                                 SLASH = d.commands;
+                            }
+                            if (d && d.type === 'sessionData' && d.sessionId) {
+                                LOAD_SESSION_ID = d.sessionId;
+                                var btn = document.getElementById('loadFullBtn');
+                                if (btn && d.meta && d.meta.source === 'select') btn.style.display = '';
+                            }
+                        });
+                        document.addEventListener('click', function (e) {
+                            var btn = document.getElementById('loadFullBtn');
+                            if (btn && btn.contains(e.target)) {
+                                try { acquireVsCodeApi().postMessage({ type: 'loadFullSession', sessionId: LOAD_SESSION_ID }); } catch (e) {}
+                                btn.style.display = 'none';
                             }
                         });
                         // Fallback: request slash commands directly in case init missed
