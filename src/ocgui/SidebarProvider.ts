@@ -9482,7 +9482,6 @@ ${attachmentLines.join('\n')}`
                         if (!v) return;
                         var loadedSid = '';
                         var loadedCount = 0;
-                        // Listen for sessionData to track what's loaded
                         window.addEventListener('message', function (e) {
                             var d = e.data;
                             if (d && d.type === 'sessionData' && d.sessionId) {
@@ -9490,23 +9489,27 @@ ${attachmentLines.join('\n')}`
                                 loadedCount = Array.isArray(d.messages) ? d.messages.length : 0;
                             }
                         });
-                        // Watch for .chat-area and attach scroll-to-top lazy-load
-                        var observer = new MutationObserver(function () {
+                        function attachLazyScroll() {
                             var chat = document.querySelector('.chat-area');
                             if (chat && !chat.__lazyScroll) {
                                 chat.__lazyScroll = true;
                                 chat.addEventListener('scroll', function () {
-                                    // scrollTop near 0 = user reached top → load more
                                     if (this.scrollTop < 30 && loadedSid) {
-                                        var oldCount = loadedCount;
                                         loadedCount += 60;
                                         v.postMessage({ type: 'loadMoreSession', sessionId: loadedSid, count: loadedCount });
                                     }
                                 });
-                                observer.disconnect();
+                                console.log('[MiMo] lazy-scroll attached');
+                                return true;
                             }
-                        });
-                        observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+                            return false;
+                        }
+                        if (!attachLazyScroll()) {
+                            var observer = new MutationObserver(function () {
+                                if (attachLazyScroll()) observer.disconnect();
+                            });
+                            observer.observe(document.body || document.documentElement, { childList: true, subtree: true });
+                        }
                     })();
                 </script>
             </body>
