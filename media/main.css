@@ -793,12 +793,14 @@ body > .slash-palette {
 }
 /* Home screen fills chat and centers logo + recent vertically */
 .chat-area:has(> .mimo-startup) {
-    justify-content: stretch;
+    justify-content: center;
+    min-height: 100%;
 }
 .chat-area > .mimo-startup {
     margin: auto 0;
-    min-height: min(100%, 100%);
+    min-height: 100%;
     flex: 1 1 auto;
+    max-height: 100%;
 }
 /* No separate text mark under logo — ASCII logo IS the brand (fixes dual "MiMo Code") */
 .mimo-welcome-mark {

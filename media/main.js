@@ -12012,6 +12012,16 @@ window.addEventListener('message', (event) => {
                     window.__mimoFillStartupList(sessions);
                 }
                 try { renderSessionList(); } catch (_) {}
+                // Cleanup pending deletes for sessions that no longer exist
+                const sessionIds = new Set(sessions.map((item) => item?.id).filter((id) => typeof id === 'string'));
+                for (const pendingId of Array.from(pendingDeleteSessionOpBySession.keys())) {
+                    if (!sessionIds.has(pendingId)) {
+                        pendingDeleteSessionOpBySession.delete(pendingId);
+                    }
+                }
+                if (armedDeleteSessionId && !sessionIds.has(armedDeleteSessionId)) {
+                    armedDeleteSessionId = '';
+                }
                 break;
             }
             case 'sessionBusy': {
@@ -12141,49 +12151,6 @@ window.addEventListener('message', (event) => {
                 updateVariantOptions();
                 updateSendQuotaVisual();
                 renderHeaderUsage();
-                break;
-            }
-            case 'sessionsList': {
-                const recvRequestId = message.requestId ?? null;
-                const topSession = message.sessions?.[0];
-                vscode.postMessage({
-                    type: 'ui-debug',
-                    payload: ['WV', 'sessionsList', 'recv', 'requestId', recvRequestId, 'expected', pendingRefreshRequestId, 'count', message.sessions?.length || 0, 'top', topSession?.id || 'none']
-                });
-
-                const effectiveRequestId = recvRequestId ?? pendingRefreshRequestId;
-
-                if (pendingRefreshRequestId && effectiveRequestId !== pendingRefreshRequestId) {
-                    vscode.postMessage({
-                        type: 'ui-debug',
-                        payload: ['WV', 'sessionsList', 'stale-drop', 'requestId', effectiveRequestId, 'expected', pendingRefreshRequestId]
-                    });
-                    break;
-                }
-
-                pendingRefreshRequestId = null;
-                sessions = Array.isArray(message.sessions) ? message.sessions : [];
-                const sessionIds = new Set(sessions.map((item) => item?.id).filter((id) => typeof id === 'string'));
-                for (const pendingId of Array.from(pendingDeleteSessionOpBySession.keys())) {
-                    if (!sessionIds.has(pendingId)) {
-                        pendingDeleteSessionOpBySession.delete(pendingId);
-                    }
-                }
-                if (armedDeleteSessionId && !sessionIds.has(armedDeleteSessionId)) {
-                    armedDeleteSessionId = '';
-                }
-
-                vscode.postMessage({
-                    type: 'ui-debug',
-                    payload: ['WV', 'sessionsList', 'applied', 'requestId', effectiveRequestId, 'count', sessions.length, 'top', topSession?.id || 'none']
-                });
-
-                renderSessionList();
-                // Restore header text after spinner
-                try {
-                    const hdr = sessionPanel?.querySelector?.('.session-panel-header span');
-                    if (hdr) hdr.textContent = 'Sessions';
-                } catch (_) {}
                 break;
             }
             case 'sessionDeleteStarted': {

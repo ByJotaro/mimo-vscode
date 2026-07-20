@@ -8996,22 +8996,26 @@ export class OpenCodeClient {
 
     public async listSessions(): Promise<SessionInfo[]> {
         await this.ensureServer();
-        // Try with workspace directory first (mimo serve often scopes by cwd)
-        const directory = encodeURIComponent(this.workspaceRoot || '.');
-        let sessions: any = null;
+        // ALWAYS prefer full /session list. `?directory=` scopes to one cwd and can
+        // hide the rest of history (user saw only 1 session). Merge both if needed.
+        let globalList: any[] = [];
+        let dirList: any[] = [];
         try {
-            sessions = await this.requestJson<any[]>('GET', `/session?directory=${directory}`);
-        } catch {
-            sessions = null;
+            const g = await this.requestJson<any[]>('GET', '/session');
+            if (Array.isArray(g)) globalList = g;
+        } catch { /* ignore */ }
+        try {
+            const directory = encodeURIComponent(this.workspaceRoot || '.');
+            const d = await this.requestJson<any[]>('GET', `/session?directory=${directory}`);
+            if (Array.isArray(d)) dirList = d;
+        } catch { /* ignore */ }
+        // Prefer the larger list; merge by id if both present
+        const byId = new Map<string, any>();
+        for (const s of [...globalList, ...dirList]) {
+            if (s && typeof s.id === 'string' && s.id) byId.set(s.id, s);
         }
-        if (!Array.isArray(sessions) || sessions.length === 0) {
-            try {
-                sessions = await this.requestJson<any[]>('GET', '/session');
-            } catch {
-                sessions = [];
-            }
-        }
-        if (!Array.isArray(sessions)) {
+        const sessions = Array.from(byId.values());
+        if (!sessions.length) {
             return [];
         }
         const mapped = sessions.map((session) => ({
@@ -9025,7 +9029,9 @@ export class OpenCodeClient {
                 : (typeof session?.cwd === 'string' ? session.cwd : undefined),
             parentID: typeof session?.parentID === 'string' && session.parentID
                 ? session.parentID
-                : (typeof session?.parent_id === 'string' ? session.parent_id : undefined),
+                : (typeof session?.parent_id === 'string' && session.parent_id
+                    ? session.parent_id
+                    : undefined),
             updatedMs: typeof session?.time?.updated === 'number'
                 ? session.time.updated
                 : (typeof session?.time?.created === 'number' ? session.time.created : 0)

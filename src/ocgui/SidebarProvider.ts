@@ -4056,17 +4056,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                 case "fetchSessions": {
                     try {
                         const raw = await this.client.listSessions();
-                        const main = raw.filter((s) => !s.parentID);
+                        let filtered = raw.filter((s) => !s.parentID);
+                        if (!filtered.length && raw.length) filtered = raw.slice();
                         const workspaceRoot = this.client.getWorkspaceRoot()
                             || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-                        let filtered = await this.filterSessionsForWorkspace(main, workspaceRoot, 'fetchSessions');
-                        // Always prefer non-empty: workspace match OR all main sessions
-                        if (!filtered.length) {
-                            filtered = main.slice();
-                            this.uiDebugChannel.appendLine(
-                                `[EXT][FETCH_SESSIONS_FALLBACK] workspaceEmpty=true main=${main.length}`
-                            );
-                        }
+                        // Rank remembered recent first, but do NOT drop others by cwd
                         if (workspaceRoot) {
                             const key = this.getWorkspaceKeyForRoot(workspaceRoot);
                             const recentId = this._context.globalState.get<string>(`recentSession.${key}`);
@@ -4078,14 +4072,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                                 }
                             }
                         }
-                        filtered = filtered.slice(0, 40);
+                        filtered = filtered.slice(0, 80);
                         const wv = this._view?.webview;
                         if (wv) {
                             wv.postMessage({ type: 'sessionsList', sessions: filtered });
                             wv.postMessage({ type: 'showStartupChooser', sessions: filtered });
                         }
                         this.uiDebugChannel.appendLine(
-                            `[EXT][FETCH_SESSIONS_OK] count=${filtered.length} workspace=${workspaceRoot || 'null'}`
+                            `[EXT][FETCH_SESSIONS_OK] count=${filtered.length} raw=${raw.length} workspace=${workspaceRoot || 'null'}`
                         );
                     } catch (e) {
                         rtLog(`FETCH_SESSIONS_ERR: ${String(e).slice(0, 100)}`);
@@ -6250,27 +6244,26 @@ ${attachmentLines.join('\n')}`
             this.uiDebugChannel.appendLine(`EXT: agents.load.fail | err=${String(error)}`);
         }
 
-        // Home "Recent sessions" must always show something when CLI has history.
-        // Prefer workspace match, but ALWAYS fall back to all main (non-child) sessions.
+        // Home + session panel: show ALL main sessions (no workspace cwd filter).
+        // Workspace filter was dropping nearly everything (user saw only 1 session).
+        const initWorkspaceRoot = this.client.getWorkspaceRoot() || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         let allMainSessions: SessionInfo[] = [];
         try {
             const raw = await this.client.listSessions();
             allMainSessions = raw.filter((s) => !s.parentID);
+            // Extra safety: if parentID is wrongly set on everything, still show list
+            if (!allMainSessions.length && raw.length) {
+                allMainSessions = raw.slice();
+            }
             rtLog(`SENDINIT sessions=${raw.length} main=${allMainSessions.length}`);
+            this.uiDebugChannel.appendLine(
+                `[EXT][INIT_SESSIONS] total=${raw.length} main=${allMainSessions.length} (no workspace filter)`
+            );
         } catch (error) {
             rtLog(`SENDINIT sessions FAIL: ${String(error)}`);
             this.postAddResponse(webview, `Failed to load sessions: ${error}`);
         }
-        const initWorkspaceRoot = this.client.getWorkspaceRoot() || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        let filtered = await this.filterSessionsForWorkspace(allMainSessions, initWorkspaceRoot, 'init');
-        if (!filtered.length) {
-            filtered = allMainSessions.slice();
-            this.uiDebugChannel.appendLine(
-                `[EXT][INIT_SESSIONS_FALLBACK] workspaceFilterEmpty=true usingMain=${filtered.length}`
-            );
-        }
-        // Cap home list size but keep order (most recent first from listSessions)
-        sessions = filtered.slice(0, 40);
+        sessions = allMainSessions.slice(0, 80);
         const storedModel = this._context.globalState.get<string>('mimo.model');
         const storedVariant = this._context.globalState.get<string>('mimo.variant');
         const storedMode = this._context.globalState.get<string>('mimo.mode');
@@ -8289,9 +8282,12 @@ ${attachmentLines.join('\n')}`
     private async refreshSessions(webview: vscode.Webview, requestId: string): Promise<void> {
         try {
             const sessions = await this.client.listSessions();
-            const workspaceRoot = this.client.getWorkspaceRoot() || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-            const filteredSessions = await this.filterSessionsForWorkspace(sessions, workspaceRoot, 'refresh');
-            const topSession = filteredSessions?.[0];
+            // Show all main sessions — do NOT workspace-filter (causes missing sessions)
+            let filteredSessions = sessions.filter((s) => !s.parentID);
+            if (!filteredSessions.length && sessions.length) {
+                filteredSessions = sessions.slice();
+            }
+            filteredSessions = filteredSessions.slice(0, 80);
             webview.postMessage({ type: 'sessionsList', requestId, sessions: filteredSessions });
         } catch (error) {
             this.postAddResponse(webview, `Failed to refresh sessions: ${error}`);
