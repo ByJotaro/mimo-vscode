@@ -37,6 +37,7 @@ html, body {
     background: var(--mimo-bg) !important;
     background-color: var(--mimo-bg) !important;
     position: relative;
+    /* clip page scroll only — children with visible overflow still paint inside */
     overflow: hidden;
 }
 
@@ -403,20 +404,21 @@ body > .slash-palette {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* Startup session chooser — logo, actions, recent list (scroll whole panel) */
+/* Startup: logo → tips → recent → buttons (scroll if needed) */
 .mimo-startup {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 10px;
-    padding: 8px 12px 28px;
+    gap: 12px;
+    padding: 12px 12px 32px;
     min-height: 0;
     width: 100%;
     box-sizing: border-box;
-    animation: mimo-part-in 0.25s ease;
-    overflow-x: visible;
+    animation: mimo-part-in 0.28s ease;
+    overflow-x: hidden;
     overflow-y: auto;
+    flex: 1 1 auto;
 }
 .mimo-startup--leaving {
     animation: mimo-startup-out 0.28s ease forwards;
@@ -425,18 +427,19 @@ body > .slash-palette {
 @keyframes mimo-startup-out {
     to { opacity: 0; transform: translateY(-10px) scale(0.98); }
 }
-/* Session hydrate enter — messages fade in, not a hard swap */
+/* Session hydrate enter — messages fade in */
+.chat-area.mimo-session-enter > .message,
 .chat-area.mimo-session-enter .message {
-    animation: mimo-msg-in 0.32s ease both;
+    animation: mimo-msg-in 0.36s ease both;
 }
 .chat-area.mimo-session-enter .message:nth-child(1) { animation-delay: 0.02s; }
-.chat-area.mimo-session-enter .message:nth-child(2) { animation-delay: 0.04s; }
-.chat-area.mimo-session-enter .message:nth-child(3) { animation-delay: 0.06s; }
-.chat-area.mimo-session-enter .message:nth-child(4) { animation-delay: 0.08s; }
-.chat-area.mimo-session-enter .message:nth-child(5) { animation-delay: 0.1s; }
-.chat-area.mimo-session-enter .message:nth-child(n+6) { animation-delay: 0.12s; }
+.chat-area.mimo-session-enter .message:nth-child(2) { animation-delay: 0.05s; }
+.chat-area.mimo-session-enter .message:nth-child(3) { animation-delay: 0.08s; }
+.chat-area.mimo-session-enter .message:nth-child(4) { animation-delay: 0.11s; }
+.chat-area.mimo-session-enter .message:nth-child(5) { animation-delay: 0.14s; }
+.chat-area.mimo-session-enter .message:nth-child(n+6) { animation-delay: 0.16s; }
 @keyframes mimo-msg-in {
-    from { opacity: 0; transform: translateY(8px); }
+    from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
 }
 .mimo-startup-title {
@@ -466,6 +469,7 @@ body > .slash-palette {
     color: var(--mimo-fg);
     cursor: pointer;
     transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+    animation: mimo-msg-in 0.3s ease both;
 }
 .mimo-startup-item:hover {
     border-color: var(--mimo-primary);
@@ -606,49 +610,55 @@ body > .slash-palette {
     padding: 0 !important;
     width: 100%;
     max-width: 100%;
-    overflow: visible !important;
+    overflow: hidden; /* canvas is sized to fit — no external clip of half-logo */
     position: relative;
-    z-index: 2;
+    z-index: 1;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
 }
 .mimo-startup-logo .mimo-welcome {
     min-height: 0 !important;
-    padding: 0 !important;
-    gap: 0 !important;
-    overflow: visible !important;
+    padding: 4px 0 8px !important;
+    gap: 6px !important;
+    width: 100%;
+    max-width: 100%;
+    overflow: hidden;
 }
 .mimo-startup-logo .mimo-welcome-logo {
-    overflow: visible !important;
+    overflow: hidden;
     position: relative;
+    width: 100%;
+    max-width: 100%;
+}
+.mimo-logo-canvas {
+    max-width: 100% !important;
 }
 .chat-welcome,
 .mimo-welcome {
-    overflow: visible !important;
+    overflow: hidden;
     max-width: 100%;
     min-height: 0 !important;
 }
-/* Keep startup list/actions above logo particle bleed but clickable */
 .mimo-startup-title,
 .mimo-startup-list,
 .mimo-startup-actions {
     position: relative;
-    z-index: 3;
+    z-index: 2;
     width: min(440px, 100%);
+    flex-shrink: 0;
 }
 .mimo-startup-list {
-    max-height: min(38vh, 320px);
-    min-height: 80px;
-}
-.chat-area {
-    /* visible x so logo particle bloom isn't clipped at sides */
-    overflow-x: visible;
+    max-height: min(42vh, 360px);
+    min-height: 100px;
     overflow-y: auto;
 }
-body.mimo-startup-active,
-body:has(.mimo-startup) {
-    overflow-x: hidden; /* keep page stable; particles may still paint in chat */
+.chat-area {
+    overflow-x: hidden;
+    overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
 }
 /* No separate text mark under logo — ASCII logo IS the brand (fixes dual "MiMo Code") */
 .mimo-welcome-mark {

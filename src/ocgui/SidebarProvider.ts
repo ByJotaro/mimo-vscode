@@ -4996,18 +4996,57 @@ ${attachmentLines.join('\n')}`
                             );
                         }
 
-                        // Always refresh from API after snapshot paint so history is not stuck
-                        // on a stale/incomplete local snapshot (previous code broke out early).
+                        // Prefer FULL session export so history is not truncated mid-thread.
+                        // Fall back: recent limit → DB query (includes tool/reasoning parts API may drop).
                         let recentFailedReason = '';
                         const recentStart = Date.now();
                         try {
                             rtLog(`SELECT_SESSION full id=${targetSessionId} snapMsgs=${baseMessages.length}`);
-                            const recentExport = await this.client.exportSessionRecent(targetSessionId, this.recentSessionLoadLimit);
+                            let exportPayload: any = null;
+                            let source = 'full';
+                            try {
+                                exportPayload = await this.client.exportSession(targetSessionId);
+                            } catch (fullErr) {
+                                this.uiDebugChannel.appendLine(
+                                    `[EXT][SESSION_FULL_FAIL] sessionId=${targetSessionId} err=${String(fullErr).slice(0, 120)}`
+                                );
+                            }
+                            if (!exportPayload || !Array.isArray(exportPayload.messages)) {
+                                source = 'recent';
+                                exportPayload = await this.client.exportSessionRecent(
+                                    targetSessionId,
+                                    Math.max(this.recentSessionLoadLimit, 1500)
+                                );
+                            }
                             if (!isCurrentSelection()) {
                                 break;
                             }
 
-                            const formattedRaw = this.formatSession(recentExport);
+                            let formattedRaw = this.formatSession(exportPayload);
+                            // If still thin vs snapshot, try DB enrich for parts
+                            if (
+                                (!formattedRaw.messages || formattedRaw.messages.length < Math.max(3, baseMessages.length * 0.5)) &&
+                                typeof (this.client as any).querySessionFromDb === 'function'
+                            ) {
+                                try {
+                                    const dbExport = await (this.client as any).querySessionFromDb(
+                                        targetSessionId,
+                                        Math.max(this.recentSessionLoadLimit, 500)
+                                    );
+                                    if (dbExport && Array.isArray(dbExport.messages) && dbExport.messages.length > 0) {
+                                        // DB shape differs — only use if formatSession handles it
+                                        const dbFormatted = this.formatSession(dbExport);
+                                        if (dbFormatted.messages.length >= (formattedRaw.messages?.length || 0)) {
+                                            formattedRaw = dbFormatted;
+                                            source = 'db';
+                                        }
+                                    }
+                                } catch (dbErr) {
+                                    this.uiDebugChannel.appendLine(
+                                        `[EXT][SESSION_DB_FAIL] sessionId=${targetSessionId} err=${String(dbErr).slice(0, 100)}`
+                                    );
+                                }
+                            }
                             const formatted = await this.injectChangeLists(targetSessionId, formattedRaw);
                             if (!isCurrentSelection()) {
                                 break;
@@ -5017,15 +5056,10 @@ ${attachmentLines.join('\n')}`
                                 baseTitle = formatted.title;
                             }
 
-                            const snapshotIds = Array.isArray(snapPayload?.meta?.timelineMessageIds)
-                                ? (snapPayload.meta.timelineMessageIds as string[]).filter((id): id is string => typeof id === 'string' && Boolean(id))
-                                : [];
-                            const snapshotIdSet = new Set<string>(snapshotIds);
-                            const snapshotMaxMessageIndex = this.getMaxMessageIndex(baseMessages);
-                            const appendCandidates = this.computeRecentAppendCandidates(snapshotIdSet, snapshotMaxMessageIndex, formatted.messages);
-                            const appendMessages = this.enforceUserAssistantPairs(appendCandidates);
-                            const mergedMessages = this.mergeSessionMessagesById(baseMessages, appendMessages);
-                            const newIds = appendMessages
+                            // Full replace with API/DB history, then merge any snapshot-only extras
+                            const apiMessages = Array.isArray(formatted.messages) ? formatted.messages : [];
+                            const mergedMessages = this.mergeSessionMessagesById(apiMessages, baseMessages);
+                            const timelineIds = mergedMessages
                                 .map((message) => (typeof message?.id === 'string' ? message.id : ''))
                                 .filter((id): id is string => Boolean(id));
                             const sessionPayload = {
@@ -5035,7 +5069,9 @@ ${attachmentLines.join('\n')}`
                                 messages: mergedMessages,
                                 segments,
                                 meta: {
-                                    timelineMessageIds: [...snapshotIds, ...newIds]
+                                    source,
+                                    timelineMessageIds: timelineIds,
+                                    fullLoad: true
                                 }
                             };
                             const sent = postSessionData(sessionPayload, 'recent');
@@ -5045,16 +5081,16 @@ ${attachmentLines.join('\n')}`
                             }
 
                             this.uiDebugChannel.appendLine(
-                                `[EXT][SESSION_RECENT_OK] sessionId=${targetSessionId} limit=${this.recentSessionLoadLimit} merged=${mergedMessages.length} costMs=${Date.now() - recentStart}`
+                                `[EXT][SESSION_LOAD_OK] sessionId=${targetSessionId} source=${source} msgs=${mergedMessages.length} costMs=${Date.now() - recentStart}`
                             );
 
                             if (sent) {
-                                this.uiDebugChannel.appendLine(`[EXT][SNAP_SAVE_SKIP] sessionId=${targetSessionId} reason=selectSession:recent disabled=incremental-only`);
+                                this.uiDebugChannel.appendLine(`[EXT][SNAP_SAVE_SKIP] sessionId=${targetSessionId} reason=selectSession:full`);
                             }
                         } catch (err) {
                             recentFailedReason = this.extractLastLine(String(err));
                             this.uiDebugChannel.appendLine(
-                                `[EXT][SESSION_RECENT_FAIL] sessionId=${targetSessionId} limit=${this.recentSessionLoadLimit} err=${recentFailedReason || 'null'} costMs=${Date.now() - recentStart}`
+                                `[EXT][SESSION_LOAD_FAIL] sessionId=${targetSessionId} err=${recentFailedReason || 'null'} costMs=${Date.now() - recentStart}`
                             );
                         }
 

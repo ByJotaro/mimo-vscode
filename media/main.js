@@ -5793,23 +5793,90 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /** Center chooser: LOGO → Recent sessions → Show history / New (always below logo, scrollable). */
+    /** Startup: LOGO + tips → Recent sessions → Show history / New */
     function showStartupChooser(sessionList) {
         chatContainer.innerHTML = '';
         const root = document.createElement('div');
         root.className = 'mimo-startup';
         root.id = 'mimo-startup';
 
-        // 1) Logo (compact host — no 42vh empty welcome height)
+        // 1) Logo + micro tips (sub/hint)
         const logoHost = document.createElement('div');
         logoHost.id = 'chat-welcome';
         logoHost.className = 'mimo-startup-logo';
         root.appendChild(logoHost);
         if (typeof window.__mimoPaintWelcome === 'function') {
-            window.__mimoPaintWelcome(logoHost, { compact: true });
+            window.__mimoPaintWelcome(logoHost, {});
+        } else {
+            logoHost.innerHTML = '<div class="mimo-welcome-sub">MiMo Code</div>';
         }
 
-        // 2) Actions FIRST (always visible even if list is empty / long logo)
+        // 2) Recent sessions DIRECTLY under logo/tips
+        const title = document.createElement('div');
+        title.className = 'mimo-startup-title';
+        title.textContent = 'Recent sessions';
+        root.appendChild(title);
+
+        const list = document.createElement('div');
+        list.className = 'mimo-startup-list';
+        const raw = Array.isArray(sessionList) && sessionList.length
+            ? sessionList
+            : (Array.isArray(window.__mimoSessionsCache) ? window.__mimoSessionsCache
+                : (Array.isArray(sessions) ? sessions : []));
+        try {
+            vscode.postMessage({
+                type: 'ui-debug',
+                payload: ['[WV][STARTUP_CHOOSER]', 'count=' + raw.length]
+            });
+        } catch (_) {}
+
+        const items = raw.slice(0, 24).map(function (s) {
+            if (!s || typeof s !== 'object') return null;
+            const id = s.id || s.sessionId || s.sessionID || s.session_id || '';
+            if (!id) return null;
+            const titleText = s.title || s.name || s.summary || s.slug || String(id).slice(0, 12);
+            let when = s.updated || s.updatedAt || s.timeUpdated
+                || (s.time && (s.time.updated || s.time.created))
+                || s.created || s.createdAt || '';
+            if (typeof when === 'number') {
+                try { when = new Date(when < 1e12 ? when * 1000 : when).toLocaleString(); }
+                catch (_) { when = String(when); }
+            }
+            return { id: String(id), title: String(titleText), when: String(when || '').slice(0, 48) };
+        }).filter(Boolean);
+
+        if (!items.length) {
+            const empty = document.createElement('div');
+            empty.className = 'mimo-startup-empty';
+            empty.textContent = 'No recent sessions — open History or start New';
+            list.appendChild(empty);
+        } else {
+            items.forEach(function (s, idx) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'mimo-startup-item';
+                btn.style.animationDelay = (0.04 + idx * 0.03) + 's';
+                const t = document.createElement('span');
+                t.className = 'mimo-startup-item-title';
+                t.textContent = s.title;
+                const m = document.createElement('span');
+                m.className = 'mimo-startup-item-meta';
+                m.textContent = s.when || s.id.slice(0, 16);
+                btn.appendChild(t);
+                btn.appendChild(m);
+                btn.addEventListener('click', function () {
+                    showSessionLoadingBar('Loading session…');
+                    root.classList.add('mimo-startup--leaving');
+                    pendingExplicitSessionSelectionId = s.id;
+                    activeSessionId = s.id;
+                    vscode.postMessage({ type: 'selectSession', sessionId: s.id });
+                });
+                list.appendChild(btn);
+            });
+        }
+        root.appendChild(list);
+
+        // 3) Actions under list
         const actions = document.createElement('div');
         actions.className = 'mimo-startup-actions';
         const hist = document.createElement('button');
@@ -5822,8 +5889,8 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 if (typeof openSessionPanel === 'function') openSessionPanel();
                 else vscode.postMessage({ type: 'openSessions' });
-            } catch (err) {
-                try { vscode.postMessage({ type: 'openSessions' }); } catch (_) {}
+            } catch (_) {
+                try { vscode.postMessage({ type: 'openSessions' }); } catch (__) {}
             }
         });
         const neu = document.createElement('button');
@@ -5844,76 +5911,9 @@ document.addEventListener('DOMContentLoaded', () => {
         actions.appendChild(neu);
         root.appendChild(actions);
 
-        // 3) Recent sessions under logo
-        const title = document.createElement('div');
-        title.className = 'mimo-startup-title';
-        title.textContent = 'Recent sessions';
-        root.appendChild(title);
-
-        const list = document.createElement('div');
-        list.className = 'mimo-startup-list';
-        const raw = Array.isArray(sessionList) && sessionList.length
-            ? sessionList
-            : (Array.isArray(sessions) ? sessions : []);
-        // Debug so we can see empty list causes in Output
-        try {
-            vscode.postMessage({
-                type: 'ui-debug',
-                payload: ['[WV][STARTUP_CHOOSER]', 'count=' + raw.length,
-                    'sample=' + (raw[0] ? JSON.stringify({ id: raw[0].id, title: raw[0].title }).slice(0, 80) : 'none')]
-            });
-        } catch (_) {}
-
-        const items = raw.slice(0, 20).map(function (s) {
-            if (!s || typeof s !== 'object') return null;
-            const id = s.id || s.sessionId || s.sessionID || s.session_id || '';
-            const titleText = s.title || s.name || s.summary || s.slug || id || 'Session';
-            let when = s.updated || s.updatedAt || s.timeUpdated
-                || (s.time && (s.time.updated || s.time.created))
-                || s.created || s.createdAt || '';
-            if (typeof when === 'number') {
-                try { when = new Date(when < 1e12 ? when * 1000 : when).toLocaleString(); }
-                catch (_) { when = String(when); }
-            }
-            return { id: String(id), title: String(titleText), when: String(when || id).slice(0, 48) };
-        }).filter(function (s) { return s && s.id; });
-
-        if (!items.length) {
-            const empty = document.createElement('div');
-            empty.className = 'mimo-startup-empty';
-            empty.textContent = raw.length
-                ? 'Sessions loaded but missing ids — use Show history'
-                : 'No recent sessions yet — open History or start New';
-            list.appendChild(empty);
-        } else {
-            for (let i = 0; i < items.length; i++) {
-                const s = items[i];
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'mimo-startup-item';
-                const t = document.createElement('span');
-                t.className = 'mimo-startup-item-title';
-                t.textContent = s.title;
-                const m = document.createElement('span');
-                m.className = 'mimo-startup-item-meta';
-                m.textContent = s.when;
-                btn.appendChild(t);
-                btn.appendChild(m);
-                btn.addEventListener('click', function () {
-                    showSessionLoadingBar('Loading session…');
-                    // Fade out chooser before hydrate (session enter anim)
-                    root.classList.add('mimo-startup--leaving');
-                    pendingExplicitSessionSelectionId = s.id;
-                    activeSessionId = s.id;
-                    vscode.postMessage({ type: 'selectSession', sessionId: s.id });
-                });
-                list.appendChild(btn);
-            }
-        }
-        root.appendChild(list);
         chatContainer.appendChild(root);
-        // Ensure list is scrolled into view under logo
-        try { list.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (_) {}
+        // Cache sessions for re-render
+        if (raw.length) window.__mimoSessionsCache = raw;
     }
 
     function showSessionLoadingBar(label) {
@@ -10210,62 +10210,71 @@ function appendMessageImages(parentEl, message) {
             let running = false;
 
             function layout() {
-                const parent = canvas.parentElement;
-                // Glyph fit uses parent width; particle bloom lives OUTSIDE the text box (large pad)
-                const avail = Math.max(260, (parent ? parent.clientWidth : 400));
+                // Stage = canvas parent (.mimo-welcome-logo). Must FIT inside chat width — no negative margins
+                // (those shifted/clipped the logo). Particle field = leftover space around glyphs inside canvas.
+                const stage = canvas.parentElement;
+                const outer = stage && stage.parentElement ? stage.parentElement : stage;
+                const avail = Math.max(200, (outer ? outer.clientWidth : 360) - 8);
                 const probe = canvas.getContext('2d');
-                // Prefer LARGE logo: size by glyph cols only (do not shrink for particle pad)
-                let fs = Math.floor(avail / Math.max(1, grid.cols));
-                fs = Math.max(14, Math.min(32, fs)); // bigger than before (was 9–22)
+                // Large logo: use almost full width for glyphs; keep modest side pad for particles
+                let sidePad = Math.min(48, Math.floor(avail * 0.12));
+                let fs = Math.floor((avail - sidePad * 2) / Math.max(1, grid.cols));
+                fs = Math.max(16, Math.min(36, fs));
                 probe.font = '600 ' + fs + 'px "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
                 let advance = probe.measureText('█').width;
                 if (!advance || advance < 4) advance = fs * 0.62;
                 let guard = 0;
-                while (advance * grid.cols > avail && fs > 12 && guard++ < 24) {
+                while (advance * grid.cols + sidePad * 2 > avail && fs > 14 && guard++ < 30) {
                     fs -= 1;
                     probe.font = '600 ' + fs + 'px "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
                     advance = probe.measureText('█').width || fs * 0.62;
                 }
                 fontSize = fs;
-                // Horizontal: exact mono advance (no square gutters between █)
                 cellW = advance;
-                // Vertical: use real glyph bbox so rows stack without empty strips
-                let metrics = null;
-                try { metrics = probe.measureText('█'); } catch (_) {}
-                const asc = metrics && metrics.actualBoundingBoxAscent ? metrics.actualBoundingBoxAscent : fs * 0.8;
-                const desc = metrics && metrics.actualBoundingBoxDescent ? metrics.actualBoundingBoxDescent : fs * 0.15;
-                const glyphH = Math.max(1, asc + desc);
-                // Pitch = glyph height (tight). Slight -1px to kill subpixel hairlines between rows.
-                cellH = Math.max(glyphH * 0.98, advance * 0.95);
-                // HUGE pad so gather/burst particles are never clipped by the logo box
-                padX = Math.max(180, Math.ceil(cellW * 10));
-                padY = Math.max(140, Math.ceil(cellH * 8));
-                W = Math.ceil(padX * 2 + grid.cols * cellW);
-                H = Math.ceil(padY * 2 + grid.rows * cellH);
+                // Tight vertical: pitch = advance (block chars are square) — kills row gutters
+                cellH = advance;
+                const textW = grid.cols * cellW;
+                const textH = grid.rows * cellH;
+                // Pad: remaining width/height budget — particles use full canvas, never clipped by CSS
+                padX = Math.max(24, Math.floor((avail - textW) / 2));
+                padY = Math.max(36, Math.ceil(cellH * 2.2));
+                W = Math.ceil(padX * 2 + textW);
+                H = Math.ceil(padY * 2 + textH);
+                // Cap to avail so nothing sticks out of chat (no body clip → no "shifted" half-logo)
+                if (W > avail) {
+                    const scale = avail / W;
+                    // shrink pads only
+                    const excess = W - avail;
+                    padX = Math.max(12, padX - Math.ceil(excess / 2));
+                    W = Math.ceil(padX * 2 + textW);
+                }
                 canvas.width = Math.floor(W * dpr);
                 canvas.height = Math.floor(H * dpr);
-                // Full bitmap includes particle field; collapse layout height so Recent list sits under glyphs
-                const textBoxW = Math.ceil(grid.cols * cellW);
-                const textBoxH = Math.ceil(grid.rows * cellH);
                 canvas.style.width = W + 'px';
                 canvas.style.height = H + 'px';
-                canvas.style.marginLeft = (-padX) + 'px';
-                canvas.style.marginRight = (-padX) + 'px';
-                canvas.style.marginTop = (-padY) + 'px';
-                canvas.style.marginBottom = (-padY) + 'px';
-                // Host only occupies glyph box in document flow
-                if (canvas.parentElement) {
-                    canvas.parentElement.style.width = textBoxW + 'px';
-                    canvas.parentElement.style.height = textBoxH + 'px';
-                    canvas.parentElement.style.overflow = 'visible';
-                    canvas.parentElement.style.marginLeft = 'auto';
-                    canvas.parentElement.style.marginRight = 'auto';
+                canvas.style.margin = '0 auto';
+                canvas.style.display = 'block';
+                canvas.style.position = 'relative';
+                canvas.style.left = '0';
+                canvas.style.top = '0';
+                if (stage) {
+                    stage.style.width = '100%';
+                    stage.style.height = H + 'px';
+                    stage.style.overflow = 'visible';
+                    stage.style.display = 'flex';
+                    stage.style.justifyContent = 'center';
+                    stage.style.alignItems = 'center';
+                    stage.style.margin = '0';
+                    stage.style.padding = '0';
                 }
                 const ctx = canvas.getContext('2d');
                 ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                // Center glyph block inside canvas (equal pad)
+                const originX = padX;
+                const originY = padY;
                 grid.cells.forEach(function (c) {
-                    c.px = padX + c.gx * cellW + cellW * 0.5;
-                    c.py = padY + c.gy * cellH + cellH * 0.5;
+                    c.px = originX + c.gx * cellW + cellW * 0.5;
+                    c.py = originY + c.gy * cellH + cellH * 0.5;
                 });
             }
 
@@ -10627,10 +10636,11 @@ function appendMessageImages(parentEl, message) {
 
         function paintWelcome(host, opts) {
             if (!host) return;
-            const compact = opts && opts.compact;
+            // Always show sub + hint (user wants tips under logo before recent list)
+            const showTips = !(opts && opts.hideTips);
             host.innerHTML = '';
             const wrap = document.createElement('div');
-            wrap.className = 'mimo-welcome' + (compact ? ' mimo-welcome--compact' : '');
+            wrap.className = 'mimo-welcome';
             const logoBox = document.createElement('div');
             logoBox.className = 'mimo-welcome-logo';
             logoBox.id = 'mimo-welcome-logo';
@@ -10638,7 +10648,7 @@ function appendMessageImages(parentEl, message) {
             canvas.className = 'mimo-logo-canvas';
             logoBox.appendChild(canvas);
             wrap.appendChild(logoBox);
-            if (!compact) {
+            if (showTips) {
                 const sub = document.createElement('div');
                 sub.className = 'mimo-welcome-sub';
                 sub.textContent = 'Where models and agents co-evolve';
@@ -11688,6 +11698,7 @@ window.addEventListener('message', (event) => {
                 models = Array.isArray(message.models) ? message.models : [];
                 refreshFreeModelIds();
                 sessions = Array.isArray(message.sessions) ? message.sessions : [];
+                if (sessions.length) window.__mimoSessionsCache = sessions;
                 // Deduplicate modes and keep OMO-family agents in one contiguous block.
                 const rawModes = Array.isArray(message.modes)
                     ? message.modes.filter((item, index, arr) => typeof item === 'string' && item.length > 0 && arr.indexOf(item) === index)
