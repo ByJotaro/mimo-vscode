@@ -403,19 +403,41 @@ body > .slash-palette {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* Startup session chooser — logo on top, recent list under it */
+/* Startup session chooser — logo, actions, recent list (scroll whole panel) */
 .mimo-startup {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 12px;
-    padding: 20px 16px 36px;
-    min-height: 48vh;
+    gap: 10px;
+    padding: 8px 12px 28px;
+    min-height: 0;
     width: 100%;
     box-sizing: border-box;
     animation: mimo-part-in 0.25s ease;
-    overflow: auto;
+    overflow-x: visible;
+    overflow-y: auto;
+}
+.mimo-startup--leaving {
+    animation: mimo-startup-out 0.28s ease forwards;
+    pointer-events: none;
+}
+@keyframes mimo-startup-out {
+    to { opacity: 0; transform: translateY(-10px) scale(0.98); }
+}
+/* Session hydrate enter — messages fade in, not a hard swap */
+.chat-area.mimo-session-enter .message {
+    animation: mimo-msg-in 0.32s ease both;
+}
+.chat-area.mimo-session-enter .message:nth-child(1) { animation-delay: 0.02s; }
+.chat-area.mimo-session-enter .message:nth-child(2) { animation-delay: 0.04s; }
+.chat-area.mimo-session-enter .message:nth-child(3) { animation-delay: 0.06s; }
+.chat-area.mimo-session-enter .message:nth-child(4) { animation-delay: 0.08s; }
+.chat-area.mimo-session-enter .message:nth-child(5) { animation-delay: 0.1s; }
+.chat-area.mimo-session-enter .message:nth-child(n+6) { animation-delay: 0.12s; }
+@keyframes mimo-msg-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 .mimo-startup-title {
     font-family: "Cascadia Mono", Consolas, monospace;
@@ -581,15 +603,52 @@ body > .slash-palette {
 }
 .mimo-startup-logo {
     min-height: 0 !important;
-    padding: 4px 0 2px !important;
+    padding: 0 !important;
     width: 100%;
     max-width: 100%;
     overflow: visible !important;
+    position: relative;
+    z-index: 2;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.mimo-startup-logo .mimo-welcome {
+    min-height: 0 !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    overflow: visible !important;
+}
+.mimo-startup-logo .mimo-welcome-logo {
+    overflow: visible !important;
+    position: relative;
 }
 .chat-welcome,
 .mimo-welcome {
     overflow: visible !important;
     max-width: 100%;
+    min-height: 0 !important;
+}
+/* Keep startup list/actions above logo particle bleed but clickable */
+.mimo-startup-title,
+.mimo-startup-list,
+.mimo-startup-actions {
+    position: relative;
+    z-index: 3;
+    width: min(440px, 100%);
+}
+.mimo-startup-list {
+    max-height: min(38vh, 320px);
+    min-height: 80px;
+}
+.chat-area {
+    /* visible x so logo particle bloom isn't clipped at sides */
+    overflow-x: visible;
+    overflow-y: auto;
+}
+body.mimo-startup-active,
+body:has(.mimo-startup) {
+    overflow-x: hidden; /* keep page stable; particles may still paint in chat */
 }
 /* No separate text mark under logo — ASCII logo IS the brand (fixes dual "MiMo Code") */
 .mimo-welcome-mark {

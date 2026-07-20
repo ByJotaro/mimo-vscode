@@ -692,7 +692,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     private initPosted = false;
     private sessionSelectionEpoch = 0;
     /** Higher default so session open shows full recent history without extra clicks. */
-    private readonly recentSessionLoadLimit = 400;
+    private readonly recentSessionLoadLimit = 800;
     private readonly webviewLivenessPingTimeoutMs = 3000;
     private readonly webviewAutoRescueCooldownMs = 60000;
     private readonly webviewAutoRescueNotificationTtlMs = 60000;

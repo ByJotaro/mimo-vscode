@@ -5793,23 +5793,58 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /** Center chooser: LOGO on top → recent sessions under logo → History + New. */
+    /** Center chooser: LOGO → Recent sessions → Show history / New (always below logo, scrollable). */
     function showStartupChooser(sessionList) {
         chatContainer.innerHTML = '';
         const root = document.createElement('div');
         root.className = 'mimo-startup';
         root.id = 'mimo-startup';
 
-        // 1) Full interactive logo FIRST
+        // 1) Logo (compact host — no 42vh empty welcome height)
         const logoHost = document.createElement('div');
         logoHost.id = 'chat-welcome';
-        logoHost.className = 'chat-welcome mimo-startup-logo';
+        logoHost.className = 'mimo-startup-logo';
         root.appendChild(logoHost);
         if (typeof window.__mimoPaintWelcome === 'function') {
-            window.__mimoPaintWelcome(logoHost, { compact: false });
+            window.__mimoPaintWelcome(logoHost, { compact: true });
         }
 
-        // 2) Recent sessions UNDER the logo
+        // 2) Actions FIRST (always visible even if list is empty / long logo)
+        const actions = document.createElement('div');
+        actions.className = 'mimo-startup-actions';
+        const hist = document.createElement('button');
+        hist.type = 'button';
+        hist.className = 'mimo-startup-btn';
+        hist.textContent = 'Show history';
+        hist.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            try {
+                if (typeof openSessionPanel === 'function') openSessionPanel();
+                else vscode.postMessage({ type: 'openSessions' });
+            } catch (err) {
+                try { vscode.postMessage({ type: 'openSessions' }); } catch (_) {}
+            }
+        });
+        const neu = document.createElement('button');
+        neu.type = 'button';
+        neu.className = 'mimo-startup-btn mimo-startup-btn--primary';
+        neu.textContent = 'New session';
+        neu.addEventListener('click', function (e) {
+            e.preventDefault();
+            try {
+                const b = document.getElementById('new-session-btn');
+                if (b) b.click();
+                else vscode.postMessage({ type: 'newSession' });
+            } catch (_) {
+                vscode.postMessage({ type: 'newSession' });
+            }
+        });
+        actions.appendChild(hist);
+        actions.appendChild(neu);
+        root.appendChild(actions);
+
+        // 3) Recent sessions under logo
         const title = document.createElement('div');
         title.className = 'mimo-startup-title';
         title.textContent = 'Recent sessions';
@@ -5817,23 +5852,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const list = document.createElement('div');
         list.className = 'mimo-startup-list';
-        const raw = Array.isArray(sessionList) ? sessionList : (Array.isArray(sessions) ? sessions : []);
-        // Prefer items with titles; map common API fields
-        const items = raw.slice(0, 14).map(function (s) {
+        const raw = Array.isArray(sessionList) && sessionList.length
+            ? sessionList
+            : (Array.isArray(sessions) ? sessions : []);
+        // Debug so we can see empty list causes in Output
+        try {
+            vscode.postMessage({
+                type: 'ui-debug',
+                payload: ['[WV][STARTUP_CHOOSER]', 'count=' + raw.length,
+                    'sample=' + (raw[0] ? JSON.stringify({ id: raw[0].id, title: raw[0].title }).slice(0, 80) : 'none')]
+            });
+        } catch (_) {}
+
+        const items = raw.slice(0, 20).map(function (s) {
             if (!s || typeof s !== 'object') return null;
-            const id = s.id || s.sessionId || s.sessionID || '';
-            const titleText = s.title || s.name || s.summary || s.id || 'Session';
-            let when = s.updated || s.updatedAt || s.time?.updated || s.time?.created || s.created || '';
+            const id = s.id || s.sessionId || s.sessionID || s.session_id || '';
+            const titleText = s.title || s.name || s.summary || s.slug || id || 'Session';
+            let when = s.updated || s.updatedAt || s.timeUpdated
+                || (s.time && (s.time.updated || s.time.created))
+                || s.created || s.createdAt || '';
             if (typeof when === 'number') {
-                try { when = new Date(when).toLocaleString(); } catch (_) { when = String(when); }
+                try { when = new Date(when < 1e12 ? when * 1000 : when).toLocaleString(); }
+                catch (_) { when = String(when); }
             }
-            return { id: id, title: titleText, when: String(when || id).slice(0, 40) };
+            return { id: String(id), title: String(titleText), when: String(when || id).slice(0, 48) };
         }).filter(function (s) { return s && s.id; });
 
         if (!items.length) {
             const empty = document.createElement('div');
             empty.className = 'mimo-startup-empty';
-            empty.textContent = 'No recent sessions in this folder — start a new one';
+            empty.textContent = raw.length
+                ? 'Sessions loaded but missing ids — use Show history'
+                : 'No recent sessions yet — open History or start New';
             list.appendChild(empty);
         } else {
             for (let i = 0; i < items.length; i++) {
@@ -5851,6 +5901,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.appendChild(m);
                 btn.addEventListener('click', function () {
                     showSessionLoadingBar('Loading session…');
+                    // Fade out chooser before hydrate (session enter anim)
+                    root.classList.add('mimo-startup--leaving');
                     pendingExplicitSessionSelectionId = s.id;
                     activeSessionId = s.id;
                     vscode.postMessage({ type: 'selectSession', sessionId: s.id });
@@ -5859,34 +5911,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         root.appendChild(list);
-
-        // 3) Actions
-        const actions = document.createElement('div');
-        actions.className = 'mimo-startup-actions';
-        const hist = document.createElement('button');
-        hist.type = 'button';
-        hist.className = 'mimo-startup-btn';
-        hist.textContent = 'Show history';
-        hist.addEventListener('click', function () {
-            try { openSessionPanel(); } catch (_) {}
-        });
-        const neu = document.createElement('button');
-        neu.type = 'button';
-        neu.className = 'mimo-startup-btn mimo-startup-btn--primary';
-        neu.textContent = 'New session';
-        neu.addEventListener('click', function () {
-            try {
-                const b = document.getElementById('new-session-btn');
-                if (b) b.click();
-                else vscode.postMessage({ type: 'newSession' });
-            } catch (_) {
-                vscode.postMessage({ type: 'newSession' });
-            }
-        });
-        actions.appendChild(hist);
-        actions.appendChild(neu);
-        root.appendChild(actions);
         chatContainer.appendChild(root);
+        // Ensure list is scrolled into view under logo
+        try { list.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (_) {}
     }
 
     function showSessionLoadingBar(label) {
@@ -10184,42 +10211,58 @@ function appendMessageImages(parentEl, message) {
 
             function layout() {
                 const parent = canvas.parentElement;
-                // Use full available width; leave room for particle bloom (pad)
-                const avail = Math.max(220, (parent ? parent.clientWidth : 360));
-                // Target font so glyph columns pack edge-to-edge without square gutters
-                // Measure mono advance of █ and set cellW === advance (no empty pad per cell)
+                // Glyph fit uses parent width; particle bloom lives OUTSIDE the text box (large pad)
+                const avail = Math.max(260, (parent ? parent.clientWidth : 400));
                 const probe = canvas.getContext('2d');
-                // Start from a size that fits cols into (avail - particle pad)
-                const bloom = 56; // horizontal room for particles on both sides
-                let fs = Math.floor((avail - bloom * 2) / Math.max(1, grid.cols));
-                fs = Math.max(9, Math.min(22, fs));
+                // Prefer LARGE logo: size by glyph cols only (do not shrink for particle pad)
+                let fs = Math.floor(avail / Math.max(1, grid.cols));
+                fs = Math.max(14, Math.min(32, fs)); // bigger than before (was 9–22)
                 probe.font = '600 ' + fs + 'px "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
                 let advance = probe.measureText('█').width;
-                if (!advance || advance < 4) advance = fs * 0.6;
-                // If measured pitch * cols still too wide, shrink font until it fits
+                if (!advance || advance < 4) advance = fs * 0.62;
                 let guard = 0;
-                while (advance * grid.cols + bloom * 2 > avail && fs > 8 && guard++ < 20) {
+                while (advance * grid.cols > avail && fs > 12 && guard++ < 24) {
                     fs -= 1;
                     probe.font = '600 ' + fs + 'px "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
-                    advance = probe.measureText('█').width || fs * 0.6;
+                    advance = probe.measureText('█').width || fs * 0.62;
                 }
                 fontSize = fs;
-                // CRITICAL: cell pitch = exact glyph advance → no per-char square gutters
+                // Horizontal: exact mono advance (no square gutters between █)
                 cellW = advance;
-                // Vertical pitch slightly above font (block glyphs are square-ish)
-                cellH = Math.max(fontSize, Math.ceil(fontSize * 1.02));
-                // Generous pad so charge/burst particles & glow are NOT clipped on either word
-                padX = Math.max(bloom, Math.ceil(cellW * 3.5));
-                padY = Math.max(40, Math.ceil(cellH * 2.4));
+                // Vertical: use real glyph bbox so rows stack without empty strips
+                let metrics = null;
+                try { metrics = probe.measureText('█'); } catch (_) {}
+                const asc = metrics && metrics.actualBoundingBoxAscent ? metrics.actualBoundingBoxAscent : fs * 0.8;
+                const desc = metrics && metrics.actualBoundingBoxDescent ? metrics.actualBoundingBoxDescent : fs * 0.15;
+                const glyphH = Math.max(1, asc + desc);
+                // Pitch = glyph height (tight). Slight -1px to kill subpixel hairlines between rows.
+                cellH = Math.max(glyphH * 0.98, advance * 0.95);
+                // HUGE pad so gather/burst particles are never clipped by the logo box
+                padX = Math.max(180, Math.ceil(cellW * 10));
+                padY = Math.max(140, Math.ceil(cellH * 8));
                 W = Math.ceil(padX * 2 + grid.cols * cellW);
                 H = Math.ceil(padY * 2 + grid.rows * cellH);
                 canvas.width = Math.floor(W * dpr);
                 canvas.height = Math.floor(H * dpr);
+                // Full bitmap includes particle field; collapse layout height so Recent list sits under glyphs
+                const textBoxW = Math.ceil(grid.cols * cellW);
+                const textBoxH = Math.ceil(grid.rows * cellH);
                 canvas.style.width = W + 'px';
                 canvas.style.height = H + 'px';
+                canvas.style.marginLeft = (-padX) + 'px';
+                canvas.style.marginRight = (-padX) + 'px';
+                canvas.style.marginTop = (-padY) + 'px';
+                canvas.style.marginBottom = (-padY) + 'px';
+                // Host only occupies glyph box in document flow
+                if (canvas.parentElement) {
+                    canvas.parentElement.style.width = textBoxW + 'px';
+                    canvas.parentElement.style.height = textBoxH + 'px';
+                    canvas.parentElement.style.overflow = 'visible';
+                    canvas.parentElement.style.marginLeft = 'auto';
+                    canvas.parentElement.style.marginRight = 'auto';
+                }
                 const ctx = canvas.getContext('2d');
                 ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-                // map cell centers — tight mono grid, no extra gutter
                 grid.cells.forEach(function (c) {
                     c.px = padX + c.gx * cellW + cellW * 0.5;
                     c.py = padY + c.gy * cellH + cellH * 0.5;
@@ -10238,29 +10281,33 @@ function appendMessageImages(parentEl, message) {
             }
 
             function spawnGather(cx, cy, rise, n) {
-                // Particles spawn far out and get sucked into the press point (CLI charge feel)
-                const reach = Math.min(W, H) * lerp(0.42, 0.72, rise);
+                // Spawn from full canvas pad (not limited to glyph box) → fly straight into center
+                const reachX = padX * lerp(0.75, 0.98, rise);
+                const reachY = padY * lerp(0.75, 0.98, rise);
                 for (let i = 0; i < n; i++) {
                     const ang = Math.random() * Math.PI * 2;
-                    const dist = lerp(cellW * 3, reach, 0.35 + Math.random() * 0.65);
+                    // elliptic spawn across the particle field
+                    const dist = lerp(0.45, 1, Math.random());
                     const side = Math.random() < 0.58 ? MIMO_ORANGE : MIMO_GRAY;
                     particles.push({
-                        x: cx + Math.cos(ang) * dist,
-                        y: cy + Math.sin(ang) * dist,
+                        x: cx + Math.cos(ang) * reachX * dist,
+                        y: cy + Math.sin(ang) * reachY * dist,
                         vx: 0, vy: 0,
                         life: 1,
                         mode: 'gather',
                         color: tint(side, PEAK, rise * 0.45 + Math.random() * 0.25),
-                        size: lerp(1.4, 3.4, Math.random() * (0.4 + rise)),
+                        size: lerp(1.6, 3.8, Math.random() * (0.4 + rise)),
                     });
                 }
             }
 
             function spawnBurst(cx, cy, level) {
-                const count = Math.floor(lerp(70, 200, level));
+                // Speeds scaled to pad so particles fill the field, not only the glyph box
+                const reach = Math.min(padX, padY) * 0.9;
+                const count = Math.floor(lerp(90, 260, level));
                 for (let i = 0; i < count; i++) {
                     const ang = Math.random() * Math.PI * 2;
-                    const spd = lerp(2.2, 12, level) * (0.45 + Math.random());
+                    const spd = lerp(reach * 0.04, reach * 0.12, level) * (0.5 + Math.random());
                     const side = Math.random() < 0.55 ? MIMO_ORANGE : MIMO_GRAY;
                     particles.push({
                         x: cx + (Math.random() - 0.5) * 8,
@@ -10270,14 +10317,13 @@ function appendMessageImages(parentEl, message) {
                         life: 1,
                         mode: 'burst',
                         color: tint(side, PEAK, 0.45 + level * 0.55),
-                        size: lerp(1.6, 4.2, Math.random() * level),
+                        size: lerp(1.8, 4.6, Math.random() * level),
                     });
                 }
-                // expanding ring wave particles
-                const ringN = Math.floor(lerp(36, 96, level));
+                const ringN = Math.floor(lerp(48, 120, level));
                 for (let i = 0; i < ringN; i++) {
                     const ang = (i / ringN) * Math.PI * 2 + Math.random() * 0.05;
-                    const spd = lerp(3.5, 13, level);
+                    const spd = lerp(reach * 0.06, reach * 0.14, level);
                     particles.push({
                         x: cx, y: cy,
                         vx: Math.cos(ang) * spd,
@@ -10285,21 +10331,21 @@ function appendMessageImages(parentEl, message) {
                         life: 1,
                         mode: 'ring',
                         color: tint(MIMO_ORANGE, PEAK, 0.75),
-                        size: 2.6,
+                        size: 2.8,
                     });
                 }
-                // secondary cooler ring (Code gray) for dual-word flash
-                const ringN2 = Math.floor(lerp(18, 48, level));
+                const ringN2 = Math.floor(lerp(24, 64, level));
                 for (let i = 0; i < ringN2; i++) {
                     const ang = (i / ringN2) * Math.PI * 2;
+                    const spd = lerp(reach * 0.04, reach * 0.1, level);
                     particles.push({
                         x: cx, y: cy,
-                        vx: Math.cos(ang) * lerp(2.2, 8, level),
-                        vy: Math.sin(ang) * lerp(2.2, 8, level),
+                        vx: Math.cos(ang) * spd,
+                        vy: Math.sin(ang) * spd,
                         life: 1,
                         mode: 'ring',
                         color: tint(MIMO_GRAY, PEAK, 0.55),
-                        size: 1.8,
+                        size: 2.0,
                     });
                 }
             }
@@ -10372,7 +10418,7 @@ function appendMessageImages(parentEl, message) {
                         spawnGather(hold.cx, hold.cy, rise, 5 + Math.floor(rise * 8));
                     }
                 }
-                // integrate particles (single step — was double-applied before)
+                // integrate particles — gather goes STRAIGHT into center (no orbit/swirl)
                 for (let i = particles.length - 1; i >= 0; i--) {
                     const p = particles[i];
                     if (p.mode === 'gather' && hold) {
@@ -10380,26 +10426,27 @@ function appendMessageImages(parentEl, message) {
                         const dy = hold.cy - p.y;
                         const dist = Math.hypot(dx, dy) || 1;
                         const rise = ramp(t - hold.at, HOLD_MS, CHARGE_MS);
-                        const pull = 0.12 + rise * 0.38;
-                        p.vx = p.vx * 0.82 + (dx / dist) * pull * Math.min(dist * 0.06, 4.5);
-                        p.vy = p.vy * 0.82 + (dy / dist) * pull * Math.min(dist * 0.06, 4.5);
-                        // swirl tighter near center
-                        const swirl = 0.22 + rise * 0.28;
-                        p.vx += -dy / dist * swirl;
-                        p.vy += dx / dist * swirl;
-                        p.life -= 0.005;
-                        // snap-absorb near core for "particles gathering" look
-                        if (dist < cellW * 0.55) {
-                            p.life -= 0.08;
-                            p.size *= 0.92;
+                        // Strong radial pull toward exact center — no tangential swirl
+                        const speed = lerp(3.5, 14, rise) + dist * 0.045;
+                        p.vx = (dx / dist) * speed;
+                        p.vy = (dy / dist) * speed;
+                        p.x += p.vx;
+                        p.y += p.vy;
+                        // Absorb when hitting center
+                        const nd = Math.hypot(hold.cx - p.x, hold.cy - p.y);
+                        if (nd < cellW * 0.7) {
+                            p.life = 0;
+                        } else {
+                            p.life -= 0.004;
                         }
                     } else {
-                        p.vx *= 0.975;
-                        p.vy *= 0.975;
-                        p.life -= p.mode === 'ring' ? 0.014 : 0.011;
+                        p.vx *= 0.978;
+                        p.vy *= 0.978;
+                        p.x += p.vx;
+                        p.y += p.vy;
+                        p.life -= p.mode === 'ring' ? 0.012 : 0.01;
+                        // Allow particles to live across full pad (don't kill at glyph edge)
                     }
-                    p.x += p.vx;
-                    p.y += p.vy;
                     if (p.life <= 0) particles.splice(i, 1);
                 }
                 // prune rings
@@ -12033,6 +12080,18 @@ window.addEventListener('message', (event) => {
                     if (bar) bar.remove();
                     const welcome = document.getElementById('chat-welcome');
                     if (welcome) welcome.remove();
+                    const startup = document.getElementById('mimo-startup');
+                    if (startup) startup.remove();
+                    // Enter animation so history doesn't hard-swap
+                    if (chatContainer) {
+                        chatContainer.classList.remove('mimo-session-enter');
+                        void chatContainer.offsetWidth;
+                        chatContainer.classList.add('mimo-session-enter');
+                        window.clearTimeout(chatContainer.__mimoEnterT);
+                        chatContainer.__mimoEnterT = window.setTimeout(function () {
+                            chatContainer.classList.remove('mimo-session-enter');
+                        }, 600);
+                    }
                 } catch (_) {}
                 const route = resolveEventSessionId(message, 'sessionData');
                 const sessionId = route?.sessionId || null;
