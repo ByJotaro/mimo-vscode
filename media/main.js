@@ -10379,16 +10379,35 @@ function appendMessageImages(parentEl, message) {
                 }
             }
 
-            function logoCenterViewport() {
-                // Center of logo text in viewport coords
+            function syncLogoOffset() {
+                try {
+                    const r = canvas.getBoundingClientRect();
+                    logoOffX = r.left;
+                    logoOffY = r.top;
+                    // CSS scale if canvas CSS size != logical W/H
+                    const sx = r.width / Math.max(1, W);
+                    const sy = r.height / Math.max(1, H);
+                    return { sx: sx, sy: sy };
+                } catch (_) {
+                    return { sx: 1, sy: 1 };
+                }
+            }
+
+            function localToViewport(lx, ly) {
+                const s = syncLogoOffset();
                 return {
-                    x: logoOffX + W * 0.5,
-                    y: logoOffY + H * 0.5,
+                    x: logoOffX + lx * s.sx,
+                    y: logoOffY + ly * s.sy,
                 };
             }
 
+            function logoZoneRadius() {
+                // Rounded neighborhood around the logo (not full screen)
+                return Math.max(W, H) * 1.35 + 48;
+            }
+
             function cellAt(px, py) {
-                // nearest non-empty cell
+                // nearest non-empty cell (logo-local coords)
                 let best = null, bestD = 1e9;
                 for (let i = 0; i < grid.cells.length; i++) {
                     const c = grid.cells[i];
@@ -10398,65 +10417,66 @@ function appendMessageImages(parentEl, message) {
                 return best;
             }
 
-            function spawnGather(cx, cy, rise, n) {
-                // Viewport-space: spawn from edges of the whole extension → fly to logo center
+            function spawnGather(tx, ty, rise, n) {
+                // Spawn in a ROUND annulus around the press glyph — not full-screen edges
+                const zone = logoZoneRadius();
+                const rMin = zone * lerp(0.35, 0.55, rise);
+                const rMax = zone * lerp(0.75, 1.05, rise);
                 for (let i = 0; i < n; i++) {
-                    const edge = Math.floor(Math.random() * 4);
-                    let x, y;
-                    if (edge === 0) { x = Math.random() * fxW; y = -8; }
-                    else if (edge === 1) { x = Math.random() * fxW; y = fxH + 8; }
-                    else if (edge === 2) { x = -8; y = Math.random() * fxH; }
-                    else { x = fxW + 8; y = Math.random() * fxH; }
+                    const ang = Math.random() * Math.PI * 2;
+                    const r = lerp(rMin, rMax, Math.random());
                     const side = Math.random() < 0.58 ? MIMO_ORANGE : MIMO_GRAY;
                     particles.push({
-                        x: x, y: y, vx: 0, vy: 0,
+                        x: tx + Math.cos(ang) * r,
+                        y: ty + Math.sin(ang) * r,
+                        vx: 0, vy: 0,
                         life: 1,
                         mode: 'gather',
                         color: tint(side, PEAK, rise * 0.45 + Math.random() * 0.25),
-                        size: lerp(1.8, 4.2, Math.random() * (0.4 + rise)),
+                        size: lerp(1.6, 3.6, Math.random() * (0.4 + rise)),
                     });
                 }
             }
 
             function spawnBurst(cx, cy, level) {
-                // Viewport-space burst: fill whole sidebar like background dust
-                const reach = Math.min(fxW, fxH) * 0.55;
-                const count = Math.floor(lerp(120, 340, level));
+                // Local soft burst around the pressed glyph (not whole sidebar)
+                const reach = logoZoneRadius() * lerp(0.55, 0.95, level);
+                const count = Math.floor(lerp(55, 140, level));
                 for (let i = 0; i < count; i++) {
                     const ang = Math.random() * Math.PI * 2;
-                    const spd = lerp(reach * 0.05, reach * 0.22, level) * (0.45 + Math.random());
+                    const spd = lerp(reach * 0.04, reach * 0.16, level) * (0.45 + Math.random());
                     const side = Math.random() < 0.55 ? MIMO_ORANGE : MIMO_GRAY;
                     particles.push({
-                        x: cx + (Math.random() - 0.5) * 12,
-                        y: cy + (Math.random() - 0.5) * 12,
+                        x: cx + (Math.random() - 0.5) * 8,
+                        y: cy + (Math.random() - 0.5) * 8,
                         vx: Math.cos(ang) * spd,
                         vy: Math.sin(ang) * spd,
                         life: 1,
                         mode: 'burst',
                         color: tint(side, PEAK, 0.45 + level * 0.55),
-                        size: lerp(1.8, 4.8, Math.random() * level),
+                        size: lerp(1.6, 3.8, Math.random() * level),
                     });
                 }
-                const ringN = Math.floor(lerp(60, 150, level));
+                const ringN = Math.floor(lerp(28, 72, level));
                 for (let i = 0; i < ringN; i++) {
                     const ang = (i / ringN) * Math.PI * 2;
-                    const spd = lerp(reach * 0.08, reach * 0.2, level);
+                    const spd = lerp(reach * 0.06, reach * 0.14, level);
                     particles.push({
                         x: cx, y: cy,
                         vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
                         life: 1, mode: 'ring',
-                        color: tint(MIMO_ORANGE, PEAK, 0.75), size: 2.8,
+                        color: tint(MIMO_ORANGE, PEAK, 0.75), size: 2.4,
                     });
                 }
-                const ringN2 = Math.floor(lerp(30, 80, level));
+                const ringN2 = Math.floor(lerp(16, 40, level));
                 for (let i = 0; i < ringN2; i++) {
                     const ang = (i / ringN2) * Math.PI * 2;
-                    const spd = lerp(reach * 0.05, reach * 0.14, level);
+                    const spd = lerp(reach * 0.04, reach * 0.1, level);
                     particles.push({
                         x: cx, y: cy,
                         vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
                         life: 1, mode: 'ring',
-                        color: tint(MIMO_GRAY, PEAK, 0.55), size: 2.0,
+                        color: tint(MIMO_GRAY, PEAK, 0.55), size: 1.8,
                     });
                 }
             }
@@ -10519,21 +10539,18 @@ function appendMessageImages(parentEl, message) {
                     doBurst(hold.cx, hold.cy, t);
                     hold = null;
                 }
-                // gather particles while holding — denser as charge rises (viewport target)
+                // gather toward nearest logo glyph under cursor (not logo center)
                 if (hold) {
                     const age = t - hold.at;
                     const rise = ramp(age, HOLD_MS, CHARGE_MS);
-                    // keep logo offset fresh while holding
-                    try {
-                        const r = canvas.getBoundingClientRect();
-                        logoOffX = r.left; logoOffY = r.top;
-                        hold.vx = logoOffX + W * 0.5;
-                        hold.vy = logoOffY + H * 0.5;
-                    } catch (_) {}
+                    // refresh viewport target from pressed glyph local coords
+                    const vt = localToViewport(hold.cx, hold.cy);
+                    hold.vx = vt.x;
+                    hold.vy = vt.y;
                     const gatherCount = particles.filter(function (p) { return p.mode === 'gather'; }).length;
-                    const cap = Math.floor(lerp(90, 220, rise));
+                    const cap = Math.floor(lerp(50, 120, rise));
                     if (gatherCount < cap) {
-                        spawnGather(hold.vx, hold.vy, rise, 6 + Math.floor(rise * 10));
+                        spawnGather(hold.vx, hold.vy, rise, 4 + Math.floor(rise * 6));
                     }
                 }
                 // integrate particles in viewport space
@@ -10545,22 +10562,23 @@ function appendMessageImages(parentEl, message) {
                         const dy = ty - p.y;
                         const dist = Math.hypot(dx, dy) || 1;
                         const rise = ramp(t - hold.at, HOLD_MS, CHARGE_MS);
-                        const speed = lerp(4, 18, rise) + dist * 0.035;
+                        const speed = lerp(3.5, 14, rise) + dist * 0.04;
                         p.vx = (dx / dist) * speed;
                         p.vy = (dy / dist) * speed;
                         p.x += p.vx;
                         p.y += p.vy;
-                        if (Math.hypot(tx - p.x, ty - p.y) < 14) {
+                        // absorb near the pressed glyph
+                        if (Math.hypot(tx - p.x, ty - p.y) < Math.max(10, cellW * 0.9)) {
                             p.life = 0;
                         } else {
-                            p.life -= 0.0025;
+                            p.life -= 0.003;
                         }
                     } else {
-                        p.vx *= 0.984;
-                        p.vy *= 0.984;
+                        p.vx *= 0.978;
+                        p.vy *= 0.978;
                         p.x += p.vx;
                         p.y += p.vy;
-                        p.life -= p.mode === 'ring' ? 0.01 : 0.008;
+                        p.life -= p.mode === 'ring' ? 0.014 : 0.011;
                     }
                     if (p.life <= 0) particles.splice(i, 1);
                 }
@@ -10634,32 +10652,31 @@ function appendMessageImages(parentEl, message) {
                 const rise = ramp(age, HOLD_MS, CHARGE_MS);
                 const level = push(Math.max(0.3, rise));
                 hum = false;
-                // Viewport burst center = logo center in screen space
-                const vc = logoCenterViewport();
-                const bx = (hold && hold.vx) || vc.x;
-                const by = (hold && hold.vy) || vc.y;
+                // Burst from the pressed glyph (viewport), not logo center / full screen
+                const vt = localToViewport(localCx, localCy);
+                const bx = (hold && hold.vx) || vt.x;
+                const by = (hold && hold.vy) || vt.y;
                 for (let i = 0; i < particles.length; i++) {
                     const p = particles[i];
                     if (p.mode !== 'gather') continue;
                     const dx = p.x - bx;
                     const dy = p.y - by;
                     const dist = Math.hypot(dx, dy) || 1;
-                    const spd = lerp(5, 18, level);
-                    p.vx = (dx / dist) * spd * (0.55 + Math.random() * 0.7);
-                    p.vy = (dy / dist) * spd * (0.55 + Math.random() * 0.7);
+                    const spd = lerp(3.5, 12, level);
+                    p.vx = (dx / dist) * spd * (0.55 + Math.random() * 0.65);
+                    p.vy = (dy / dist) * spd * (0.55 + Math.random() * 0.65);
                     p.mode = 'burst';
                     p.color = tint(p.color, PEAK, 0.6);
                     p.life = 1;
-                    p.size *= 1.15;
+                    p.size *= 1.1;
                 }
                 spawnBurst(bx, by, level);
-                // rings use logo-local for glyph fieldBoost
                 rings.push({
                     x: localCx, y: localCy, at: t,
-                    force: lerp(1.0, 3.1, level),
-                    kick: lerp(0.4, 0.4 + 1.1, level),
+                    force: lerp(1.0, 2.8, level),
+                    kick: lerp(0.4, 0.4 + 1.0, level),
                 });
-                glow = { at: t, force: lerp(0.35, 2.0, rise * level) };
+                glow = { at: t, force: lerp(0.35, 1.8, rise * level) };
                 soundPulse(lerp(0.8, 1, level));
                 startLoop();
             }
@@ -10667,18 +10684,15 @@ function appendMessageImages(parentEl, message) {
             function press(px, py) {
                 const t = performance.now();
                 if (hold) doBurst(hold.cx, hold.cy, t);
+                // Target = nearest MiMo/Code block glyph to the cursor
                 const cell = cellAt(px, py);
                 const cx = cell ? cell.px : px;
                 const cy = cell ? cell.py : py;
-                try {
-                    const r = canvas.getBoundingClientRect();
-                    logoOffX = r.left; logoOffY = r.top;
-                } catch (_) {}
-                const vc = logoCenterViewport();
+                const vt = localToViewport(cx, cy);
                 hold = {
                     x: px, y: py, at: t,
-                    cx: cx, cy: cy,           // logo-local for glyph field
-                    vx: vc.x, vy: vc.y,       // viewport for particles
+                    cx: cx, cy: cy,           // logo-local glyph for field + burst origin
+                    vx: vt.x, vy: vt.y,       // viewport target for particles
                 };
                 hum = false;
                 particles = particles.filter(function (p) { return p.mode !== 'gather'; });
