@@ -605,12 +605,13 @@ body > .slash-palette {
     padding: 8px 0;
     gap: 4px;
 }
+/* Logo stack MUST be overflow:visible — overflow:hidden made a square clip over particles */
 .mimo-startup-logo {
     min-height: 0 !important;
     padding: 0 !important;
     width: 100%;
     max-width: 100%;
-    overflow: hidden; /* canvas is sized to fit — no external clip of half-logo */
+    overflow: visible !important;
     position: relative;
     z-index: 1;
     display: flex;
@@ -624,22 +625,26 @@ body > .slash-palette {
     gap: 6px !important;
     width: 100%;
     max-width: 100%;
-    overflow: hidden;
+    overflow: visible !important;
 }
 .mimo-startup-logo .mimo-welcome-logo {
-    overflow: hidden;
+    overflow: visible !important;
     position: relative;
     width: 100%;
     max-width: 100%;
 }
 .mimo-logo-canvas {
-    max-width: 100% !important;
+    max-width: none !important; /* allow particle pad wider than text if needed */
+    overflow: visible !important;
 }
 .chat-welcome,
 .mimo-welcome {
-    overflow: hidden;
+    overflow: visible !important;
     max-width: 100%;
     min-height: 0 !important;
+}
+.mimo-welcome-logo {
+    overflow: visible !important;
 }
 .mimo-startup-title,
 .mimo-startup-list,

@@ -4053,6 +4053,46 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     }
                     break;
                 }
+                case "fetchSessions": {
+                    try {
+                        let sessions = await this.client.listSessions();
+                        const workspaceRoot = this.client.getWorkspaceRoot()
+                            || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+                        // Prefer workspace filter, but if empty fall back to all main sessions
+                        // so the home "Recent sessions" list is never blank.
+                        let filtered = await this.filterSessionsForWorkspace(sessions, workspaceRoot, 'fetchSessions');
+                        if (!filtered.length && sessions.length) {
+                            filtered = sessions.filter((s) => !s.parentID);
+                            this.uiDebugChannel.appendLine(
+                                `[EXT][FETCH_SESSIONS_FALLBACK] workspaceEmpty=true total=${sessions.length} main=${filtered.length}`
+                            );
+                        }
+                        // Rank remembered recent first
+                        if (workspaceRoot) {
+                            const key = this.getWorkspaceKeyForRoot(workspaceRoot);
+                            const recentId = this._context.globalState.get<string>(`recentSession.${key}`);
+                            if (recentId) {
+                                const idx = filtered.findIndex((s) => s.id === recentId);
+                                if (idx > 0) {
+                                    const [hit] = filtered.splice(idx, 1);
+                                    filtered.unshift(hit);
+                                }
+                            }
+                        }
+                        const wv = this._view?.webview;
+                        if (wv) {
+                            wv.postMessage({ type: 'sessionsList', sessions: filtered });
+                            // Also re-open chooser fill if home screen is active
+                            wv.postMessage({ type: 'showStartupChooser', sessions: filtered });
+                        }
+                        this.uiDebugChannel.appendLine(
+                            `[EXT][FETCH_SESSIONS_OK] count=${filtered.length} workspace=${workspaceRoot || 'null'}`
+                        );
+                    } catch (e) {
+                        rtLog(`FETCH_SESSIONS_ERR: ${String(e).slice(0, 100)}`);
+                    }
+                    break;
+                }
                 case "sendMessage": {
                     // this.uiDebugChannel.appendLine(
                     //     `[EXT][SEND_RX] sessionId=${this.currentSessionId || 'NULL'} ` +
@@ -6211,8 +6251,10 @@ ${attachmentLines.join('\n')}`
             this.uiDebugChannel.appendLine(`EXT: agents.load.fail | err=${String(error)}`);
         }
 
+        let allSessionsForFallback: SessionInfo[] = [];
         try {
             sessions = await this.client.listSessions();
+            allSessionsForFallback = sessions.slice();
             rtLog(`SENDINIT sessions=${sessions.length}`);
         } catch (error) {
             rtLog(`SENDINIT sessions FAIL: ${String(error)}`);
@@ -6220,6 +6262,13 @@ ${attachmentLines.join('\n')}`
         }
         const initWorkspaceRoot = this.client.getWorkspaceRoot() || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         sessions = await this.filterSessionsForWorkspace(sessions, initWorkspaceRoot, 'init');
+        // Never leave home Recent list empty if CLI has any main sessions
+        if (!sessions.length && allSessionsForFallback.length) {
+            sessions = allSessionsForFallback.filter((s) => !s.parentID);
+            this.uiDebugChannel.appendLine(
+                `[EXT][INIT_SESSIONS_FALLBACK] workspaceFilterEmpty=true usingMain=${sessions.length}`
+            );
+        }
         const storedModel = this._context.globalState.get<string>('mimo.model');
         const storedVariant = this._context.globalState.get<string>('mimo.variant');
         const storedMode = this._context.globalState.get<string>('mimo.mode');

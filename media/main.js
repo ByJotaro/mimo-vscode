@@ -5794,13 +5794,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /** Startup: LOGO + tips → Recent sessions → Show history / New */
+    function normalizeSessionItem(s) {
+        if (!s || typeof s !== 'object') return null;
+        const id = s.id || s.sessionId || s.sessionID || s.session_id || '';
+        if (!id) return null;
+        const titleText = s.title || s.name || s.summary || s.slug || ('Session ' + String(id).slice(0, 10));
+        let when = s.updated || s.updatedAt || s.timeUpdated
+            || (s.time && (s.time.updated || s.time.created))
+            || s.created || s.createdAt || '';
+        if (typeof when === 'number') {
+            try { when = new Date(when < 1e12 ? when * 1000 : when).toLocaleString(); }
+            catch (_) { when = String(when); }
+        }
+        return { id: String(id), title: String(titleText), when: String(when || '').slice(0, 48) };
+    }
+
     function showStartupChooser(sessionList) {
         chatContainer.innerHTML = '';
         const root = document.createElement('div');
         root.className = 'mimo-startup';
         root.id = 'mimo-startup';
 
-        // 1) Logo + micro tips (sub/hint)
+        // 1) Logo + tips
         const logoHost = document.createElement('div');
         logoHost.id = 'chat-welcome';
         logoHost.className = 'mimo-startup-logo';
@@ -5811,7 +5826,7 @@ document.addEventListener('DOMContentLoaded', () => {
             logoHost.innerHTML = '<div class="mimo-welcome-sub">MiMo Code</div>';
         }
 
-        // 2) Recent sessions DIRECTLY under logo/tips
+        // 2) Recent sessions under tips — always render section
         const title = document.createElement('div');
         title.className = 'mimo-startup-title';
         title.textContent = 'Recent sessions';
@@ -5819,64 +5834,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const list = document.createElement('div');
         list.className = 'mimo-startup-list';
-        const raw = Array.isArray(sessionList) && sessionList.length
-            ? sessionList
-            : (Array.isArray(window.__mimoSessionsCache) ? window.__mimoSessionsCache
-                : (Array.isArray(sessions) ? sessions : []));
-        try {
-            vscode.postMessage({
-                type: 'ui-debug',
-                payload: ['[WV][STARTUP_CHOOSER]', 'count=' + raw.length]
-            });
-        } catch (_) {}
-
-        const items = raw.slice(0, 24).map(function (s) {
-            if (!s || typeof s !== 'object') return null;
-            const id = s.id || s.sessionId || s.sessionID || s.session_id || '';
-            if (!id) return null;
-            const titleText = s.title || s.name || s.summary || s.slug || String(id).slice(0, 12);
-            let when = s.updated || s.updatedAt || s.timeUpdated
-                || (s.time && (s.time.updated || s.time.created))
-                || s.created || s.createdAt || '';
-            if (typeof when === 'number') {
-                try { when = new Date(when < 1e12 ? when * 1000 : when).toLocaleString(); }
-                catch (_) { when = String(when); }
-            }
-            return { id: String(id), title: String(titleText), when: String(when || '').slice(0, 48) };
-        }).filter(Boolean);
-
-        if (!items.length) {
-            const empty = document.createElement('div');
-            empty.className = 'mimo-startup-empty';
-            empty.textContent = 'No recent sessions — open History or start New';
-            list.appendChild(empty);
-        } else {
-            items.forEach(function (s, idx) {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'mimo-startup-item';
-                btn.style.animationDelay = (0.04 + idx * 0.03) + 's';
-                const t = document.createElement('span');
-                t.className = 'mimo-startup-item-title';
-                t.textContent = s.title;
-                const m = document.createElement('span');
-                m.className = 'mimo-startup-item-meta';
-                m.textContent = s.when || s.id.slice(0, 16);
-                btn.appendChild(t);
-                btn.appendChild(m);
-                btn.addEventListener('click', function () {
-                    showSessionLoadingBar('Loading session…');
-                    root.classList.add('mimo-startup--leaving');
-                    pendingExplicitSessionSelectionId = s.id;
-                    activeSessionId = s.id;
-                    vscode.postMessage({ type: 'selectSession', sessionId: s.id });
-                });
-                list.appendChild(btn);
-            });
-        }
+        list.id = 'mimo-startup-list';
         root.appendChild(list);
 
-        // 3) Actions under list
+        // 3) Actions
         const actions = document.createElement('div');
         actions.className = 'mimo-startup-actions';
         const hist = document.createElement('button');
@@ -5910,10 +5871,74 @@ document.addEventListener('DOMContentLoaded', () => {
         actions.appendChild(hist);
         actions.appendChild(neu);
         root.appendChild(actions);
-
         chatContainer.appendChild(root);
-        // Cache sessions for re-render
-        if (raw.length) window.__mimoSessionsCache = raw;
+
+        function fillList(src) {
+            const raw = Array.isArray(src) ? src : [];
+            if (raw.length) {
+                window.__mimoSessionsCache = raw;
+                sessions = raw;
+            }
+            const items = raw.map(normalizeSessionItem).filter(Boolean).slice(0, 30);
+            list.innerHTML = '';
+            if (!items.length) {
+                const empty = document.createElement('div');
+                empty.className = 'mimo-startup-empty';
+                empty.id = 'mimo-startup-empty';
+                empty.textContent = 'Loading recent sessions…';
+                list.appendChild(empty);
+                // Ask host for sessions (may arrive late after serve start)
+                try { vscode.postMessage({ type: 'fetchSessions' }); } catch (_) {}
+                return;
+            }
+            items.forEach(function (s, idx) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'mimo-startup-item';
+                btn.style.animationDelay = (0.04 + idx * 0.03) + 's';
+                const t = document.createElement('span');
+                t.className = 'mimo-startup-item-title';
+                t.textContent = s.title;
+                const m = document.createElement('span');
+                m.className = 'mimo-startup-item-meta';
+                m.textContent = s.when || s.id.slice(0, 16);
+                btn.appendChild(t);
+                btn.appendChild(m);
+                btn.addEventListener('click', function () {
+                    showSessionLoadingBar('Loading session…');
+                    root.classList.add('mimo-startup--leaving');
+                    pendingExplicitSessionSelectionId = s.id;
+                    activeSessionId = s.id;
+                    vscode.postMessage({ type: 'selectSession', sessionId: s.id });
+                });
+                list.appendChild(btn);
+            });
+            try {
+                vscode.postMessage({
+                    type: 'ui-debug',
+                    payload: ['[WV][STARTUP_CHOOSER]', 'shown=' + items.length]
+                });
+            } catch (_) {}
+        }
+
+        const seed = Array.isArray(sessionList) && sessionList.length
+            ? sessionList
+            : (Array.isArray(window.__mimoSessionsCache) && window.__mimoSessionsCache.length
+                ? window.__mimoSessionsCache
+                : (Array.isArray(sessions) ? sessions : []));
+        fillList(seed);
+        // Retry once if empty (server may still be listing)
+        if (!seed.length) {
+            setTimeout(function () {
+                if (!document.getElementById('mimo-startup')) return;
+                try { vscode.postMessage({ type: 'fetchSessions' }); } catch (_) {}
+            }, 800);
+            setTimeout(function () {
+                if (!document.getElementById('mimo-startup')) return;
+                try { vscode.postMessage({ type: 'fetchSessions' }); } catch (_) {}
+            }, 2200);
+        }
+        window.__mimoFillStartupList = fillList;
     }
 
     function showSessionLoadingBar(label) {
@@ -10210,48 +10235,48 @@ function appendMessageImages(parentEl, message) {
             let running = false;
 
             function layout() {
-                // Stage = canvas parent (.mimo-welcome-logo). Must FIT inside chat width — no negative margins
-                // (those shifted/clipped the logo). Particle field = leftover space around glyphs inside canvas.
+                // Canvas = giant buffer that includes BOTH text and particle field.
+                // Particles draw INSIDE canvas bitmap → no CSS overflow clip.
+                // Text is offset slightly left/up so particles have room on right/bottom.
                 const stage = canvas.parentElement;
                 const outer = stage && stage.parentElement ? stage.parentElement : stage;
-                const avail = Math.max(200, (outer ? outer.clientWidth : 360) - 8);
+                const avail = Math.max(220, (outer ? outer.clientWidth : 360) - 4);
                 const probe = canvas.getContext('2d');
-                // Large logo: use almost full width for glyphs; keep modest side pad for particles
-                let sidePad = Math.min(48, Math.floor(avail * 0.12));
-                let fs = Math.floor((avail - sidePad * 2) / Math.max(1, grid.cols));
-                fs = Math.max(16, Math.min(36, fs));
-                probe.font = '600 ' + fs + 'px "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
-                let advance = probe.measureText('█').width;
-                if (!advance || advance < 4) advance = fs * 0.62;
+                const FONT = '"Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
+                let fs = Math.floor(avail / Math.max(1, grid.cols + 2));
+                fs = Math.max(18, Math.min(40, fs));
+                probe.font = '600 ' + fs + 'px ' + FONT;
+                let pair = probe.measureText('██').width;
+                let advance = pair > 0 ? pair / 2 : probe.measureText('█').width;
+                if (!advance || advance < 4) advance = fs * 0.6;
                 let guard = 0;
-                while (advance * grid.cols + sidePad * 2 > avail && fs > 14 && guard++ < 30) {
+                while (advance * (grid.cols + 2) > avail && fs > 16 && guard++ < 40) {
                     fs -= 1;
-                    probe.font = '600 ' + fs + 'px "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
-                    advance = probe.measureText('█').width || fs * 0.62;
+                    probe.font = '600 ' + fs + 'px ' + FONT;
+                    pair = probe.measureText('██').width;
+                    advance = pair > 0 ? pair / 2 : (probe.measureText('█').width || fs * 0.6);
                 }
                 fontSize = fs;
-                cellW = advance;
-                // Tight vertical: pitch = advance (block chars are square) — kills row gutters
-                cellH = advance;
+                // Horizontal: tighten ~4% to close micro gutters between █ blocks
+                cellW = Math.max(1, advance * 0.96);
+                // Vertical: font-size (em square) — block chars fill height
+                cellH = fontSize;
                 const textW = grid.cols * cellW;
                 const textH = grid.rows * cellH;
-                // Pad: remaining width/height budget — particles use full canvas, never clipped by CSS
-                padX = Math.max(24, Math.floor((avail - textW) / 2));
-                padY = Math.max(36, Math.ceil(cellH * 2.2));
-                W = Math.ceil(padX * 2 + textW);
-                H = Math.ceil(padY * 2 + textH);
-                // Cap to avail so nothing sticks out of chat (no body clip → no "shifted" half-logo)
-                if (W > avail) {
-                    const scale = avail / W;
-                    // shrink pads only
-                    const excess = W - avail;
-                    padX = Math.max(12, padX - Math.ceil(excess / 2));
-                    W = Math.ceil(padX * 2 + textW);
-                }
+                // Particle field: generous extra space around text (inside canvas bitmap, not CSS overflow)
+                const extraX = Math.max(100, Math.ceil(textW * 0.55));
+                const extraY = Math.max(80, Math.ceil(textH * 1.8));
+                // Offset text within canvas so particles have room on all sides
+                padX = extraX;
+                padY = extraY;
+                W = Math.ceil(padX + textW + extraX);
+                H = Math.ceil(padY + textH + extraY);
+                // Canvas CSS size: match buffer exactly → particles render inside bitmap
                 canvas.width = Math.floor(W * dpr);
                 canvas.height = Math.floor(H * dpr);
                 canvas.style.width = W + 'px';
                 canvas.style.height = H + 'px';
+                // Center canvas in stage; overflow visible so right/bottom particles aren't CSS-clipped
                 canvas.style.margin = '0 auto';
                 canvas.style.display = 'block';
                 canvas.style.position = 'relative';
@@ -10269,12 +10294,9 @@ function appendMessageImages(parentEl, message) {
                 }
                 const ctx = canvas.getContext('2d');
                 ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-                // Center glyph block inside canvas (equal pad)
-                const originX = padX;
-                const originY = padY;
                 grid.cells.forEach(function (c) {
-                    c.px = originX + c.gx * cellW + cellW * 0.5;
-                    c.py = originY + c.gy * cellH + cellH * 0.5;
+                    c.px = Math.round((padX + c.gx * cellW + cellW * 0.5) * dpr) / dpr;
+                    c.py = Math.round((padY + c.gy * cellH + cellH * 0.5) * dpr) / dpr;
                 });
             }
 
@@ -10290,17 +10312,16 @@ function appendMessageImages(parentEl, message) {
             }
 
             function spawnGather(cx, cy, rise, n) {
-                // Spawn from full canvas pad (not limited to glyph box) → fly straight into center
-                const reachX = padX * lerp(0.75, 0.98, rise);
-                const reachY = padY * lerp(0.75, 0.98, rise);
+                // Spawn particles from FAR edges of the FULL canvas buffer → fly inward to center
+                const halfW = W * 0.5;
+                const halfH = H * 0.5;
                 for (let i = 0; i < n; i++) {
                     const ang = Math.random() * Math.PI * 2;
-                    // elliptic spawn across the particle field
-                    const dist = lerp(0.45, 1, Math.random());
+                    const r = lerp(0.55, 1, Math.random());
                     const side = Math.random() < 0.58 ? MIMO_ORANGE : MIMO_GRAY;
                     particles.push({
-                        x: cx + Math.cos(ang) * reachX * dist,
-                        y: cy + Math.sin(ang) * reachY * dist,
+                        x: cx + Math.cos(ang) * halfW * r,
+                        y: cy + Math.sin(ang) * halfH * r,
                         vx: 0, vy: 0,
                         life: 1,
                         mode: 'gather',
@@ -10311,16 +10332,16 @@ function appendMessageImages(parentEl, message) {
             }
 
             function spawnBurst(cx, cy, level) {
-                // Speeds scaled to pad so particles fill the field, not only the glyph box
-                const reach = Math.min(padX, padY) * 0.9;
-                const count = Math.floor(lerp(90, 260, level));
+                // Burst particles fly outward across the full canvas buffer (visible inside bitmap)
+                const reach = Math.min(W, H) * 0.48;
+                const count = Math.floor(lerp(100, 300, level));
                 for (let i = 0; i < count; i++) {
                     const ang = Math.random() * Math.PI * 2;
-                    const spd = lerp(reach * 0.04, reach * 0.12, level) * (0.5 + Math.random());
+                    const spd = lerp(reach * 0.06, reach * 0.2, level) * (0.5 + Math.random());
                     const side = Math.random() < 0.55 ? MIMO_ORANGE : MIMO_GRAY;
                     particles.push({
-                        x: cx + (Math.random() - 0.5) * 8,
-                        y: cy + (Math.random() - 0.5) * 8,
+                        x: cx + (Math.random() - 0.5) * 10,
+                        y: cy + (Math.random() - 0.5) * 10,
                         vx: Math.cos(ang) * spd,
                         vy: Math.sin(ang) * spd,
                         life: 1,
@@ -10329,10 +10350,10 @@ function appendMessageImages(parentEl, message) {
                         size: lerp(1.8, 4.6, Math.random() * level),
                     });
                 }
-                const ringN = Math.floor(lerp(48, 120, level));
+                const ringN = Math.floor(lerp(56, 140, level));
                 for (let i = 0; i < ringN; i++) {
                     const ang = (i / ringN) * Math.PI * 2 + Math.random() * 0.05;
-                    const spd = lerp(reach * 0.06, reach * 0.14, level);
+                    const spd = lerp(reach * 0.08, reach * 0.18, level);
                     particles.push({
                         x: cx, y: cy,
                         vx: Math.cos(ang) * spd,
@@ -10343,10 +10364,10 @@ function appendMessageImages(parentEl, message) {
                         size: 2.8,
                     });
                 }
-                const ringN2 = Math.floor(lerp(24, 64, level));
+                const ringN2 = Math.floor(lerp(28, 72, level));
                 for (let i = 0; i < ringN2; i++) {
                     const ang = (i / ringN2) * Math.PI * 2;
-                    const spd = lerp(reach * 0.04, reach * 0.1, level);
+                    const spd = lerp(reach * 0.05, reach * 0.12, level);
                     particles.push({
                         x: cx, y: cy,
                         vx: Math.cos(ang) * spd,
@@ -10427,34 +10448,32 @@ function appendMessageImages(parentEl, message) {
                         spawnGather(hold.cx, hold.cy, rise, 5 + Math.floor(rise * 8));
                     }
                 }
-                // integrate particles — gather goes STRAIGHT into center (no orbit/swirl)
+                // integrate particles
                 for (let i = particles.length - 1; i >= 0; i--) {
                     const p = particles[i];
                     if (p.mode === 'gather' && hold) {
+                        // Fly STRAIGHT toward exact center (no swirl) — absorb on arrival
                         const dx = hold.cx - p.x;
                         const dy = hold.cy - p.y;
                         const dist = Math.hypot(dx, dy) || 1;
                         const rise = ramp(t - hold.at, HOLD_MS, CHARGE_MS);
-                        // Strong radial pull toward exact center — no tangential swirl
-                        const speed = lerp(3.5, 14, rise) + dist * 0.045;
+                        const speed = lerp(3.5, 16, rise) + dist * 0.04;
                         p.vx = (dx / dist) * speed;
                         p.vy = (dy / dist) * speed;
                         p.x += p.vx;
                         p.y += p.vy;
-                        // Absorb when hitting center
-                        const nd = Math.hypot(hold.cx - p.x, hold.cy - p.y);
-                        if (nd < cellW * 0.7) {
+                        if (Math.hypot(hold.cx - p.x, hold.cy - p.y) < cellW * 0.8) {
                             p.life = 0;
                         } else {
-                            p.life -= 0.004;
+                            p.life -= 0.003;
                         }
                     } else {
-                        p.vx *= 0.978;
-                        p.vy *= 0.978;
+                        // Burst / ring — fly outward, slow down, fade
+                        p.vx *= 0.982;
+                        p.vy *= 0.982;
                         p.x += p.vx;
                         p.y += p.vy;
-                        p.life -= p.mode === 'ring' ? 0.012 : 0.01;
-                        // Allow particles to live across full pad (don't kill at glyph edge)
+                        p.life -= p.mode === 'ring' ? 0.011 : 0.009;
                     }
                     if (p.life <= 0) particles.splice(i, 1);
                 }
@@ -10483,10 +10502,12 @@ function appendMessageImages(parentEl, message) {
                 const ctx = canvas.getContext('2d');
                 ctx.clearRect(0, 0, W, H);
                 // Font size from measured mono advance — NOT inflated cellH (that caused square gutters)
+                // Same font string as layout measure — keeps pitch/glyph alignment
                 ctx.font = '600 ' + fontSize + 'px "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.imageSmoothingEnabled = false;
+                ctx.letterSpacing = '0px';
 
                 // glyphs — both words always fully drawn (no half-clip)
                 for (let i = 0; i < grid.cells.length; i++) {
@@ -11796,11 +11817,24 @@ window.addEventListener('message', (event) => {
             }
             case 'showStartupChooser': {
                 sessions = Array.isArray(message.sessions) ? message.sessions : sessions;
-                if (typeof window.__mimoShowStartupChooser === 'function') {
+                if (sessions.length) window.__mimoSessionsCache = sessions;
+                // If chooser already open, only refresh list; else build full UI
+                if (document.getElementById('mimo-startup') && typeof window.__mimoFillStartupList === 'function') {
+                    window.__mimoFillStartupList(sessions);
+                } else if (typeof window.__mimoShowStartupChooser === 'function') {
                     window.__mimoShowStartupChooser(sessions);
                 } else {
                     setDefaultGreeting();
                 }
+                break;
+            }
+            case 'sessionsList': {
+                sessions = Array.isArray(message.sessions) ? message.sessions : sessions;
+                if (sessions.length) window.__mimoSessionsCache = sessions;
+                if (typeof window.__mimoFillStartupList === 'function' && document.getElementById('mimo-startup')) {
+                    window.__mimoFillStartupList(sessions);
+                }
+                try { renderSessionList(); } catch (_) {}
                 break;
             }
             case 'sessionBusy': {

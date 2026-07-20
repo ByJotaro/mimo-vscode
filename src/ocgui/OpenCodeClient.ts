@@ -9101,14 +9101,58 @@ export class OpenCodeClient {
             { name: 'stash', description: 'Stash prompt draft' },
             { name: 'details', description: 'Toggle tool details' },
         ];
+        // Full builtin skill set (mimocode 0.1.7) + common codex skills — also merged from API/disk in fetchSlashCommands
         const skills = [
-            'arxiv', 'claude-code', 'codex', 'deep-research', 'design-blueprint',
-            'docx-official', 'drive-mimo', 'evolve', 'frontend-design',
-            'html-to-video-pipeline', 'loop', 'mimocode', 'modern-python-toolchain',
-            'pdf-official', 'pptx-official', 'research-paper-writing',
-            'skill-creator', 'super-research', 'xlsx-official',
+            'arxiv', 'claude-code', 'codex', 'data-analytics', 'deep-research',
+            'design-blueprint', 'docx-official', 'drive-mimo', 'evolve',
+            'frontend-design', 'html-to-video-pipeline', 'imagegen', 'learn-everything',
+            'loop', 'mimocode', 'mimocode-docs', 'modern-python-toolchain',
+            'openai-docs', 'pdf-official', 'plugin-creator', 'pptx-official',
+            'product-design', 'research-paper-writing', 'sales', 'skill-creator',
+            'skill-installer', 'super-research', 'xlsx-official',
         ].map((name) => ({ name, description: `Skill: ${name}` }));
         return [...core, ...skills];
+    }
+
+    /** Scan local skill folders so slash list matches installed CLI skills even if API is empty. */
+    private listLocalSkillNames(): string[] {
+        const names = new Set<string>();
+        try {
+            const home = process.env.USERPROFILE || process.env.HOME || '';
+            const roots = [
+                path.join(home, '.local', 'share', 'mimocode', 'builtin_skills'),
+                path.join(home, '.codex', 'skills'),
+                path.join(home, '.claude', 'skills'),
+                path.join(home, '.agents', 'skills'),
+            ];
+            const fs = require('fs') as typeof import('fs');
+            for (const root of roots) {
+                if (!fs.existsSync(root)) continue;
+                // builtin_skills/0.1.7/skills/<name> OR skills/<name>
+                try {
+                    const vers = fs.readdirSync(root, { withFileTypes: true });
+                    for (const v of vers) {
+                        if (!v.isDirectory() || v.name.startsWith('.') || v.name === 'system') continue;
+                        const skillsDir = path.join(root, v.name, 'skills');
+                        const direct = path.join(root, v.name);
+                        // versioned bundle vs flat skill folder
+                        let scan = direct;
+                        if (fs.existsSync(skillsDir)) scan = skillsDir;
+                        else if (fs.existsSync(path.join(direct, 'SKILL.md'))) {
+                            names.add(v.name);
+                            continue;
+                        }
+                        if (!fs.existsSync(scan)) continue;
+                        for (const s of fs.readdirSync(scan, { withFileTypes: true })) {
+                            if (s.isDirectory() && !s.name.startsWith('.') && s.name !== 'system') {
+                                names.add(s.name);
+                            }
+                        }
+                    }
+                } catch { /* next root */ }
+            }
+        } catch { /* ignore */ }
+        return Array.from(names).sort();
     }
 
     /** Fetch available slash commands from the MiMo CLI. Returns [{name, description}]. */
@@ -9165,9 +9209,22 @@ export class OpenCodeClient {
                     out.push(f);
                 }
             }
+            // Always merge local skill folders so missing API skills still appear
+            for (const name of this.listLocalSkillNames()) {
+                if (!seen.has(name)) {
+                    seen.add(name);
+                    out.push({ name, description: `Skill: ${name}` });
+                }
+            }
             out.sort((a, b) => a.name.localeCompare(b.name));
             return out.length ? out : fallback;
         } catch {
+            // Even offline: catalog + local skills
+            const local = this.listLocalSkillNames().map((name) => ({ name, description: `Skill: ${name}` }));
+            const seen = new Set(fallback.map((f) => f.name));
+            for (const s of local) {
+                if (!seen.has(s.name)) fallback.push(s);
+            }
             return fallback;
         }
     }
