@@ -9241,20 +9241,24 @@ ${attachmentLines.join('\n')}`
         const limit = this.recentSessionLoadLimit;
         try {
             const t0 = Date.now();
-            // Prefer API export (real part shapes: text/patch/files). DB is enrichment for tool/reasoning.
+            // Prefer API export (real part shapes with state.input for edit/write).
             const exportData = await this.client.exportSessionRecent(sessionId, limit);
             rtLog(`LOAD_SESSION api_ms=${Date.now() - t0}`);
             const formatted = this.formatSession(exportData);
             this._loadedSessions.set(sessionId, exportData?.messages ?? []);
+            // Count how many assistant texts already have edit diffs / tool markers
+            const hasToolCards = formatted.messages.some((m) =>
+                typeof m.text === 'string' && m.text.includes('%%MIMO_PART')
+            );
             liveWebview.postMessage({
                 type: 'sessionData',
                 sessionId,
                 title: formatted.title || exportData?.session?.title || sessionId,
                 messages: formatted.messages,
-                meta: { source: 'select', time: Date.now(), limit },
+                meta: { source: 'select', time: Date.now(), limit, hasToolCards },
             });
-            rtLog(`LOAD_SESSION done msgs=${formatted.messages.length}`);
-            // Optional DB enrich in background when API returned sparse parts
+            rtLog(`LOAD_SESSION done msgs=${formatted.messages.length} toolCards=${hasToolCards}`);
+            // Always run DB enrich so edit/write mini-diffs fill if API was sparse
             void this.enrichSessionFromDb(sessionId, limit);
         } catch (e) {
             rtLog(`LOAD_SESSION_ERR ${String(e).slice(0, 120)}`);

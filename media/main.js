@@ -4580,12 +4580,13 @@ function buildMimoPartCard(seg) {
         }
     }
 
-    // Full-width flat IN/OUT; colorize diffs; side-by-side when wide
+    // Full-width flat IN/OUT; colorize diffs; side-by-side when wide.
+    // Returns the node to append (may replace `pre` with a split container).
     function fillDiffPre(pre, text) {
         const raw = String(text || '').replace(/^```diff\n?|```$/g, '');
         if (!/^(diff |@@ |\+|-|---|\+\+\+)/m.test(raw)) {
             pre.textContent = raw;
-            return;
+            return pre;
         }
         const lines = raw.split('\n');
         const dels = [];
@@ -4602,8 +4603,9 @@ function buildMimoPartCard(seg) {
             }
         }
         // Side-by-side when extension wide enough and we have both sides
-        const wide = (typeof window !== 'undefined' && window.innerWidth >= 480)
-            || (chatContainer && chatContainer.clientWidth >= 420);
+        const hostW = (chatContainer && chatContainer.clientWidth) || 0;
+        const wide = hostW >= 380
+            || (typeof window !== 'undefined' && window.innerWidth >= 480);
         if (hasPair && wide && (dels.length || adds.length)) {
             const split = document.createElement('div');
             split.className = 'mimo-diff-split';
@@ -4623,13 +4625,7 @@ function buildMimoPartCard(seg) {
             right.appendChild(document.createTextNode(adds.join('\n') || '—'));
             split.appendChild(left);
             split.appendChild(right);
-            // replace pre with split
-            if (pre.parentNode) {
-                pre.parentNode.replaceChild(split, pre);
-            } else {
-                pre.replaceWith(split);
-            }
-            return;
+            return split;
         }
         // Unified colored fallback
         pre.classList.add('mimo-io-v--diff');
@@ -4639,10 +4635,13 @@ function buildMimoPartCard(seg) {
             const span = document.createElement('span');
             if (/^\+/.test(line) && !/^\+\+\+/.test(line)) span.className = 'mimo-diff-add';
             else if (/^-/.test(line) && !/^---/.test(line)) span.className = 'mimo-diff-del';
-            else if (/^@@/.test(line) || /^diff /.test(line)) span.className = 'mimo-diff-hunk';
+            else if (/^@@/.test(line) || /^diff /.test(line) || /^--- /.test(line) || /^\+\+\+ /.test(line)) {
+                span.className = 'mimo-diff-hunk';
+            }
             span.textContent = line + (i < lines.length - 1 ? '\n' : '');
             pre.appendChild(span);
         }
+        return pre;
     }
     if (command || out) {
         const io = document.createElement('div');
@@ -4673,17 +4672,18 @@ function buildMimoPartCard(seg) {
             k.className = 'mimo-io-k';
             const looksDiff = kind === 'patch'
                 || /^(write|edit)$/i.test(seg.title || '')
-                || /```diff|^(diff |@@ |\+|-|--- |\+\+\+ )/m.test(out);
+                || /```diff|^(diff |@@ |\+|-|--- |\+\+\+)/m.test(out);
             k.textContent = looksDiff ? 'diff' : 'out';
             const v = document.createElement('pre');
             v.className = 'mimo-io-v';
-            if (looksDiff && /^(diff |@@ |\+|-|--- |\+\+\+ )/m.test(out)) {
-                fillDiffPre(v, out);
+            let outNode = v;
+            if (looksDiff && /^(diff |@@ |\+|-|---|\+\+\+)/m.test(out)) {
+                outNode = fillDiffPre(v, out) || v;
             } else {
                 v.textContent = out;
             }
             line.appendChild(k);
-            line.appendChild(v);
+            line.appendChild(outNode);
             io.appendChild(line);
         }
         body.appendChild(io);
@@ -4691,9 +4691,12 @@ function buildMimoPartCard(seg) {
         const pre = document.createElement('pre');
         pre.className = 'mimo-io-v';
         const raw = String(seg.body).trim();
-        if (kind === 'patch' || /```diff|^(diff |@@ )/m.test(raw)) fillDiffPre(pre, raw);
-        else pre.textContent = raw;
-        body.appendChild(pre);
+        if (kind === 'patch' || /```diff|^(diff |@@ |\+|-|---)/m.test(raw)) {
+            body.appendChild(fillDiffPre(pre, raw) || pre);
+        } else {
+            pre.textContent = raw;
+            body.appendChild(pre);
+        }
     }
 
     details.appendChild(body);
@@ -5310,9 +5313,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (chatContainer) {
         autoScrollPinnedToBottom = isNearBottom(chatContainer);
+        let loadMoreCooldown = 0;
         chatContainer.addEventListener('scroll', () => {
             autoScrollPinnedToBottom = isNearBottom(chatContainer);
             hideQuoteSelectionButton();
+            // Near top → request older history (host loadMoreSession)
+            if (chatContainer.scrollTop < 80 && activeSessionId) {
+                const now = Date.now();
+                if (now - loadMoreCooldown > 1200) {
+                    loadMoreCooldown = now;
+                    try {
+                        vscode.postMessage({
+                            type: 'loadMoreSession',
+                            sessionId: activeSessionId,
+                            count: Math.max(200, (window.__mimoLoadedMsgCount || 0) + 200)
+                        });
+                    } catch (_) {}
+                }
+            }
         }, { passive: true });
         chatContainer.addEventListener('mouseup', () => {
             setTimeout(showQuoteSelectionButton, 0);
@@ -8656,9 +8674,17 @@ function shouldHideDcpUiMessage(message) {
     function scrollToBottom(force = false) {
         if (!chatContainer) return;
         if (!force && !autoScrollPinnedToBottom) return;
-        requestAnimationFrame(() => {
+        const pin = () => {
             chatContainer.scrollTop = chatContainer.scrollHeight;
             autoScrollPinnedToBottom = true;
+        };
+        // Double-rAF: after layout of freshly hydrated messages (single rAF often runs while height=0)
+        requestAnimationFrame(() => {
+            pin();
+            requestAnimationFrame(pin);
+            // Images/fonts may still reflow
+            setTimeout(pin, 50);
+            setTimeout(pin, 200);
         });
     }
     window.__oc = window.__oc || {};
@@ -12327,9 +12353,14 @@ window.addEventListener('message', (event) => {
                     
                     const session = getSessionState(sessionId, true);
                     const preservedHydrationState = captureVolatileHydrationState(session);
+                    const isLoadMore = message?.meta?.loadMore === true
+                        || message?.meta?.source === 'loadMore';
+                    // Preserve scroll anchor when older history expands the list
+                    const prevScrollH = isLoadMore && chatContainer ? chatContainer.scrollHeight : 0;
+                    const prevScrollT = isLoadMore && chatContainer ? chatContainer.scrollTop : 0;
                     
                     const hasSegments = Array.isArray(message.segments);
-                    // Clear everything
+                    // Always rebuild from payload (loadMore sends a larger full slice)
                     session.messagesById.clear();
                     session.timeline = [];
                     if (hasSegments) {
@@ -12351,6 +12382,7 @@ window.addEventListener('message', (event) => {
                     
                     // Load messages into timeline
                     const rawSessionMessages = Array.isArray(message.messages) ? message.messages : [];
+                    try { window.__mimoLoadedMsgCount = rawSessionMessages.length; } catch (_) {}
                     for (const item of rawSessionMessages) {
                         if (!item || item.role !== 'user' || typeof item.id !== 'string') continue;
                         if (isHiddenControlUserText(item.text || '')) {
@@ -12669,12 +12701,22 @@ window.addEventListener('message', (event) => {
                         payload: ['[WV][SESSIONDATA_ERROR]', `sessionId=${sessionId}`, `err=${String(err)}`]
                     });
                 } finally {
-                    const didRender = renderIfActive(sessionId, 'sessionData-finally', { extra: ['phase=finally'] });
+                    const didRender = renderIfActive(sessionId, 'sessionData-finally', {
+                        extra: ['phase=finally'],
+                        scroll: !isLoadMore,
+                        forceScroll: !isLoadMore
+                    });
                     if (didRender) {
-                        requestAnimationFrame(() => {
-                            refreshSendButtonState();
-                            scrollToBottom();
-                        });
+                        refreshSendButtonState();
+                        if (isLoadMore && chatContainer && prevScrollH > 0) {
+                            // Keep viewport position after older messages prepended
+                            requestAnimationFrame(() => {
+                                const delta = chatContainer.scrollHeight - prevScrollH;
+                                chatContainer.scrollTop = prevScrollT + Math.max(0, delta);
+                            });
+                        } else if (!isLoadMore) {
+                            scrollToBottom(true);
+                        }
                     }
                 }
                 break;
