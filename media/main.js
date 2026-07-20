@@ -183,6 +183,11 @@ let subagentIntervals = new Map();
 let subagentCardsContainer = null;
 let autoScrollPinnedToBottom = true;
 const AUTO_SCROLL_BOTTOM_THRESHOLD_PX = 80;
+/** While true: ignore scroll listener (don't unpin / don't loadMore), pin after paint */
+let hydratingSession = false;
+let hydratePinUntil = 0;
+let postPaintScrollForce = false;
+let postPaintScrollPending = false;
 let debugWebviewLivenessAckDrop = false;
 let currentWebviewLivenessPanelId = '';
 
@@ -1657,14 +1662,12 @@ function renderIfActive(sessionId, reason, options = {}) {
         logBackgroundStateUpdate(sessionId, reason, options);
         return false;
     }
-    window.__oc?.renderFromState?.(reason);
+    // Scroll must run AFTER paint — scheduleRenderFromState is rAF and wipes DOM
     if (options.scroll === true) {
-        if (typeof window.__oc?.scrollToBottom === 'function') {
-            window.__oc.scrollToBottom(options.forceScroll === true);
-        } else if (typeof options.scrollFallback === 'function') {
-            options.scrollFallback(options.forceScroll === true);
-        }
+        postPaintScrollPending = true;
+        postPaintScrollForce = options.forceScroll === true || postPaintScrollForce;
     }
+    window.__oc?.renderFromState?.(reason);
     return true;
 }
 
@@ -5328,6 +5331,11 @@ document.addEventListener('DOMContentLoaded', () => {
         autoScrollPinnedToBottom = isNearBottom(chatContainer);
         let loadMoreCooldown = 0;
         chatContainer.addEventListener('scroll', () => {
+            // During hydrate pins, ignore scroll events (they fire at top during DOM rebuild)
+            if (hydratingSession || Date.now() < hydratePinUntil) {
+                hideQuoteSelectionButton();
+                return;
+            }
             autoScrollPinnedToBottom = isNearBottom(chatContainer);
             hideQuoteSelectionButton();
             // Near top → request older history (host loadMoreSession)
@@ -5983,9 +5991,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function fillList(src) {
             let raw = Array.isArray(src) ? src : [];
-            // Also accept sessions global / cache
-            if (!raw.length && Array.isArray(window.__mimoSessionsCache)) raw = window.__mimoSessionsCache;
-            if (!raw.length && Array.isArray(sessions)) raw = sessions;
+            // Never clobber a good cache with empty payload
+            if (!raw.length && Array.isArray(window.__mimoSessionsCache) && window.__mimoSessionsCache.length) {
+                raw = window.__mimoSessionsCache;
+            }
+            if (!raw.length && Array.isArray(sessions) && sessions.length) raw = sessions;
             if (raw.length) {
                 window.__mimoSessionsCache = raw;
                 sessions = raw;
@@ -5996,7 +6006,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const empty = document.createElement('div');
                 empty.className = 'mimo-startup-empty';
                 empty.id = 'mimo-startup-empty';
-                empty.textContent = 'No sessions yet — click New session or Show history';
+                empty.textContent = 'Loading recent sessions…';
                 list.appendChild(empty);
                 try { vscode.postMessage({ type: 'fetchSessions' }); } catch (_) {}
                 try {
@@ -7966,6 +7976,16 @@ function shouldHideDcpUiMessage(message) {
                 renderNeedsAnother = false;
                 queuedRenderReason = '';
                 scheduleRenderFromState(nextReason);
+                return;
+            }
+            // Only after final paint in this flush: pin scroll if requested
+            if (postPaintScrollPending) {
+                const force = postPaintScrollForce;
+                postPaintScrollPending = false;
+                postPaintScrollForce = false;
+                requestAnimationFrame(() => {
+                    scrollToBottom(force || true);
+                });
             }
         });
     }
@@ -7988,7 +8008,16 @@ function shouldHideDcpUiMessage(message) {
         chatContainer.innerHTML = '';
         const session = getSessionOrNull(activeSessionId);
         if (!session || !session.timeline.length) {
-            setDefaultGreeting();
+            // Home: keep Recent sessions chooser — never replace with logo-only greeting
+            if (!activeSessionId && typeof window.__mimoShowStartupChooser === 'function') {
+                window.__mimoShowStartupChooser(
+                    Array.isArray(window.__mimoSessionsCache) && window.__mimoSessionsCache.length
+                        ? window.__mimoSessionsCache
+                        : (Array.isArray(sessions) ? sessions : [])
+                );
+            } else {
+                setDefaultGreeting();
+            }
             renderQuestionCardInTimeline();
             if (sessionSearch.mode === 'smart' && sessionSearch.smartMessageIds.length) {
                 applySmartSessionSearchResults(sessionSearch.smartMessageIds, { scroll: false });
@@ -8687,16 +8716,14 @@ function shouldHideDcpUiMessage(message) {
     function scrollToBottom(force = false) {
         const el = document.getElementById('chat') || chatContainer;
         if (!el) return;
-        if (!force && !autoScrollPinnedToBottom) return;
+        if (!force && !autoScrollPinnedToBottom && !hydratingSession) return;
         const pin = () => {
             try {
-                el.scrollTop = el.scrollHeight;
-                // Prefer last message into view (works when flex/layout still settling)
                 const last = el.lastElementChild;
                 if (last && typeof last.scrollIntoView === 'function') {
-                    last.scrollIntoView({ block: 'end', behavior: 'instant' in document.documentElement.style ? 'instant' : 'auto' });
+                    try { last.scrollIntoView({ block: 'end', behavior: 'auto' }); } catch (_) {}
                 }
-                el.scrollTop = el.scrollHeight;
+                el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight);
                 autoScrollPinnedToBottom = true;
             } catch (_) {
                 try { el.scrollTop = el.scrollHeight; } catch (__) {}
@@ -8706,10 +8733,6 @@ function shouldHideDcpUiMessage(message) {
         requestAnimationFrame(() => {
             pin();
             requestAnimationFrame(pin);
-            setTimeout(pin, 30);
-            setTimeout(pin, 100);
-            setTimeout(pin, 250);
-            setTimeout(pin, 500);
         });
     }
     window.__oc = window.__oc || {};
@@ -12057,8 +12080,17 @@ window.addEventListener('message', (event) => {
                 break;
             }
             case 'sessionsList': {
-                sessions = Array.isArray(message.sessions) ? message.sessions : sessions;
-                if (sessions.length) window.__mimoSessionsCache = sessions;
+                const incoming = Array.isArray(message.sessions) ? message.sessions : null;
+                // Do not replace cache with empty late response
+                if (incoming && incoming.length) {
+                    sessions = incoming;
+                    window.__mimoSessionsCache = incoming;
+                } else if (incoming && !incoming.length
+                    && Array.isArray(window.__mimoSessionsCache) && window.__mimoSessionsCache.length) {
+                    sessions = window.__mimoSessionsCache;
+                } else if (incoming) {
+                    sessions = incoming;
+                }
                 if (typeof window.__mimoFillStartupList === 'function' && document.getElementById('mimo-startup')) {
                     window.__mimoFillStartupList(sessions);
                 }
@@ -12322,15 +12354,19 @@ window.addEventListener('message', (event) => {
                     if (welcome) welcome.remove();
                     const startup = document.getElementById('mimo-startup');
                     if (startup) startup.remove();
-                    // Enter animation so history doesn't hard-swap
-                    if (chatContainer) {
+                    // Enter animation only on first open of a session (not enrich/loadMore)
+                    const metaSrcEarly = message?.meta?.source || '';
+                    const isPrimaryOpen = metaSrcEarly === 'select' || metaSrcEarly === 'select-db'
+                        || metaSrcEarly === 'snapshot' || !metaSrcEarly;
+                    if (chatContainer && isPrimaryOpen && !message?.meta?.loadMore
+                        && metaSrcEarly !== 'select-db-enrich' && metaSrcEarly !== 'loadMore') {
                         chatContainer.classList.remove('mimo-session-enter');
                         void chatContainer.offsetWidth;
                         chatContainer.classList.add('mimo-session-enter');
                         window.clearTimeout(chatContainer.__mimoEnterT);
                         chatContainer.__mimoEnterT = window.setTimeout(function () {
                             chatContainer.classList.remove('mimo-session-enter');
-                        }, 600);
+                        }, 400);
                     }
                 } catch (_) {}
                 const route = resolveEventSessionId(message, 'sessionData');
@@ -12726,11 +12762,17 @@ window.addEventListener('message', (event) => {
                         payload: ['[WV][SESSIONDATA_ERROR]', `sessionId=${sessionId}`, `err=${String(err)}`]
                     });
                 } finally {
-                    // Always pin to bottom on fresh session load (even if renderIfActive skipped)
-                    autoScrollPinnedToBottom = true;
+                    // Hydrate guard: block scroll-listener unpin/loadMore until pin settles
+                    if (!isLoadMore && shouldActivateSession) {
+                        hydratingSession = true;
+                        hydratePinUntil = Date.now() + 900;
+                        autoScrollPinnedToBottom = true;
+                        postPaintScrollPending = true;
+                        postPaintScrollForce = true;
+                    }
                     const didRender = renderIfActive(sessionId, 'sessionData-finally', {
                         extra: ['phase=finally'],
-                        scroll: !isLoadMore,
+                        scroll: !isLoadMore && shouldActivateSession,
                         forceScroll: true
                     });
                     refreshSendButtonState();
@@ -12741,11 +12783,12 @@ window.addEventListener('message', (event) => {
                             el.scrollTop = prevScrollT + Math.max(0, delta);
                         });
                     } else if (!isLoadMore && shouldActivateSession) {
-                        scrollToBottom(true);
-                        // Extra delayed pins — renderFromState clears DOM then rebuilds
-                        setTimeout(() => scrollToBottom(true), 80);
-                        setTimeout(() => scrollToBottom(true), 300);
-                        setTimeout(() => scrollToBottom(true), 700);
+                        // Pin after paint chain; end hydrate window
+                        setTimeout(() => {
+                            scrollToBottom(true);
+                            hydratingSession = false;
+                        }, 120);
+                        setTimeout(() => scrollToBottom(true), 350);
                     }
                 }
                 break;

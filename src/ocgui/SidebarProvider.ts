@@ -4075,8 +4075,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                         filtered = filtered.slice(0, 80);
                         const wv = this._view?.webview;
                         if (wv) {
+                            // Only sessionsList — do NOT re-post showStartupChooser (wipes chat / races hydrate)
                             wv.postMessage({ type: 'sessionsList', sessions: filtered });
-                            wv.postMessage({ type: 'showStartupChooser', sessions: filtered });
                         }
                         this.uiDebugChannel.appendLine(
                             `[EXT][FETCH_SESSIONS_OK] count=${filtered.length} raw=${raw.length} workspace=${workspaceRoot || 'null'}`
@@ -9039,9 +9039,15 @@ ${attachmentLines.join('\n')}`
                 ? String(path).replace(/\\/g, '/').split('/').pop() || String(path)
                 : '';
             const meta = baseName || (status && status !== 'completed' ? String(status) : '');
-            // Use 'edit' title for edit tools so UI labels OUT as diff
-            const title = isEdit ? 'edit' : (isWrite && toolName === 'write' ? 'write' : toolName);
-            return this.wrapMimoPart(isEdit ? 'patch' : 'tool', title, meta, body, open, duration);
+            // Edit/write with real diff body open by default (like CLI detail view)
+            const title = isEdit ? 'edit' : (isWrite && /^write$/i.test(toolName) ? 'write' : toolName);
+            const hasDiffBody = typeof outText === 'string' && (
+                outText.includes('\n+') || outText.includes('\n-')
+                || outText.startsWith('---') || outText.startsWith('Index:')
+                || outText.startsWith('diff ')
+            );
+            const openCard = open || (hasDiffBody && (isEdit || isWrite));
+            return this.wrapMimoPart(isEdit ? 'patch' : 'tool', title, meta, body, openCard, duration);
         }
         if (type === 'tool_result') {
             const body = typeof part.text === 'string' ? part.text : '';

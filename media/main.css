@@ -3489,6 +3489,12 @@ select#mode-select {
   gap: 0 !important;
   padding: 6px 8px !important;
 }
+/* Prevent flex shrink from collapsing messages during hydrate (scrollHeight race) */
+.chat-area > .message,
+.chat-area > .message-row,
+.chat-area > .mimo-startup {
+  flex-shrink: 0 !important;
+}
 .message {
   padding: 1px 4px !important;
   margin: 0 !important;
@@ -3496,6 +3502,9 @@ select#mode-select {
 .message.user {
   padding: 6px 10px !important;
   margin: 4px 0 !important;
+  background: #141414 !important;
+  border: 1px solid #3c3c3c !important;
+  color: #eeeeee !important;
 }
 
 /* Markdown baseline — 12px mono like PowerShell / MiMo TUI */
@@ -3508,6 +3517,27 @@ select#mode-select {
 }
 .message.bot .message-content {
   color: #eeeeee;
+}
+
+/* Diff like CLI: full contrast fg on tinted bg */
+.mimo-diff-add { color: #4fd6be !important; background: transparent; }
+.mimo-diff-del { color: #c53b53 !important; background: transparent; }
+.mimo-diff-hunk { color: #828bb8 !important; }
+.mimo-diff-col--del {
+  background: #37222c !important;
+  color: #e26a75 !important;
+}
+.mimo-diff-col--add {
+  background: #20303b !important;
+  color: #b8db87 !important;
+}
+.mimo-io-v--diff {
+  background: #141414 !important;
+  border: 1px solid #3c3c3c !important;
+  padding: 6px 8px !important;
+  border-radius: 4px;
+  max-height: 420px !important;
+  font-size: 12px !important;
 }
 
 .message.user .message-content {
