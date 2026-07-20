@@ -4055,19 +4055,18 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                 }
                 case "fetchSessions": {
                     try {
-                        let sessions = await this.client.listSessions();
+                        const raw = await this.client.listSessions();
+                        const main = raw.filter((s) => !s.parentID);
                         const workspaceRoot = this.client.getWorkspaceRoot()
                             || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-                        // Prefer workspace filter, but if empty fall back to all main sessions
-                        // so the home "Recent sessions" list is never blank.
-                        let filtered = await this.filterSessionsForWorkspace(sessions, workspaceRoot, 'fetchSessions');
-                        if (!filtered.length && sessions.length) {
-                            filtered = sessions.filter((s) => !s.parentID);
+                        let filtered = await this.filterSessionsForWorkspace(main, workspaceRoot, 'fetchSessions');
+                        // Always prefer non-empty: workspace match OR all main sessions
+                        if (!filtered.length) {
+                            filtered = main.slice();
                             this.uiDebugChannel.appendLine(
-                                `[EXT][FETCH_SESSIONS_FALLBACK] workspaceEmpty=true total=${sessions.length} main=${filtered.length}`
+                                `[EXT][FETCH_SESSIONS_FALLBACK] workspaceEmpty=true main=${main.length}`
                             );
                         }
-                        // Rank remembered recent first
                         if (workspaceRoot) {
                             const key = this.getWorkspaceKeyForRoot(workspaceRoot);
                             const recentId = this._context.globalState.get<string>(`recentSession.${key}`);
@@ -4079,10 +4078,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                                 }
                             }
                         }
+                        filtered = filtered.slice(0, 40);
                         const wv = this._view?.webview;
                         if (wv) {
                             wv.postMessage({ type: 'sessionsList', sessions: filtered });
-                            // Also re-open chooser fill if home screen is active
                             wv.postMessage({ type: 'showStartupChooser', sessions: filtered });
                         }
                         this.uiDebugChannel.appendLine(
@@ -6251,24 +6250,27 @@ ${attachmentLines.join('\n')}`
             this.uiDebugChannel.appendLine(`EXT: agents.load.fail | err=${String(error)}`);
         }
 
-        let allSessionsForFallback: SessionInfo[] = [];
+        // Home "Recent sessions" must always show something when CLI has history.
+        // Prefer workspace match, but ALWAYS fall back to all main (non-child) sessions.
+        let allMainSessions: SessionInfo[] = [];
         try {
-            sessions = await this.client.listSessions();
-            allSessionsForFallback = sessions.slice();
-            rtLog(`SENDINIT sessions=${sessions.length}`);
+            const raw = await this.client.listSessions();
+            allMainSessions = raw.filter((s) => !s.parentID);
+            rtLog(`SENDINIT sessions=${raw.length} main=${allMainSessions.length}`);
         } catch (error) {
             rtLog(`SENDINIT sessions FAIL: ${String(error)}`);
             this.postAddResponse(webview, `Failed to load sessions: ${error}`);
         }
         const initWorkspaceRoot = this.client.getWorkspaceRoot() || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-        sessions = await this.filterSessionsForWorkspace(sessions, initWorkspaceRoot, 'init');
-        // Never leave home Recent list empty if CLI has any main sessions
-        if (!sessions.length && allSessionsForFallback.length) {
-            sessions = allSessionsForFallback.filter((s) => !s.parentID);
+        let filtered = await this.filterSessionsForWorkspace(allMainSessions, initWorkspaceRoot, 'init');
+        if (!filtered.length) {
+            filtered = allMainSessions.slice();
             this.uiDebugChannel.appendLine(
-                `[EXT][INIT_SESSIONS_FALLBACK] workspaceFilterEmpty=true usingMain=${sessions.length}`
+                `[EXT][INIT_SESSIONS_FALLBACK] workspaceFilterEmpty=true usingMain=${filtered.length}`
             );
         }
+        // Cap home list size but keep order (most recent first from listSessions)
+        sessions = filtered.slice(0, 40);
         const storedModel = this._context.globalState.get<string>('mimo.model');
         const storedVariant = this._context.globalState.get<string>('mimo.variant');
         const storedMode = this._context.globalState.get<string>('mimo.mode');
@@ -8939,37 +8941,58 @@ ${attachmentLines.join('\n')}`
             const files = Array.isArray(part.files)
                 ? part.files.map((f: any) => String(f)).filter(Boolean)
                 : [];
-            const fileLabel = files.length
-                ? files.map((f: string) => {
-                    const norm = f.replace(/\\/g, '/');
-                    return norm.includes('/') ? norm.slice(norm.lastIndexOf('/') + 1) : norm;
-                }).join(', ')
-                : (typeof part.path === 'string' ? part.path : '');
+            const fullPaths = files.length
+                ? files.map((f: string) => String(f))
+                : (typeof part.path === 'string' ? [part.path] : []);
+            const fileLabel = fullPaths.map((f: string) => {
+                const norm = f.replace(/\\/g, '/');
+                return norm.includes('/') ? norm.slice(norm.lastIndexOf('/') + 1) : norm;
+            }).join(', ') || (part.hash ? String(part.hash).slice(0, 12) : 'edit');
             const body = typeof part.text === 'string' && part.text.trim()
                 ? part.text
-                : (typeof part.diff === 'string' ? part.diff : '');
-            const meta = fileLabel || (part.hash ? String(part.hash).slice(0, 12) : '');
-            const content = body
-                ? `OUT:\n${body}`
-                : (part.hash ? `OUT:\npatch ${String(part.hash).slice(0, 12)}` : `OUT:\n${fileLabel || 'file edit'}`);
-            return this.wrapMimoPart('patch', 'edit', meta, content, false, duration);
+                : (typeof part.diff === 'string' ? part.diff
+                    : (typeof part.patch === 'string' ? part.patch : ''));
+            // IN = paths, OUT = diff or summary (so UI always shows what was written)
+            let content = '';
+            if (fullPaths.length) content += `IN:\n${fullPaths.join('\n')}\n`;
+            if (body.trim()) content += `OUT:\n${body}`;
+            else if (part.hash) content += `OUT:\nfile edit · ${String(part.hash).slice(0, 12)}`;
+            else content += `OUT:\n${fileLabel}`;
+            return this.wrapMimoPart('patch', 'edit', fileLabel, content, false, duration);
         }
         if (type === 'tool' || type === 'tool_use') {
-            const toolName = part.tool || part.name || 'tool';
+            const toolName = String(part.tool || part.name || 'tool');
             const cmd = part.cmd || part.state?.input?.command || part.input?.command || '';
-            const path = part.path || part.state?.input?.path || part.input?.path || '';
+            const path = part.path || part.state?.input?.path || part.input?.path
+                || part.state?.input?.filePath || part.input?.filePath
+                || part.state?.input?.file || part.input?.file || '';
+            const contentIn = part.state?.input?.content || part.input?.content
+                || part.state?.input?.text || part.input?.text || '';
             const status = part.state?.status || part.status || '';
             const result = part.result || part.state?.output || part.output;
-            const inLine = cmd || path || '';
+            // write/edit: show path as title meta + content/diff in OUT
+            const isWrite = /^(write|edit|apply_patch|str_replace|create_file|notebook)/i.test(toolName);
             let body = '';
-            if (inLine) body += `IN:\n${inLine}\n`;
-            if (typeof result === 'string' && result.trim()) body += `OUT:\n${result}`;
-            else if (typeof part.text === 'string' && part.text.trim() && !inLine) body += `OUT:\n${part.text}`;
-            else if (!body) body = status ? `OUT:\n${status}` : '';
-            // Tools stay collapsed by default; running ones stay open so user sees live work
+            if (cmd) body += `IN:\n${cmd}\n`;
+            else if (path) body += `IN:\n${path}\n`;
+            if (isWrite && typeof contentIn === 'string' && contentIn.trim()) {
+                // Show written content (truncate huge blobs in display only)
+                const shown = contentIn.length > 12000
+                    ? contentIn.slice(0, 12000) + `\n… (${contentIn.length} chars total)`
+                    : contentIn;
+                body += `OUT:\n${shown}`;
+            } else if (typeof result === 'string' && result.trim()) {
+                body += `OUT:\n${result}`;
+            } else if (typeof part.text === 'string' && part.text.trim() && !cmd && !path) {
+                body += `OUT:\n${part.text}`;
+            } else if (!body) {
+                body = status ? `OUT:\n${status}` : (path ? `OUT:\n${path}` : '');
+            }
             const open = status === 'running' || status === 'pending';
-            const meta = status && status !== 'completed' ? String(status) : '';
-            return this.wrapMimoPart('tool', String(toolName), meta, body, open, duration);
+            const meta = (path && isWrite)
+                ? String(path).replace(/\\/g, '/').split('/').pop() || String(path)
+                : (status && status !== 'completed' ? String(status) : '');
+            return this.wrapMimoPart('tool', toolName, meta, body, open, duration);
         }
         if (type === 'tool_result') {
             const body = typeof part.text === 'string' ? part.text : '';

@@ -4577,7 +4577,26 @@ function buildMimoPartCard(seg) {
         }
     }
 
-    // Completely flat: plain text lines, hairline only — no nested boxes
+    // Full-width flat IN/OUT; colorize diffs for patch/write
+    function fillDiffPre(pre, text) {
+        const raw = String(text || '').replace(/^```diff\n?|```$/g, '');
+        if (!/^(diff |@@ |\+|-|---|\+\+\+)/m.test(raw)) {
+            pre.textContent = raw;
+            return;
+        }
+        pre.classList.add('mimo-io-v--diff');
+        pre.textContent = '';
+        const lines = raw.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const span = document.createElement('span');
+            if (/^\+/.test(line) && !/^\+\+\+/.test(line)) span.className = 'mimo-diff-add';
+            else if (/^-/.test(line) && !/^---/.test(line)) span.className = 'mimo-diff-del';
+            else if (/^@@/.test(line) || /^diff /.test(line)) span.className = 'mimo-diff-hunk';
+            span.textContent = line + (i < lines.length - 1 ? '\n' : '');
+            pre.appendChild(span);
+        }
+    }
     if (command || out) {
         const io = document.createElement('div');
         io.className = 'mimo-io mimo-io--flat';
@@ -4586,7 +4605,7 @@ function buildMimoPartCard(seg) {
             line.className = 'mimo-io-line mimo-io-line--in';
             const k = document.createElement('span');
             k.className = 'mimo-io-k';
-            k.textContent = 'in';
+            k.textContent = kind === 'patch' ? 'file' : 'in';
             const v = document.createElement('span');
             v.className = 'mimo-io-v';
             v.textContent = command;
@@ -4605,12 +4624,14 @@ function buildMimoPartCard(seg) {
             line.className = 'mimo-io-line mimo-io-line--out';
             const k = document.createElement('span');
             k.className = 'mimo-io-k';
-            k.textContent = 'out';
+            k.textContent = (kind === 'patch' || /write|edit/i.test(seg.title || '')) ? 'diff' : 'out';
             const v = document.createElement('pre');
             v.className = 'mimo-io-v';
-            v.textContent = (kind === 'patch' || /```diff|^(diff |@@ |\+|-)/m.test(out))
-                ? out.replace(/^```diff\n?|```$/g, '')
-                : out;
+            if (kind === 'patch' || /```diff|^(diff |@@ |\+|-)/m.test(out)) {
+                fillDiffPre(v, out);
+            } else {
+                v.textContent = out;
+            }
             line.appendChild(k);
             line.appendChild(v);
             io.appendChild(line);
@@ -4619,7 +4640,9 @@ function buildMimoPartCard(seg) {
     } else if (String(seg.body || '').trim()) {
         const pre = document.createElement('pre');
         pre.className = 'mimo-io-v';
-        pre.textContent = String(seg.body).trim();
+        const raw = String(seg.body).trim();
+        if (kind === 'patch' || /```diff|^(diff |@@ )/m.test(raw)) fillDiffPre(pre, raw);
+        else pre.textContent = raw;
         body.appendChild(pre);
     }
 
@@ -9982,36 +10005,74 @@ function appendMessageImages(parentEl, message) {
         }, 160);
         mimoSlashActive = 0;
     }
+    function mimoSlashCategory(c) {
+        const name = String(c.name || '').toLowerCase();
+        const desc = String(c.description || '').toLowerCase();
+        if (desc.indexOf('skill:') === 0 || desc.indexOf('skill ') === 0 || c.kind === 'skill') return 'Skills';
+        const cmds = {
+            goal: 1, dream: 1, distill: 1, rebuild: 1, review: 1, init: 1, loop: 1, loops: 1,
+            voice: 1, connect: 1, login: 1, btw: 1, skills: 1, help: 1, new: 1, clear: 1,
+            sessions: 1, model: 1, agent: 1, undo: 1, redo: 1, compact: 1, export: 1, share: 1,
+            stop: 1, retry: 1, plan: 1, build: 1, compose: 1, diff: 1, cost: 1, status: 1,
+            editor: 1, theme: 1, exit: 1, stash: 1, details: 1, 'deep-research': 1,
+        };
+        if (cmds[name]) return 'Commands';
+        if (desc.indexOf('skill') >= 0) return 'Skills';
+        return 'Other';
+    }
     function mimoSlashRender(filter) {
         if (!mimoSlashPalette || !mimoSlashList) return;
         const q = (filter || '').toLowerCase();
-        const items = mimoSlashCommands.filter((c) => !q || String(c.name || '').toLowerCase().indexOf(q) >= 0);
+        const matched = mimoSlashCommands.filter((c) => !q || String(c.name || '').toLowerCase().indexOf(q) >= 0);
+        // Sort into categories: Commands → Skills → Other
+        const order = ['Commands', 'Skills', 'Other'];
+        const buckets = { Commands: [], Skills: [], Other: [] };
+        matched.forEach((c) => {
+            const cat = mimoSlashCategory(c);
+            (buckets[cat] || buckets.Other).push(c);
+        });
+        const items = [];
+        order.forEach((cat) => {
+            buckets[cat].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+            buckets[cat].forEach((c) => items.push(c));
+        });
         mimoSlashList.innerHTML = '';
         if (!items.length) { mimoSlashHide(); return; }
         if (mimoSlashActive >= items.length) mimoSlashActive = items.length - 1;
         if (mimoSlashActive < 0) mimoSlashActive = 0;
-        items.forEach((c, i) => {
-            const row = document.createElement('div');
-            row.className = 'slash-item' + (i === mimoSlashActive ? ' active' : '');
-            row.innerHTML = '<span class="slash-name">/' + String(c.name) + '</span><span class="slash-desc">' + String(c.description || '') + '</span>';
-            row.onmousedown = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                input.value = '/' + c.name + ' ';
-                input.focus();
-                try { input.setSelectionRange(input.value.length, input.value.length); } catch (_) {}
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                mimoSlashHide();
-            };
-            mimoSlashList.appendChild(row);
+        let lastCat = '';
+        let flatIndex = 0;
+        order.forEach((cat) => {
+            if (!buckets[cat].length) return;
+            const head = document.createElement('div');
+            head.className = 'slash-cat';
+            head.textContent = cat;
+            mimoSlashList.appendChild(head);
+            buckets[cat].forEach((c) => {
+                const i = flatIndex++;
+                const row = document.createElement('div');
+                row.className = 'slash-item' + (i === mimoSlashActive ? ' active' : '');
+                row.dataset.idx = String(i);
+                row.innerHTML = '<span class="slash-name">/' + String(c.name) + '</span><span class="slash-desc">' + String(c.description || '') + '</span>';
+                row.onmousedown = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    input.value = '/' + c.name + ' ';
+                    input.focus();
+                    try { input.setSelectionRange(input.value.length, input.value.length); } catch (_) {}
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                    mimoSlashHide();
+                };
+                mimoSlashList.appendChild(row);
+            });
+            lastCat = cat;
         });
+        void lastCat;
         mimoSlashPosition();
         mimoSlashPalette.style.display = 'flex';
-        // next frame so CSS transition from closed → open plays
         requestAnimationFrame(() => {
             mimoSlashPalette.classList.add('is-open');
-            // scroll active into view
-            const active = mimoSlashList.children[mimoSlashActive];
+            const active = mimoSlashList.querySelector('.slash-item.active');
             if (active && active.scrollIntoView) {
                 try { active.scrollIntoView({ block: 'nearest' }); } catch (_) {}
             }
@@ -10033,6 +10094,7 @@ function appendMessageImages(parentEl, message) {
         mimoSlashCommands = list.map((c) => ({
             name: String(c.name || c.id || '').replace(/^\//, ''),
             description: String(c.description || c.desc || ''),
+            kind: /skill/i.test(String(c.description || '')) ? 'skill' : 'command',
         })).filter((c) => c.name);
         window.__mimoSlashCommands = mimoSlashCommands;
         mimoSlashOnInput();
@@ -10234,54 +10296,54 @@ function appendMessageImages(parentEl, message) {
             let raf = 0;
             let running = false;
 
+            // Full-viewport particle layer (sibling of starfield) — no logo box, no tip spacing
+            let fxCanvas = document.getElementById('mimo-logo-fx');
+            if (!fxCanvas) {
+                fxCanvas = document.createElement('canvas');
+                fxCanvas.id = 'mimo-logo-fx';
+                fxCanvas.className = 'mimo-logo-fx';
+                fxCanvas.setAttribute('aria-hidden', 'true');
+                const bg = document.getElementById('bg');
+                if (bg && bg.parentNode) bg.parentNode.insertBefore(fxCanvas, bg.nextSibling);
+                else document.body.appendChild(fxCanvas);
+            }
+            let fxW = 0, fxH = 0, logoOffX = 0, logoOffY = 0;
+
             function layout() {
-                // Canvas = giant buffer that includes BOTH text and particle field.
-                // Particles draw INSIDE canvas bitmap → no CSS overflow clip.
-                // Text is offset slightly left/up so particles have room on right/bottom.
+                // Logo canvas = TEXT ONLY (tight, no particle pad → no huge gap before tips)
                 const stage = canvas.parentElement;
                 const outer = stage && stage.parentElement ? stage.parentElement : stage;
                 const avail = Math.max(220, (outer ? outer.clientWidth : 360) - 4);
                 const probe = canvas.getContext('2d');
                 const FONT = '"Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
-                let fs = Math.floor(avail / Math.max(1, grid.cols + 2));
+                let fs = Math.floor(avail / Math.max(1, grid.cols));
                 fs = Math.max(18, Math.min(40, fs));
                 probe.font = '600 ' + fs + 'px ' + FONT;
                 let pair = probe.measureText('██').width;
                 let advance = pair > 0 ? pair / 2 : probe.measureText('█').width;
                 if (!advance || advance < 4) advance = fs * 0.6;
                 let guard = 0;
-                while (advance * (grid.cols + 2) > avail && fs > 16 && guard++ < 40) {
+                while (advance * grid.cols > avail && fs > 16 && guard++ < 40) {
                     fs -= 1;
                     probe.font = '600 ' + fs + 'px ' + FONT;
                     pair = probe.measureText('██').width;
                     advance = pair > 0 ? pair / 2 : (probe.measureText('█').width || fs * 0.6);
                 }
                 fontSize = fs;
-                // Horizontal: tighten ~4% to close micro gutters between █ blocks
                 cellW = Math.max(1, advance * 0.96);
-                // Vertical: font-size (em square) — block chars fill height
                 cellH = fontSize;
+                padX = 2;
+                padY = 2;
                 const textW = grid.cols * cellW;
                 const textH = grid.rows * cellH;
-                // Particle field: generous extra space around text (inside canvas bitmap, not CSS overflow)
-                const extraX = Math.max(100, Math.ceil(textW * 0.55));
-                const extraY = Math.max(80, Math.ceil(textH * 1.8));
-                // Offset text within canvas so particles have room on all sides
-                padX = extraX;
-                padY = extraY;
-                W = Math.ceil(padX + textW + extraX);
-                H = Math.ceil(padY + textH + extraY);
-                // Canvas CSS size: match buffer exactly → particles render inside bitmap
+                W = Math.ceil(padX * 2 + textW);
+                H = Math.ceil(padY * 2 + textH);
                 canvas.width = Math.floor(W * dpr);
                 canvas.height = Math.floor(H * dpr);
                 canvas.style.width = W + 'px';
                 canvas.style.height = H + 'px';
-                // Center canvas in stage; overflow visible so right/bottom particles aren't CSS-clipped
                 canvas.style.margin = '0 auto';
                 canvas.style.display = 'block';
-                canvas.style.position = 'relative';
-                canvas.style.left = '0';
-                canvas.style.top = '0';
                 if (stage) {
                     stage.style.width = '100%';
                     stage.style.height = H + 'px';
@@ -10298,6 +10360,31 @@ function appendMessageImages(parentEl, message) {
                     c.px = Math.round((padX + c.gx * cellW + cellW * 0.5) * dpr) / dpr;
                     c.py = Math.round((padY + c.gy * cellH + cellH * 0.5) * dpr) / dpr;
                 });
+                // Full-viewport FX layer
+                fxW = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 400);
+                fxH = Math.max(1, window.innerHeight || document.documentElement.clientHeight || 600);
+                fxCanvas.width = Math.floor(fxW * dpr);
+                fxCanvas.height = Math.floor(fxH * dpr);
+                fxCanvas.style.width = fxW + 'px';
+                fxCanvas.style.height = fxH + 'px';
+                const fctx = fxCanvas.getContext('2d');
+                fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                // Map logo local coords → viewport (for particle target)
+                try {
+                    const r = canvas.getBoundingClientRect();
+                    logoOffX = r.left;
+                    logoOffY = r.top;
+                } catch (_) {
+                    logoOffX = 0; logoOffY = 0;
+                }
+            }
+
+            function logoCenterViewport() {
+                // Center of logo text in viewport coords
+                return {
+                    x: logoOffX + W * 0.5,
+                    y: logoOffY + H * 0.5,
+                };
             }
 
             function cellAt(px, py) {
@@ -10312,70 +10399,64 @@ function appendMessageImages(parentEl, message) {
             }
 
             function spawnGather(cx, cy, rise, n) {
-                // Spawn particles from FAR edges of the FULL canvas buffer → fly inward to center
-                const halfW = W * 0.5;
-                const halfH = H * 0.5;
+                // Viewport-space: spawn from edges of the whole extension → fly to logo center
                 for (let i = 0; i < n; i++) {
-                    const ang = Math.random() * Math.PI * 2;
-                    const r = lerp(0.55, 1, Math.random());
+                    const edge = Math.floor(Math.random() * 4);
+                    let x, y;
+                    if (edge === 0) { x = Math.random() * fxW; y = -8; }
+                    else if (edge === 1) { x = Math.random() * fxW; y = fxH + 8; }
+                    else if (edge === 2) { x = -8; y = Math.random() * fxH; }
+                    else { x = fxW + 8; y = Math.random() * fxH; }
                     const side = Math.random() < 0.58 ? MIMO_ORANGE : MIMO_GRAY;
                     particles.push({
-                        x: cx + Math.cos(ang) * halfW * r,
-                        y: cy + Math.sin(ang) * halfH * r,
-                        vx: 0, vy: 0,
+                        x: x, y: y, vx: 0, vy: 0,
                         life: 1,
                         mode: 'gather',
                         color: tint(side, PEAK, rise * 0.45 + Math.random() * 0.25),
-                        size: lerp(1.6, 3.8, Math.random() * (0.4 + rise)),
+                        size: lerp(1.8, 4.2, Math.random() * (0.4 + rise)),
                     });
                 }
             }
 
             function spawnBurst(cx, cy, level) {
-                // Burst particles fly outward across the full canvas buffer (visible inside bitmap)
-                const reach = Math.min(W, H) * 0.48;
-                const count = Math.floor(lerp(100, 300, level));
+                // Viewport-space burst: fill whole sidebar like background dust
+                const reach = Math.min(fxW, fxH) * 0.55;
+                const count = Math.floor(lerp(120, 340, level));
                 for (let i = 0; i < count; i++) {
                     const ang = Math.random() * Math.PI * 2;
-                    const spd = lerp(reach * 0.06, reach * 0.2, level) * (0.5 + Math.random());
+                    const spd = lerp(reach * 0.05, reach * 0.22, level) * (0.45 + Math.random());
                     const side = Math.random() < 0.55 ? MIMO_ORANGE : MIMO_GRAY;
                     particles.push({
-                        x: cx + (Math.random() - 0.5) * 10,
-                        y: cy + (Math.random() - 0.5) * 10,
+                        x: cx + (Math.random() - 0.5) * 12,
+                        y: cy + (Math.random() - 0.5) * 12,
                         vx: Math.cos(ang) * spd,
                         vy: Math.sin(ang) * spd,
                         life: 1,
                         mode: 'burst',
                         color: tint(side, PEAK, 0.45 + level * 0.55),
-                        size: lerp(1.8, 4.6, Math.random() * level),
+                        size: lerp(1.8, 4.8, Math.random() * level),
                     });
                 }
-                const ringN = Math.floor(lerp(56, 140, level));
+                const ringN = Math.floor(lerp(60, 150, level));
                 for (let i = 0; i < ringN; i++) {
-                    const ang = (i / ringN) * Math.PI * 2 + Math.random() * 0.05;
-                    const spd = lerp(reach * 0.08, reach * 0.18, level);
+                    const ang = (i / ringN) * Math.PI * 2;
+                    const spd = lerp(reach * 0.08, reach * 0.2, level);
                     particles.push({
                         x: cx, y: cy,
-                        vx: Math.cos(ang) * spd,
-                        vy: Math.sin(ang) * spd,
-                        life: 1,
-                        mode: 'ring',
-                        color: tint(MIMO_ORANGE, PEAK, 0.75),
-                        size: 2.8,
+                        vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+                        life: 1, mode: 'ring',
+                        color: tint(MIMO_ORANGE, PEAK, 0.75), size: 2.8,
                     });
                 }
-                const ringN2 = Math.floor(lerp(28, 72, level));
+                const ringN2 = Math.floor(lerp(30, 80, level));
                 for (let i = 0; i < ringN2; i++) {
                     const ang = (i / ringN2) * Math.PI * 2;
-                    const spd = lerp(reach * 0.05, reach * 0.12, level);
+                    const spd = lerp(reach * 0.05, reach * 0.14, level);
                     particles.push({
                         x: cx, y: cy,
-                        vx: Math.cos(ang) * spd,
-                        vy: Math.sin(ang) * spd,
-                        life: 1,
-                        mode: 'ring',
-                        color: tint(MIMO_GRAY, PEAK, 0.55),
-                        size: 2.0,
+                        vx: Math.cos(ang) * spd, vy: Math.sin(ang) * spd,
+                        life: 1, mode: 'ring',
+                        color: tint(MIMO_GRAY, PEAK, 0.55), size: 2.0,
                     });
                 }
             }
@@ -10438,42 +10519,48 @@ function appendMessageImages(parentEl, message) {
                     doBurst(hold.cx, hold.cy, t);
                     hold = null;
                 }
-                // gather particles while holding — denser as charge rises
+                // gather particles while holding — denser as charge rises (viewport target)
                 if (hold) {
                     const age = t - hold.at;
                     const rise = ramp(age, HOLD_MS, CHARGE_MS);
+                    // keep logo offset fresh while holding
+                    try {
+                        const r = canvas.getBoundingClientRect();
+                        logoOffX = r.left; logoOffY = r.top;
+                        hold.vx = logoOffX + W * 0.5;
+                        hold.vy = logoOffY + H * 0.5;
+                    } catch (_) {}
                     const gatherCount = particles.filter(function (p) { return p.mode === 'gather'; }).length;
-                    const cap = Math.floor(lerp(80, 180, rise));
+                    const cap = Math.floor(lerp(90, 220, rise));
                     if (gatherCount < cap) {
-                        spawnGather(hold.cx, hold.cy, rise, 5 + Math.floor(rise * 8));
+                        spawnGather(hold.vx, hold.vy, rise, 6 + Math.floor(rise * 10));
                     }
                 }
-                // integrate particles
+                // integrate particles in viewport space
                 for (let i = particles.length - 1; i >= 0; i--) {
                     const p = particles[i];
                     if (p.mode === 'gather' && hold) {
-                        // Fly STRAIGHT toward exact center (no swirl) — absorb on arrival
-                        const dx = hold.cx - p.x;
-                        const dy = hold.cy - p.y;
+                        const tx = hold.vx, ty = hold.vy;
+                        const dx = tx - p.x;
+                        const dy = ty - p.y;
                         const dist = Math.hypot(dx, dy) || 1;
                         const rise = ramp(t - hold.at, HOLD_MS, CHARGE_MS);
-                        const speed = lerp(3.5, 16, rise) + dist * 0.04;
+                        const speed = lerp(4, 18, rise) + dist * 0.035;
                         p.vx = (dx / dist) * speed;
                         p.vy = (dy / dist) * speed;
                         p.x += p.vx;
                         p.y += p.vy;
-                        if (Math.hypot(hold.cx - p.x, hold.cy - p.y) < cellW * 0.8) {
+                        if (Math.hypot(tx - p.x, ty - p.y) < 14) {
                             p.life = 0;
                         } else {
-                            p.life -= 0.003;
+                            p.life -= 0.0025;
                         }
                     } else {
-                        // Burst / ring — fly outward, slow down, fade
-                        p.vx *= 0.982;
-                        p.vy *= 0.982;
+                        p.vx *= 0.984;
+                        p.vy *= 0.984;
                         p.x += p.vx;
                         p.y += p.vy;
-                        p.life -= p.mode === 'ring' ? 0.011 : 0.009;
+                        p.life -= p.mode === 'ring' ? 0.01 : 0.008;
                     }
                     if (p.life <= 0) particles.splice(i, 1);
                 }
@@ -10499,17 +10586,13 @@ function appendMessageImages(parentEl, message) {
             }
 
             function draw(t) {
+                // 1) Logo text canvas (tight)
                 const ctx = canvas.getContext('2d');
                 ctx.clearRect(0, 0, W, H);
-                // Font size from measured mono advance — NOT inflated cellH (that caused square gutters)
-                // Same font string as layout measure — keeps pitch/glyph alignment
                 ctx.font = '600 ' + fontSize + 'px "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.imageSmoothingEnabled = false;
-                ctx.letterSpacing = '0px';
-
-                // glyphs — both words always fully drawn (no half-clip)
                 for (let i = 0; i < grid.cells.length; i++) {
                     const c = grid.cells[i];
                     const f = fieldBoost(c, t);
@@ -10518,13 +10601,11 @@ function appendMessageImages(parentEl, message) {
                         col = tint(c.base, MIMO_ORANGE, Math.min(0.65, f.boost * 0.28));
                         col = tint(col, PEAK, Math.min(1, f.peak * 0.9 + f.boost * 0.14));
                     }
-                    // idle subtle shimmer
                     if (!hold && !rings.length) {
                         const sh = 0.5 + 0.5 * Math.sin(t * 0.0015 + c.gx * 0.4 + c.gy);
                         col = tint(c.base, PEAK, sh * 0.05);
                     }
                     ctx.fillStyle = css(col, 1);
-                    // soft glow under bright cells (kept inside pad so not clipped)
                     if (f.boost > 0.3) {
                         ctx.shadowColor = css(tint(c.base, PEAK, 0.55), 0.65);
                         ctx.shadowBlur = 6 + f.boost * 14;
@@ -10535,30 +10616,35 @@ function appendMessageImages(parentEl, message) {
                 }
                 ctx.shadowBlur = 0;
 
-                // particles
+                // 2) Full-viewport particle layer (background of whole extension)
+                const fctx = fxCanvas.getContext('2d');
+                fctx.clearRect(0, 0, fxW, fxH);
                 for (let i = 0; i < particles.length; i++) {
                     const p = particles[i];
                     const a = Math.max(0, Math.min(1, p.life));
-                    ctx.beginPath();
-                    ctx.fillStyle = css(p.color, a * (p.mode === 'gather' ? 0.95 : 0.9));
-                    ctx.arc(p.x, p.y, p.size * (0.55 + a * 0.55), 0, Math.PI * 2);
-                    ctx.fill();
+                    fctx.beginPath();
+                    fctx.fillStyle = css(p.color, a * (p.mode === 'gather' ? 0.95 : 0.88));
+                    fctx.arc(p.x, p.y, p.size * (0.55 + a * 0.55), 0, Math.PI * 2);
+                    fctx.fill();
                 }
             }
 
-            function doBurst(cx, cy, t) {
+            function doBurst(localCx, localCy, t) {
                 const age = hold ? (t - hold.at) : CHARGE_MS;
                 const rise = ramp(age, HOLD_MS, CHARGE_MS);
                 const level = push(Math.max(0.3, rise));
                 hum = false;
-                // convert gather particles to outward burst (scatter)
+                // Viewport burst center = logo center in screen space
+                const vc = logoCenterViewport();
+                const bx = (hold && hold.vx) || vc.x;
+                const by = (hold && hold.vy) || vc.y;
                 for (let i = 0; i < particles.length; i++) {
                     const p = particles[i];
                     if (p.mode !== 'gather') continue;
-                    const dx = p.x - cx;
-                    const dy = p.y - cy;
+                    const dx = p.x - bx;
+                    const dy = p.y - by;
                     const dist = Math.hypot(dx, dy) || 1;
-                    const spd = lerp(3.5, 14, level);
+                    const spd = lerp(5, 18, level);
                     p.vx = (dx / dist) * spd * (0.55 + Math.random() * 0.7);
                     p.vy = (dy / dist) * spd * (0.55 + Math.random() * 0.7);
                     p.mode = 'burst';
@@ -10566,9 +10652,10 @@ function appendMessageImages(parentEl, message) {
                     p.life = 1;
                     p.size *= 1.15;
                 }
-                spawnBurst(cx, cy, level);
+                spawnBurst(bx, by, level);
+                // rings use logo-local for glyph fieldBoost
                 rings.push({
-                    x: cx, y: cy, at: t,
+                    x: localCx, y: localCy, at: t,
                     force: lerp(1.0, 3.1, level),
                     kick: lerp(0.4, 0.4 + 1.1, level),
                 });
@@ -10583,7 +10670,16 @@ function appendMessageImages(parentEl, message) {
                 const cell = cellAt(px, py);
                 const cx = cell ? cell.px : px;
                 const cy = cell ? cell.py : py;
-                hold = { x: px, y: py, at: t, cx: cx, cy: cy };
+                try {
+                    const r = canvas.getBoundingClientRect();
+                    logoOffX = r.left; logoOffY = r.top;
+                } catch (_) {}
+                const vc = logoCenterViewport();
+                hold = {
+                    x: px, y: py, at: t,
+                    cx: cx, cy: cy,           // logo-local for glyph field
+                    vx: vc.x, vy: vc.y,       // viewport for particles
+                };
                 hum = false;
                 particles = particles.filter(function (p) { return p.mode !== 'gather'; });
                 startLoop();

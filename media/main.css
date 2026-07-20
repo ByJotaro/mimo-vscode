@@ -144,8 +144,12 @@ body > .slash-palette {
     flex: 0 0 auto;
 }
 
-/* ---- Tool / patch: minimal CLI row (no heavy nested boxes) ---- */
+/* ---- Tool / patch: always full message width (no shrink on open neighbor) ---- */
 .mimo-part {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
     margin: 6px 0;
     border: none;
     border-left: 2px solid #2a2a2a;
@@ -154,6 +158,14 @@ body > .slash-palette {
     overflow: hidden;
     font-size: 0.9em;
     color: var(--mimo-fg);
+    /* prevent details open from reflowing sibling widths */
+    flex: 0 0 auto;
+    align-self: stretch;
+}
+.message-content .mimo-part,
+.mimo-text-seg + .mimo-part,
+.mimo-part + .mimo-part {
+    width: 100%;
 }
 .mimo-part > summary {
     list-style: none;
@@ -164,7 +176,10 @@ body > .slash-palette {
     padding: 5px 8px;
     user-select: none;
     color: var(--mimo-muted);
-    background: transparent;
+    background: rgba(18, 18, 18, 0.55);
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 28px;
 }
 .mimo-part > summary::-webkit-details-marker { display: none; }
 .mimo-part > summary::before {
@@ -201,13 +216,31 @@ body > .slash-palette {
     font-family: "Cascadia Mono", Consolas, monospace;
 }
 .mimo-part-body {
-    padding: 0 0 2px;
+    padding: 4px 0 6px;
     display: flex;
     flex-direction: column;
-    border-top: none;
-    background: transparent;
+    border-top: 1px solid #1e1e1e;
+    background: rgba(12, 12, 12, 0.4);
+    width: 100%;
+    box-sizing: border-box;
+    min-width: 0;
 }
 .mimo-part-body:empty { display: none; }
+.mimo-part[open] {
+    width: 100%;
+    background: rgba(14, 14, 14, 0.35);
+}
+/* Diff / write content */
+.mimo-io-v--diff {
+    color: #b8c0c8 !important;
+    font-size: 0.8em !important;
+    max-height: 320px !important;
+    white-space: pre !important;
+    overflow: auto !important;
+}
+.mimo-diff-add { color: #6ee7a8; }
+.mimo-diff-del { color: #f87171; }
+.mimo-diff-hunk { color: #818CF8; }
 
 /* Completely flat IN/OUT — no nested boxes, just labels + hairline */
 .mimo-io,
@@ -586,8 +619,19 @@ body > .slash-palette {
     height: auto;
     touch-action: none;
     outline: none;
-    /* Canvas itself is the clip bounds — padX/padY inside engine keep both words fully drawn */
     overflow: visible;
+    position: relative;
+    z-index: 2;
+}
+/* Full-viewport particle FX — same layer as starfield, above bg stars, below UI */
+.mimo-logo-fx {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    pointer-events: none !important;
+    z-index: 0 !important;
+    display: block !important;
 }
 .mimo-welcome-pre {
     margin: 0;
@@ -621,11 +665,18 @@ body > .slash-palette {
 }
 .mimo-startup-logo .mimo-welcome {
     min-height: 0 !important;
-    padding: 4px 0 8px !important;
-    gap: 6px !important;
+    padding: 2px 0 4px !important;
+    gap: 4px !important;
     width: 100%;
     max-width: 100%;
     overflow: visible !important;
+}
+/* Kill 42vh empty state when logo is on startup chooser */
+.mimo-startup .chat-welcome,
+.mimo-startup .mimo-welcome {
+    min-height: 0 !important;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
 }
 .mimo-startup-logo .mimo-welcome-logo {
     overflow: visible !important;
@@ -3783,6 +3834,22 @@ select#mode-select {
 .slash-item.active {
     background: #1f1f1f;
     box-shadow: inset 2px 0 0 var(--mimo-accent, #c8b27a);
+}
+.slash-cat {
+    padding: 8px 12px 4px;
+    font-size: 0.68em;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #6a6a6a;
+    font-family: "Cascadia Mono", Consolas, monospace;
+    border-top: 1px solid #1e1e1e;
+    margin-top: 2px;
+    user-select: none;
+    pointer-events: none;
+}
+.slash-cat:first-child {
+    border-top: none;
+    margin-top: 0;
 }
 .slash-name {
     color: #e0e0e0;
