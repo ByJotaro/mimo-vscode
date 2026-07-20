@@ -4,7 +4,7 @@
   "publisher": "mimo",
   "description": "VS Code UI for MiMo Code CLI (OpenCode-compatible) with subagents, code diff, change lists, and undo/restore.",
   "icon": "media/marketplace-icon.png",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "license": "MIT",
   "repository": {
     "type": "git",

@@ -9291,6 +9291,8 @@ export class OpenCodeClient {
                 "'old_string', json_extract(p.data,'$.state.input.old_string'), " +
                 "'new_string', json_extract(p.data,'$.state.input.new_string'), " +
                 "'content', json_extract(p.data,'$.state.input.content'), " +
+                "'meta_diff', json_extract(p.data,'$.state.metadata.diff'), " +
+                "'meta_patch', json_extract(p.data,'$.state.metadata.filediff.patch'), " +
                 "'result', json_extract(p.data,'$.state.output'), 'callID', json_extract(p.data,'$.callID'), " +
                 "'hash', json_extract(p.data,'$.hash'), 'files', json_extract(p.data,'$.files'), " +
                 "'time', p.time_created)) " +

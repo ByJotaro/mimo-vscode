@@ -30,17 +30,16 @@ html, body {
     height: 100%;
     width: 100%;
     color: var(--mimo-fg);
-    /* CLI terminal density: mono + 13px base like PowerShell/MiMo TUI */
+    /* MiMo Code CLI / PowerShell density */
     font-family: "Cascadia Mono", "Cascadia Code", Consolas, "Courier New", ui-monospace, monospace;
-    font-size: 13px;
-    line-height: 1.4;
+    font-size: 12px;
+    line-height: 1.35;
+    letter-spacing: 0;
     display: flex;
     flex-direction: column;
-    /* Solid void — starfield paints on top of this */
     background: var(--mimo-bg) !important;
     background-color: var(--mimo-bg) !important;
     position: relative;
-    /* clip page scroll only — children with visible overflow still paint inside */
     overflow: hidden;
 }
 
@@ -192,15 +191,25 @@ body > .slash-palette {
     cursor: pointer;
     display: flex !important;
     align-items: center;
-    gap: 8px;
-    padding: 4px 10px;
+    gap: 6px;
+    padding: 2px 8px;
     user-select: none;
-    color: var(--mimo-muted);
-    background: var(--mimo-surface, #141414);
+    color: #808080;
+    background: #141414;
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
-    min-height: 24px;
+    min-height: 22px;
+    font-size: 12px;
+}
+.mimo-part-title {
+    color: #eeeeee !important;
+    font-size: 12px !important;
+    font-weight: 500;
+}
+.mimo-part-meta {
+    color: #808080 !important;
+    font-size: 11px !important;
 }
 .mimo-part > summary::-webkit-details-marker { display: none; }
 .mimo-part > summary::before {
@@ -3475,17 +3484,30 @@ select#mode-select {
    Single source of truth
    ========================= */
 
-/* Chat layout density — CLI-tight */
-.chat-area { gap: 1px; }
-.message { padding: 2px 8px; }
+/* Chat layout density — match MiMo Code CLI terminal */
+.chat-area {
+  gap: 0 !important;
+  padding: 6px 8px !important;
+}
+.message {
+  padding: 1px 4px !important;
+  margin: 0 !important;
+}
+.message.user {
+  padding: 6px 10px !important;
+  margin: 4px 0 !important;
+}
 
-/* Markdown baseline — 13px mono like terminal */
+/* Markdown baseline — 12px mono like PowerShell / MiMo TUI */
 .message .message-content{
   white-space: normal;
-  line-height: 1.4;
-  font-size: 13px;
-  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  line-height: 1.35;
+  font-size: 12px !important;
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace !important;
   color: var(--mimo-fg, #eeeeee);
+}
+.message.bot .message-content {
+  color: #eeeeee;
 }
 
 .message.user .message-content {

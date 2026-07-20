@@ -4419,26 +4419,31 @@ function splitMimoParts(text) {
 }
 
 function parseInOutBody(bodyText) {
-    const src = String(bodyText || '').trim();
+    // Normalize CRLF so ^OUT: anchors work reliably
+    const src = String(bodyText || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
     let inn = '';
     let out = '';
-    // Only treat as structured IO when the body *starts* with IN:/OUT: (host markers).
-    // Do NOT match mid-body (grep results often contain the strings "IN:" / "OUT:").
-    if (/^IN:\s*/.test(src) || /^OUT:\s*/.test(src)) {
-        const inMatch = src.match(/^IN:\s*\n?([\s\S]*?)(?=^OUT:\s*|$)/m);
-        if (inMatch) {
-            inn = inMatch[1].trim();
-            // If IN block still contains an OUT: line, split it
-            const outInInn = inn.match(/^([\s\S]*?)^OUT:\s*\n?([\s\S]*)$/m);
-            if (outInInn) {
-                inn = outInInn[1].trim();
-                out = outInInn[2].trim();
+    // Structured only when body starts with IN:/OUT: (host markers).
+    if (/^IN:\s*/i.test(src) || /^OUT:\s*/i.test(src)) {
+        // Split on a line that is exactly OUT: (case-insensitive), first occurrence
+        const outLine = src.match(/(?:^|\n)OUT:\s*\n?/i);
+        if (outLine && typeof outLine.index === 'number') {
+            const splitAt = outLine.index + (src[outLine.index] === '\n' ? 1 : 0);
+            const before = src.slice(0, splitAt).replace(/^IN:\s*\n?/i, '').trim();
+            const after = src.slice(splitAt).replace(/^OUT:\s*\n?/i, '').trim();
+            // If starts with OUT: only
+            if (/^OUT:/i.test(src)) {
+                inn = '';
+                out = src.replace(/^OUT:\s*\n?/i, '').trim();
+            } else {
+                inn = before;
+                out = after;
             }
-        }
-        if (!out) {
-            const outMatch = src.match(/^OUT:\s*\n?([\s\S]*)$/m)
-                || src.match(/\nOUT:\s*\n?([\s\S]*)$/);
-            if (outMatch) out = outMatch[1].trim();
+        } else if (/^IN:/i.test(src)) {
+            inn = src.replace(/^IN:\s*\n?/i, '').trim();
+            out = '';
+        } else if (/^OUT:/i.test(src)) {
+            out = src.replace(/^OUT:\s*\n?/i, '').trim();
         }
         return { inn, out };
     }
@@ -4446,6 +4451,12 @@ function parseInOutBody(bodyText) {
     const cmdMatch = src.match(/^\$\s+(.+?)(?:\n([\s\S]*))?$/);
     if (cmdMatch) return { inn: cmdMatch[1].trim(), out: (cmdMatch[2] || '').trim() };
     return { inn: '', out: src };
+}
+
+function looksLikeDiffText(text) {
+    const t = String(text || '').replace(/\r\n/g, '\n');
+    return /^(diff |Index: |@@ |\+|-|---|\+\+\+)/m.test(t)
+        || /```diff/.test(t);
 }
 
 function buildMimoThinking(seg) {
@@ -4583,8 +4594,9 @@ function buildMimoPartCard(seg) {
     // Full-width flat IN/OUT; colorize diffs; side-by-side when wide.
     // Returns the node to append (may replace `pre` with a split container).
     function fillDiffPre(pre, text) {
-        const raw = String(text || '').replace(/^```diff\n?|```$/g, '');
-        if (!/^(diff |@@ |\+|-|---|\+\+\+)/m.test(raw)) {
+        let raw = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        raw = raw.replace(/^```diff\n?/, '').replace(/\n?```\s*$/, '');
+        if (!looksLikeDiffText(raw)) {
             pre.textContent = raw;
             return pre;
         }
@@ -4602,10 +4614,11 @@ function buildMimoPartCard(seg) {
                 hasPair = true;
             }
         }
-        // Side-by-side when extension wide enough and we have both sides
-        const hostW = (chatContainer && chatContainer.clientWidth) || 0;
-        const wide = hostW >= 380
-            || (typeof window !== 'undefined' && window.innerWidth >= 480);
+        // Side-by-side when wide enough and both sides exist
+        const hostEl = document.getElementById('chat') || chatContainer;
+        const hostW = (hostEl && hostEl.clientWidth) || 0;
+        const wide = hostW >= 360
+            || (typeof window !== 'undefined' && window.innerWidth >= 420);
         if (hasPair && wide && (dels.length || adds.length)) {
             const split = document.createElement('div');
             split.className = 'mimo-diff-split';
@@ -4627,7 +4640,7 @@ function buildMimoPartCard(seg) {
             split.appendChild(right);
             return split;
         }
-        // Unified colored fallback
+        // Unified colored (always works even in narrow panels)
         pre.classList.add('mimo-io-v--diff');
         pre.textContent = '';
         for (let i = 0; i < lines.length; i++) {
@@ -4635,7 +4648,8 @@ function buildMimoPartCard(seg) {
             const span = document.createElement('span');
             if (/^\+/.test(line) && !/^\+\+\+/.test(line)) span.className = 'mimo-diff-add';
             else if (/^-/.test(line) && !/^---/.test(line)) span.className = 'mimo-diff-del';
-            else if (/^@@/.test(line) || /^diff /.test(line) || /^--- /.test(line) || /^\+\+\+ /.test(line)) {
+            else if (/^@@/.test(line) || /^diff /.test(line) || /^Index: /.test(line)
+                || /^---/.test(line) || /^\+\+\+/.test(line) || /^=+$/.test(line)) {
                 span.className = 'mimo-diff-hunk';
             }
             span.textContent = line + (i < lines.length - 1 ? '\n' : '');
@@ -4670,14 +4684,13 @@ function buildMimoPartCard(seg) {
             line.className = 'mimo-io-line mimo-io-line--out';
             const k = document.createElement('span');
             k.className = 'mimo-io-k';
-            const looksDiff = kind === 'patch'
-                || /^(write|edit)$/i.test(seg.title || '')
-                || /```diff|^(diff |@@ |\+|-|--- |\+\+\+)/m.test(out);
+            const isDiffKind = kind === 'patch' || /^(write|edit)$/i.test(seg.title || '');
+            const looksDiff = isDiffKind || looksLikeDiffText(out);
             k.textContent = looksDiff ? 'diff' : 'out';
             const v = document.createElement('pre');
             v.className = 'mimo-io-v';
             let outNode = v;
-            if (looksDiff && /^(diff |@@ |\+|-|---|\+\+\+)/m.test(out)) {
+            if (looksLikeDiffText(out)) {
                 outNode = fillDiffPre(v, out) || v;
             } else {
                 v.textContent = out;
@@ -4691,7 +4704,7 @@ function buildMimoPartCard(seg) {
         const pre = document.createElement('pre');
         pre.className = 'mimo-io-v';
         const raw = String(seg.body).trim();
-        if (kind === 'patch' || /```diff|^(diff |@@ |\+|-|---)/m.test(raw)) {
+        if (kind === 'patch' || looksLikeDiffText(raw)) {
             body.appendChild(fillDiffPre(pre, raw) || pre);
         } else {
             pre.textContent = raw;
@@ -8672,19 +8685,31 @@ function shouldHideDcpUiMessage(message) {
     }
 
     function scrollToBottom(force = false) {
-        if (!chatContainer) return;
+        const el = document.getElementById('chat') || chatContainer;
+        if (!el) return;
         if (!force && !autoScrollPinnedToBottom) return;
         const pin = () => {
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-            autoScrollPinnedToBottom = true;
+            try {
+                el.scrollTop = el.scrollHeight;
+                // Prefer last message into view (works when flex/layout still settling)
+                const last = el.lastElementChild;
+                if (last && typeof last.scrollIntoView === 'function') {
+                    last.scrollIntoView({ block: 'end', behavior: 'instant' in document.documentElement.style ? 'instant' : 'auto' });
+                }
+                el.scrollTop = el.scrollHeight;
+                autoScrollPinnedToBottom = true;
+            } catch (_) {
+                try { el.scrollTop = el.scrollHeight; } catch (__) {}
+            }
         };
-        // Double-rAF: after layout of freshly hydrated messages (single rAF often runs while height=0)
+        pin();
         requestAnimationFrame(() => {
             pin();
             requestAnimationFrame(pin);
-            // Images/fonts may still reflow
-            setTimeout(pin, 50);
-            setTimeout(pin, 200);
+            setTimeout(pin, 30);
+            setTimeout(pin, 100);
+            setTimeout(pin, 250);
+            setTimeout(pin, 500);
         });
     }
     window.__oc = window.__oc || {};
@@ -12701,22 +12726,26 @@ window.addEventListener('message', (event) => {
                         payload: ['[WV][SESSIONDATA_ERROR]', `sessionId=${sessionId}`, `err=${String(err)}`]
                     });
                 } finally {
+                    // Always pin to bottom on fresh session load (even if renderIfActive skipped)
+                    autoScrollPinnedToBottom = true;
                     const didRender = renderIfActive(sessionId, 'sessionData-finally', {
                         extra: ['phase=finally'],
                         scroll: !isLoadMore,
-                        forceScroll: !isLoadMore
+                        forceScroll: true
                     });
-                    if (didRender) {
-                        refreshSendButtonState();
-                        if (isLoadMore && chatContainer && prevScrollH > 0) {
-                            // Keep viewport position after older messages prepended
-                            requestAnimationFrame(() => {
-                                const delta = chatContainer.scrollHeight - prevScrollH;
-                                chatContainer.scrollTop = prevScrollT + Math.max(0, delta);
-                            });
-                        } else if (!isLoadMore) {
-                            scrollToBottom(true);
-                        }
+                    refreshSendButtonState();
+                    if (isLoadMore && chatContainer && prevScrollH > 0) {
+                        requestAnimationFrame(() => {
+                            const el = document.getElementById('chat') || chatContainer;
+                            const delta = el.scrollHeight - prevScrollH;
+                            el.scrollTop = prevScrollT + Math.max(0, delta);
+                        });
+                    } else if (!isLoadMore && shouldActivateSession) {
+                        scrollToBottom(true);
+                        // Extra delayed pins — renderFromState clears DOM then rebuilds
+                        setTimeout(() => scrollToBottom(true), 80);
+                        setTimeout(() => scrollToBottom(true), 300);
+                        setTimeout(() => scrollToBottom(true), 700);
                     }
                 }
                 break;

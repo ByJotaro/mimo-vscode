@@ -8971,24 +8971,33 @@ ${attachmentLines.join('\n')}`
             const path = pick(
                 'file_path', 'filePath', 'path', 'file', 'filename', 'target', 'uri'
             );
-            const contentIn = pick('content', 'text', 'new_string', 'newString', 'contents');
+            const contentIn = pick('content', 'text', 'contents');
             const oldStr = pick('old_string', 'oldString', 'old_str', 'before');
             const newStr = pick('new_string', 'newString', 'new_str', 'after');
             const status = part.state?.status || part.status || '';
             const result = part.result || part.state?.output || part.output
                 || part.state?.metadata?.output || '';
+            // Real MiMo API often puts the real unified diff here (not in old/new alone)
+            const metaObj = (part.state && typeof part.state.metadata === 'object' && part.state.metadata)
+                ? part.state.metadata
+                : (part.metadata && typeof part.metadata === 'object' ? part.metadata : {});
+            const metaDiff = typeof (metaObj as any)?.diff === 'string' ? String((metaObj as any).diff) : '';
+            const metaPatch = typeof (metaObj as any)?.filediff?.patch === 'string'
+                ? String((metaObj as any).filediff.patch)
+                : (typeof (metaObj as any)?.patch === 'string' ? String((metaObj as any).patch) : '');
             const isWrite = /^(write|edit|apply_patch|str_replace|create_file|notebook|multiedit)/i.test(toolName);
             const isEdit = /^(edit|str_replace|multiedit)/i.test(toolName);
             let body = '';
             if (cmd) body += `IN:\n${cmd}\n`;
             else if (path) body += `IN:\n${path}\n`;
-            // Build OUT: prefer mini-diff for edit tools, else content/result
+            // Build OUT: prefer real API diff → mini-diff from old/new → write content → result
             let outText = '';
-            if (isEdit && (oldStr || newStr)) {
-                // Lightweight unified-ish diff for visual (green/red via main.js)
+            if ((isEdit || isWrite) && (metaDiff.trim() || metaPatch.trim())) {
+                outText = (metaDiff.trim() || metaPatch.trim());
+            } else if (isEdit && (oldStr || newStr)) {
                 const oldLines = oldStr ? oldStr.split('\n') : [];
                 const newLines = newStr ? newStr.split('\n') : [];
-                const maxShow = 80;
+                const maxShow = 120;
                 const lines: string[] = [];
                 lines.push(`--- a/${path || 'file'}`);
                 lines.push(`+++ b/${path || 'file'}`);
@@ -9287,24 +9296,25 @@ ${attachmentLines.join('\n')}`
             if (this.currentSessionId !== sessionId) return;
             const liveWebview = this._view?.webview;
             if (!liveWebview) return;
-            // Only post if DB has more labeled tool/thinking content than silent API
-            const hasRich = dbMsgs.some((m: any) =>
+            // Only enrich if DB actually has OUT diffs / tool cards with body
+            const richCount = dbMsgs.filter((m: any) =>
                 typeof m.text === 'string' && (
-                    m.text.includes('%%MIMO_PART') ||
-                    m.text.includes('[tool') ||
-                    m.text.includes('[thinking]') ||
-                    m.text.includes('[file edit]') ||
-                    m.text.includes('IN:\n') ||
-                    m.text.includes('OUT:\n')
+                    m.text.includes('OUT:\n---') ||
+                    m.text.includes('OUT:\nIndex:') ||
+                    m.text.includes('OUT:\ndiff ') ||
+                    (m.text.includes('%%MIMO_PART:patch') && m.text.includes('OUT:'))
                 )
+            ).length;
+            if (!richCount) return;
+            this.uiDebugChannel.appendLine(
+                `[EXT][DB_ENRICH] session=${sessionId} rich=${richCount}/${dbMsgs.length}`
             );
-            if (!hasRich) return;
             liveWebview.postMessage({
                 type: 'sessionData',
                 sessionId,
                 title: dbData?.session?.title || sessionId,
                 messages: dbMsgs,
-                meta: { source: 'select-db-enrich', time: Date.now() },
+                meta: { source: 'select-db-enrich', time: Date.now(), richCount },
             });
         } catch {
             /* optional path */
@@ -9318,16 +9328,21 @@ ${attachmentLines.join('\n')}`
             const parts = Array.isArray(msg.parts) ? msg.parts : [];
             let fullText = '';
             for (const p of parts) {
-                // Remap flat DB fields into state.input structure expected by formatPartForDisplay
+                // Remap flat DB fields into state.input / metadata for formatPartForDisplay
                 if (!p.state) p.state = {};
                 if (!p.state.input) p.state.input = {};
-                // Map extracted DB fields → state.input (only if missing from original data)
+                if (!p.state.metadata) p.state.metadata = {};
                 if (p.path && !p.state.input.file_path) p.state.input.file_path = p.path;
                 if (p.old_string && !p.state.input.old_string) p.state.input.old_string = p.old_string;
                 if (p.new_string && !p.state.input.new_string) p.state.input.new_string = p.new_string;
                 if (p.content && !p.state.input.content) p.state.input.content = p.content;
                 if (p.cmd && !p.state.input.command) p.state.input.command = p.cmd;
                 if (p.result && !p.state.output) p.state.output = p.result;
+                if (p.meta_diff && !p.state.metadata.diff) p.state.metadata.diff = p.meta_diff;
+                if (p.meta_patch) {
+                    if (!p.state.metadata.filediff) p.state.metadata.filediff = {};
+                    if (!p.state.metadata.filediff.patch) p.state.metadata.filediff.patch = p.meta_patch;
+                }
                 fullText += this.formatPartForDisplay(p);
             }
             if (!fullText.trim()) continue;
