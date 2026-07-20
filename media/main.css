@@ -403,16 +403,19 @@ body > .slash-palette {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* Startup session chooser */
+/* Startup session chooser — logo on top, recent list under it */
 .mimo-startup {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 14px;
-    padding: 28px 16px 36px;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 20px 16px 36px;
     min-height: 48vh;
+    width: 100%;
+    box-sizing: border-box;
     animation: mimo-part-in 0.25s ease;
+    overflow: auto;
 }
 .mimo-startup-title {
     font-family: "Cascadia Mono", Consolas, monospace;
@@ -538,23 +541,18 @@ body > .slash-palette {
     cursor: pointer;
     pointer-events: auto;
     display: inline-block;
-    padding: 8px 4px;
+    padding: 4px;
     border-radius: 6px;
-    transition: transform 0.15s ease, filter 0.2s ease;
+    line-height: 0;
+    user-select: none;
+    -webkit-user-select: none;
 }
-.mimo-welcome-logo:hover {
-    filter: brightness(1.15);
-}
-.mimo-welcome-logo:active {
-    transform: scale(0.98);
-}
-.mimo-welcome-logo.is-pulse {
-    animation: mimo-logo-pulse 0.55s ease;
-}
-@keyframes mimo-logo-pulse {
-    0% { filter: brightness(1); transform: scale(1); }
-    35% { filter: brightness(1.55); transform: scale(1.03); }
-    100% { filter: brightness(1); transform: scale(1); }
+.mimo-logo-canvas {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    touch-action: none;
+    outline: none;
 }
 .mimo-welcome-pre {
     margin: 0;
@@ -562,12 +560,20 @@ body > .slash-palette {
     font-size: clamp(11px, 2.6vw, 15px);
     line-height: 1.15;
     letter-spacing: 0;
-    color: #fb8147; /* MIMO_ORANGE from CLI logo.tsx */
     white-space: pre;
     text-align: left;
 }
-.mimo-welcome-pre .mimo-logo-dim {
-    color: #a0a0a0; /* MIMO_GRAY */
+.mimo-logo-orange { color: #fb8147; } /* MIMO_ORANGE */
+.mimo-logo-gray { color: #a0a0a0; }   /* MIMO_GRAY */
+.mimo-welcome--compact {
+    min-height: 0;
+    padding: 8px 0;
+    gap: 4px;
+}
+.mimo-startup-logo {
+    min-height: 0 !important;
+    padding: 8px 0 4px !important;
+    width: 100%;
 }
 /* No separate text mark under logo — ASCII logo IS the brand (fixes dual "MiMo Code") */
 .mimo-welcome-mark {

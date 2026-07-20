@@ -5793,54 +5793,66 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /** Center chooser: recent workspace sessions + History + New (no silent dump into last session). */
+    /** Center chooser: LOGO on top → recent sessions under logo → History + New. */
     function showStartupChooser(sessionList) {
         chatContainer.innerHTML = '';
         const root = document.createElement('div');
         root.className = 'mimo-startup';
         root.id = 'mimo-startup';
+
+        // 1) Full interactive logo FIRST
+        const logoHost = document.createElement('div');
+        logoHost.id = 'chat-welcome';
+        logoHost.className = 'chat-welcome mimo-startup-logo';
+        root.appendChild(logoHost);
+        if (typeof window.__mimoPaintWelcome === 'function') {
+            window.__mimoPaintWelcome(logoHost, { compact: false });
+        }
+
+        // 2) Recent sessions UNDER the logo
         const title = document.createElement('div');
         title.className = 'mimo-startup-title';
         title.textContent = 'Recent sessions';
         root.appendChild(title);
 
-        // Compact logo above list (no second text mark)
-        const logoHost = document.createElement('div');
-        logoHost.id = 'chat-welcome';
-        logoHost.className = 'chat-welcome';
-        logoHost.style.minHeight = 'auto';
-        logoHost.style.padding = '8px 0 4px';
-        root.appendChild(logoHost);
-        if (typeof window.__mimoPaintWelcome === 'function') {
-            window.__mimoPaintWelcome(logoHost);
-        }
-
         const list = document.createElement('div');
         list.className = 'mimo-startup-list';
-        const items = Array.isArray(sessionList) ? sessionList.slice(0, 12) : [];
+        const raw = Array.isArray(sessionList) ? sessionList : (Array.isArray(sessions) ? sessions : []);
+        // Prefer items with titles; map common API fields
+        const items = raw.slice(0, 14).map(function (s) {
+            if (!s || typeof s !== 'object') return null;
+            const id = s.id || s.sessionId || s.sessionID || '';
+            const titleText = s.title || s.name || s.summary || s.id || 'Session';
+            let when = s.updated || s.updatedAt || s.time?.updated || s.time?.created || s.created || '';
+            if (typeof when === 'number') {
+                try { when = new Date(when).toLocaleString(); } catch (_) { when = String(when); }
+            }
+            return { id: id, title: titleText, when: String(when || id).slice(0, 40) };
+        }).filter(function (s) { return s && s.id; });
+
         if (!items.length) {
             const empty = document.createElement('div');
             empty.className = 'mimo-startup-empty';
-            empty.textContent = 'No recent sessions in this folder';
+            empty.textContent = 'No recent sessions in this folder — start a new one';
             list.appendChild(empty);
         } else {
-            for (const s of items) {
+            for (let i = 0; i < items.length; i++) {
+                const s = items[i];
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'mimo-startup-item';
                 const t = document.createElement('span');
                 t.className = 'mimo-startup-item-title';
-                t.textContent = s.title || s.id || 'Session';
+                t.textContent = s.title;
                 const m = document.createElement('span');
                 m.className = 'mimo-startup-item-meta';
-                const when = s.updated || s.time?.updated || s.time?.created || s.id || '';
-                m.textContent = String(when).slice(0, 32);
+                m.textContent = s.when;
                 btn.appendChild(t);
                 btn.appendChild(m);
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', function () {
                     showSessionLoadingBar('Loading session…');
-                    pendingExplicitSessionSelectionId = s.id || '';
-                    activeSessionId = s.id || '';
+                    pendingExplicitSessionSelectionId = s.id;
+                    activeSessionId = s.id;
                     vscode.postMessage({ type: 'selectSession', sessionId: s.id });
                 });
                 list.appendChild(btn);
@@ -5848,23 +5860,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         root.appendChild(list);
 
+        // 3) Actions
         const actions = document.createElement('div');
         actions.className = 'mimo-startup-actions';
         const hist = document.createElement('button');
         hist.type = 'button';
         hist.className = 'mimo-startup-btn';
         hist.textContent = 'Show history';
-        hist.addEventListener('click', () => {
+        hist.addEventListener('click', function () {
             try { openSessionPanel(); } catch (_) {}
         });
         const neu = document.createElement('button');
         neu.type = 'button';
         neu.className = 'mimo-startup-btn mimo-startup-btn--primary';
         neu.textContent = 'New session';
-        neu.addEventListener('click', () => {
+        neu.addEventListener('click', function () {
             try {
-                const btn = document.getElementById('new-session-btn');
-                if (btn) btn.click();
+                const b = document.getElementById('new-session-btn');
+                if (b) b.click();
                 else vscode.postMessage({ type: 'newSession' });
             } catch (_) {
                 vscode.postMessage({ type: 'newSession' });
@@ -10005,9 +10018,10 @@ function appendMessageImages(parentEl, message) {
     setTimeout(() => { try { vscode.postMessage({ type: 'fetchSlashCommands' }); } catch (_) {} }, 1200);
     setTimeout(() => { try { vscode.postMessage({ type: 'fetchSlashCommands' }); } catch (_) {} }, 3500);
 
-    // ---- CLI welcome (logoThin) + 1:1 CLI sfx (charge.wav + pulse-a/b/c.wav) ----
-    // sound.ts: start() plays charge @0.24; pulse(scale) cycles pulse files @0.26+0.14*scale
+    // ---- CLI Logo full port: dual-color (MiMo orange / Code gray) + charge gather + release burst ----
+    // Physics/constants from packages/opencode/.../logo.tsx + sound.ts wavs
     (function initMimoWelcome() {
+        // logoThin from packages/opencode/src/cli/logo.ts
         const LOGO_LEFT = [
             '                  ',
             '                  ',
@@ -10022,15 +10036,17 @@ function appendMessageImages(parentEl, message) {
             '  █   █  █ █  █ █▀▀ ',
             '  ▀▀▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀',
         ];
-        function logoAscii() {
-            let ascii = '';
-            for (let i = 0; i < LOGO_LEFT.length; i++) {
-                ascii += LOGO_LEFT[i] + '  ' + (LOGO_RIGHT[i] || '') + '\n';
-            }
-            return ascii;
-        }
+        const MIMO_ORANGE = { r: 251, g: 129, b: 71 };   // #fb8147
+        const MIMO_GRAY = { r: 160, g: 160, b: 160 };    // #a0a0a0
+        const PEAK = { r: 255, g: 255, b: 255 };
+        const CHARGE_MS = 3000;
+        const HOLD_MS = 90;
+        const LIFE_MS = 1020;
+        const EXPAND = 1.62;
+        const GAIN = 2.3;
+        const WIDTH = 0.76;
 
-        // CLI volumes from sound.ts
+        // --- Sound 1:1 sound.ts ---
         const CHARGE_VOL = 0.24;
         const PULSE_BASE = 0.26;
         const PULSE_SCALE = 0.14;
@@ -10046,21 +10062,18 @@ function appendMessageImages(parentEl, message) {
                 const a = new Audio(url);
                 a.volume = Math.max(0, Math.min(1, volume));
                 const p = a.play();
-                if (p && typeof p.catch === 'function') p.catch(() => {});
+                if (p && typeof p.catch === 'function') p.catch(function () {});
                 return a;
-            } catch (_) {
-                return null;
-            }
+            } catch (_) { return null; }
         }
         function soundStart() {
-            // stop any previous charge
             chargeToken++;
             const my = chargeToken;
             try { if (chargeAudio) { chargeAudio.pause(); chargeAudio = null; } } catch (_) {}
             if (sfx.charge) {
                 chargeAudio = playUrl(sfx.charge, CHARGE_VOL);
                 if (chargeAudio) {
-                    chargeAudio.addEventListener('ended', () => {
+                    chargeAudio.addEventListener('ended', function () {
                         if (my === chargeToken) chargeAudio = null;
                     });
                 }
@@ -10068,7 +10081,7 @@ function appendMessageImages(parentEl, message) {
         }
         function soundStop(delayMs) {
             const my = ++chargeToken;
-            const run = () => {
+            const run = function () {
                 if (my !== chargeToken) return;
                 try {
                     if (chargeAudio) {
@@ -10078,74 +10091,468 @@ function appendMessageImages(parentEl, message) {
                     }
                 } catch (_) {}
             };
-            if (delayMs > 0) setTimeout(run, delayMs);
-            else run();
+            if (delayMs > 0) setTimeout(run, delayMs); else run();
         }
         function soundPulse(scale) {
-            // CLI: stop(140) then play next pulse wav
             soundStop(140);
             const s = typeof scale === 'number' ? scale : 1;
             const vol = PULSE_BASE + PULSE_SCALE * s;
             if (pulseUrls.length) {
                 const url = pulseUrls[pulseShot++ % pulseUrls.length];
-                setTimeout(() => playUrl(url, vol), 30);
+                setTimeout(function () { playUrl(url, vol); }, 30);
             }
         }
         window.__mimoLogoSound = { start: soundStart, stop: soundStop, pulse: soundPulse };
 
-        function paintWelcome(host) {
-            if (!host) return;
-            host.innerHTML =
-                '<div class="mimo-welcome">' +
-                '<div class="mimo-welcome-logo" id="mimo-welcome-logo" role="button" tabindex="0" title="Hold / click — MiMo Code logo">' +
-                '<pre class="mimo-welcome-pre">' + logoAscii().replace(/</g, '&lt;') + '</pre></div>' +
-                '<div class="mimo-welcome-sub">Where models and agents co-evolve</div>' +
-                '<div class="mimo-welcome-hint">Type a message, or press <kbd>/</kbd> · hold logo for charge</div>' +
-                '</div>';
-            wireLogo(host.querySelector('#mimo-welcome-logo'));
+        function lerp(a, b, t) { return a + (b - a) * Math.max(0, Math.min(1, t)); }
+        function ramp(age, hold, charge) {
+            if (age <= hold) return 0;
+            return Math.max(0, Math.min(1, (age - hold) / Math.max(1, charge - hold)));
         }
-        function wireLogo(logo) {
-            if (!logo || logo.dataset.wired === '1') return;
-            logo.dataset.wired = '1';
-            let holdTimer = null;
-            let holding = false;
-            const CHARGE_MS = 3000; // logo.tsx CHARGE
-            const begin = (e) => {
-                if (e && e.type === 'keydown' && e.key !== ' ' && e.key !== 'Enter') return;
-                if (e && e.type === 'keydown') e.preventDefault();
-                holding = true;
-                logo.classList.add('is-pulse');
-                soundStart();
-                if (holdTimer) clearTimeout(holdTimer);
-                holdTimer = setTimeout(() => {
-                    // full charge complete — keep humming until release
-                }, CHARGE_MS);
+        function push(rise) { return Math.pow(Math.max(0, Math.min(1, rise)), 0.72); }
+        function tint(c, d, t) {
+            return {
+                r: Math.round(lerp(c.r, d.r, t)),
+                g: Math.round(lerp(c.g, d.g, t)),
+                b: Math.round(lerp(c.b, d.b, t)),
             };
-            const end = () => {
-                if (!holding) return;
-                holding = false;
-                if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
-                logo.classList.remove('is-pulse');
-                // CLI: release → pulse(lerp(0.8,1,level)); use mid scale
-                soundPulse(0.9);
-            };
-            logo.addEventListener('mousedown', begin);
-            logo.addEventListener('mouseup', end);
-            logo.addEventListener('mouseleave', end);
-            logo.addEventListener('touchstart', begin, { passive: true });
-            logo.addEventListener('touchend', end);
-            logo.addEventListener('keydown', begin);
-            logo.addEventListener('keyup', end);
-            // short click also fires pulse (web convenience)
-            logo.addEventListener('click', (e) => {
-                if (!holding) {
-                    logo.classList.remove('is-pulse');
-                    void logo.offsetWidth;
-                    logo.classList.add('is-pulse');
+        }
+        function css(c, a) {
+            if (a === undefined || a >= 1) return 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
+            return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')';
+        }
+        function noise(x, y, t) {
+            const n = Math.sin(x * 12.9898 + y * 78.233 + t * 0.001) * 43758.5453;
+            return n - Math.floor(n);
+        }
+
+        // Build glyph cells: left=MiMo orange, right=Code gray
+        function buildCells() {
+            const gap = 2;
+            const cells = [];
+            const leftW = LOGO_LEFT[0].length;
+            for (let y = 0; y < LOGO_LEFT.length; y++) {
+                const L = LOGO_LEFT[y] || '';
+                const R = LOGO_RIGHT[y] || '';
+                for (let x = 0; x < L.length; x++) {
+                    const ch = L[x];
+                    if (ch && ch !== ' ') {
+                        cells.push({ ch: ch, gx: x, gy: y, side: 'left', base: MIMO_ORANGE });
+                    }
+                }
+                for (let x = 0; x < R.length; x++) {
+                    const ch = R[x];
+                    if (ch && ch !== ' ') {
+                        cells.push({ ch: ch, gx: leftW + gap + x, gy: y, side: 'right', base: MIMO_GRAY });
+                    }
+                }
+            }
+            const maxX = cells.reduce(function (m, c) { return Math.max(m, c.gx); }, 0);
+            const maxY = cells.reduce(function (m, c) { return Math.max(m, c.gy); }, 0);
+            return { cells: cells, cols: maxX + 1, rows: maxY + 1, leftW: leftW, gap: gap };
+        }
+
+        function createLogoEngine(canvas) {
+            const grid = buildCells();
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            let cellW = 10;
+            let cellH = 16;
+            let padX = 8;
+            let padY = 8;
+            let W = 0, H = 0;
+            let hold = null; // {x,y,at,cx,cy}
+            let rings = [];  // {x,y,at,force,kick}
+            let particles = [];
+            let glow = null;
+            let hum = false;
+            let raf = 0;
+            let running = false;
+
+            function layout() {
+                const parent = canvas.parentElement;
+                const maxW = Math.max(200, (parent ? parent.clientWidth : 360) - 16);
+                // Fit logoThin (~38 cols) into max width
+                cellW = Math.max(7, Math.min(14, Math.floor(maxW / (grid.cols + 1))));
+                cellH = Math.round(cellW * 1.55);
+                padX = cellW;
+                padY = Math.round(cellH * 0.4);
+                W = Math.ceil(padX * 2 + grid.cols * cellW);
+                H = Math.ceil(padY * 2 + grid.rows * cellH);
+                canvas.width = Math.floor(W * dpr);
+                canvas.height = Math.floor(H * dpr);
+                canvas.style.width = W + 'px';
+                canvas.style.height = H + 'px';
+                const ctx = canvas.getContext('2d');
+                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                // map cell centers into pixel space
+                grid.cells.forEach(function (c) {
+                    c.px = padX + c.gx * cellW + cellW * 0.5;
+                    c.py = padY + c.gy * cellH + cellH * 0.55;
+                });
+            }
+
+            function cellAt(px, py) {
+                // nearest non-empty cell
+                let best = null, bestD = 1e9;
+                for (let i = 0; i < grid.cells.length; i++) {
+                    const c = grid.cells[i];
+                    const d = (c.px - px) * (c.px - px) + (c.py - py) * (c.py - py);
+                    if (d < bestD) { bestD = d; best = c; }
+                }
+                return best;
+            }
+
+            function spawnGather(cx, cy, rise, n) {
+                for (let i = 0; i < n; i++) {
+                    const ang = Math.random() * Math.PI * 2;
+                    const dist = lerp(cellW * 2, Math.max(W, H) * 0.55, Math.random());
+                    const side = Math.random() < 0.55 ? MIMO_ORANGE : MIMO_GRAY;
+                    particles.push({
+                        x: cx + Math.cos(ang) * dist,
+                        y: cy + Math.sin(ang) * dist,
+                        vx: 0, vy: 0,
+                        life: 1,
+                        mode: 'gather',
+                        color: tint(side, PEAK, rise * 0.35 + Math.random() * 0.2),
+                        size: lerp(1.2, 2.8, Math.random()),
+                    });
+                }
+            }
+
+            function spawnBurst(cx, cy, level) {
+                const count = Math.floor(lerp(40, 120, level));
+                for (let i = 0; i < count; i++) {
+                    const ang = Math.random() * Math.PI * 2;
+                    const spd = lerp(1.2, 7.5, level) * (0.5 + Math.random());
+                    const side = Math.random() < 0.55 ? MIMO_ORANGE : MIMO_GRAY;
+                    particles.push({
+                        x: cx + (Math.random() - 0.5) * 6,
+                        y: cy + (Math.random() - 0.5) * 6,
+                        vx: Math.cos(ang) * spd,
+                        vy: Math.sin(ang) * spd,
+                        life: 1,
+                        mode: 'burst',
+                        color: tint(side, PEAK, 0.4 + level * 0.5),
+                        size: lerp(1.5, 3.5, Math.random() * level),
+                    });
+                }
+                // expanding ring wave particles
+                const ringN = Math.floor(lerp(24, 64, level));
+                for (let i = 0; i < ringN; i++) {
+                    const ang = (i / ringN) * Math.PI * 2;
+                    particles.push({
+                        x: cx, y: cy,
+                        vx: Math.cos(ang) * lerp(2.5, 9, level),
+                        vy: Math.sin(ang) * lerp(2.5, 9, level),
+                        life: 1,
+                        mode: 'ring',
+                        color: tint(MIMO_ORANGE, PEAK, 0.7),
+                        size: 2.2,
+                    });
+                }
+            }
+
+            function fieldBoost(c, t) {
+                // Brighten glyphs near hold (gather) or ring (release) — logo.tsx field/wave spirit
+                let boost = 0;
+                let peak = 0;
+                if (hold) {
+                    const age = t - hold.at;
+                    const rise = ramp(age, HOLD_MS, CHARGE_MS);
+                    const dx = c.px - hold.cx;
+                    const dy = c.py - hold.cy;
+                    const dist = Math.hypot(dx, dy) / cellW;
+                    const core = Math.exp(-(dist * dist) / Math.max(0.4, lerp(0.4, 8, rise)));
+                    const shell = Math.exp(-Math.pow((dist - lerp(0.5, 4, rise)) / 1.2, 2));
+                    boost += (core * 1.8 + shell * 0.9) * rise;
+                    peak += core * rise * 0.9;
+                    // sparkle noise
+                    boost += Math.max(0, noise(c.gx, c.gy, t) - 0.72) * rise * 1.5;
+                }
+                for (let i = 0; i < rings.length; i++) {
+                    const r = rings[i];
+                    const age = t - r.at;
+                    if (age < 0 || age > LIFE_MS) continue;
+                    const p = age / LIFE_MS;
+                    const dx = c.px - r.x;
+                    const dy = c.py - r.y;
+                    const dist = Math.hypot(dx, dy) / cellW;
+                    const radius = (Math.max(grid.cols, grid.rows) * 0.85) * (1 - Math.pow(1 - p, EXPAND));
+                    const fade = Math.pow(1 - p, 1.32);
+                    const edge = Math.exp(-Math.pow((dist - radius) / WIDTH, 2)) * GAIN * fade * r.force;
+                    const trail = dist < radius ? Math.exp(-(radius - dist) / 2.4) * 0.28 * fade * r.force : 0;
+                    const flash = Math.exp(-(dist * dist) / 3.2) * 2.15 * r.force * Math.max(0, 1 - age / 140);
+                    boost += edge + trail + flash;
+                    peak += flash * 0.8 + edge * 0.4;
+                }
+                if (glow) {
+                    const age = t - glow.at;
+                    if (age < 1600) {
+                        const g = Math.exp(-age / 900) * glow.force;
+                        // mild whole-glyph glow
+                        boost += g * 0.15;
+                    }
+                }
+                return { boost: Math.min(3.2, boost), peak: Math.min(1.4, peak) };
+            }
+
+            function tick(t) {
+                // charge hum after HOLD
+                if (hold && !hum && t - hold.at >= HOLD_MS) {
+                    hum = true;
                     soundStart();
-                    setTimeout(() => soundPulse(0.85), 180);
+                }
+                // auto-burst at full CHARGE (CLI: burst while still held)
+                if (hold && t - hold.at >= CHARGE_MS) {
+                    doBurst(hold.cx, hold.cy, t);
+                    hold = null;
+                }
+                // gather particles while holding
+                if (hold) {
+                    const age = t - hold.at;
+                    const rise = ramp(age, HOLD_MS, CHARGE_MS);
+                    if (particles.filter(function (p) { return p.mode === 'gather'; }).length < 90) {
+                        spawnGather(hold.cx, hold.cy, rise, 3 + Math.floor(rise * 4));
+                    }
+                }
+                // integrate particles
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    if (p.mode === 'gather' && hold) {
+                        const dx = hold.cx - p.x;
+                        const dy = hold.cy - p.y;
+                        const dist = Math.hypot(dx, dy) || 1;
+                        const pull = 0.08 + ramp(t - hold.at, HOLD_MS, CHARGE_MS) * 0.22;
+                        p.vx = p.vx * 0.86 + (dx / dist) * pull * dist * 0.04;
+                        p.vy = p.vy * 0.86 + (dy / dist) * pull * dist * 0.04;
+                        // swirl
+                        p.vx += -dy / dist * 0.15;
+                        p.vy += dx / dist * 0.15;
+                        p.life -= 0.008;
+                    } else {
+                        p.x += p.vx;
+                        p.y += p.vy;
+                        p.vx *= 0.98;
+                        p.vy *= 0.98;
+                        p.life -= p.mode === 'ring' ? 0.018 : 0.014;
+                    }
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    if (p.life <= 0) particles.splice(i, 1);
+                }
+                // prune rings
+                rings = rings.filter(function (r) { return t - r.at < LIFE_MS; });
+                if (glow && t - glow.at >= 1600) glow = null;
+
+                draw(t);
+
+                const live = hold || rings.length || particles.length || glow;
+                if (!live) {
+                    running = false;
+                    raf = 0;
+                    return;
+                }
+                raf = requestAnimationFrame(tick);
+            }
+
+            function startLoop() {
+                if (running) return;
+                running = true;
+                raf = requestAnimationFrame(tick);
+            }
+
+            function draw(t) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, W, H);
+                ctx.font = 'bold ' + Math.round(cellH * 0.92) + 'px "Cascadia Mono", Consolas, "Courier New", monospace';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                // glyphs
+                for (let i = 0; i < grid.cells.length; i++) {
+                    const c = grid.cells[i];
+                    const f = fieldBoost(c, t);
+                    let col = c.base;
+                    if (f.boost > 0.02) {
+                        col = tint(c.base, MIMO_ORANGE, Math.min(0.55, f.boost * 0.25));
+                        col = tint(col, PEAK, Math.min(1, f.peak * 0.85 + f.boost * 0.12));
+                    }
+                    // idle subtle shimmer
+                    if (!hold && !rings.length) {
+                        const sh = 0.5 + 0.5 * Math.sin(t * 0.0015 + c.gx * 0.4 + c.gy);
+                        col = tint(c.base, PEAK, sh * 0.04);
+                    }
+                    ctx.fillStyle = css(col, 1);
+                    // soft glow under bright cells
+                    if (f.boost > 0.35) {
+                        ctx.shadowColor = css(tint(c.base, PEAK, 0.5), 0.55);
+                        ctx.shadowBlur = 8 + f.boost * 10;
+                    } else {
+                        ctx.shadowBlur = 0;
+                    }
+                    ctx.fillText(c.ch, c.px, c.py);
+                }
+                ctx.shadowBlur = 0;
+
+                // particles
+                for (let i = 0; i < particles.length; i++) {
+                    const p = particles[i];
+                    const a = Math.max(0, Math.min(1, p.life));
+                    ctx.beginPath();
+                    ctx.fillStyle = css(p.color, a);
+                    ctx.arc(p.x, p.y, p.size * (0.6 + a * 0.5), 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            function doBurst(cx, cy, t) {
+                const age = hold ? (t - hold.at) : CHARGE_MS;
+                const rise = ramp(age, HOLD_MS, CHARGE_MS);
+                const level = push(Math.max(0.25, rise));
+                hum = false;
+                // convert gather particles to outward burst
+                for (let i = 0; i < particles.length; i++) {
+                    const p = particles[i];
+                    if (p.mode !== 'gather') continue;
+                    const dx = p.x - cx;
+                    const dy = p.y - cy;
+                    const dist = Math.hypot(dx, dy) || 1;
+                    const spd = lerp(2, 8, level);
+                    p.vx = (dx / dist) * spd * (0.6 + Math.random());
+                    p.vy = (dy / dist) * spd * (0.6 + Math.random());
+                    p.mode = 'burst';
+                    p.color = tint(p.color, PEAK, 0.5);
+                    p.life = 1;
+                }
+                spawnBurst(cx, cy, level);
+                rings.push({
+                    x: cx, y: cy, at: t,
+                    force: lerp(0.82, 2.55, level),
+                    kick: lerp(0.32, 0.32 + 0.86, level),
+                });
+                glow = { at: t, force: lerp(0.18, 1.5, rise * level) };
+                soundPulse(lerp(0.8, 1, level));
+                startLoop();
+            }
+
+            function press(px, py) {
+                const t = performance.now();
+                if (hold) doBurst(hold.cx, hold.cy, t);
+                const cell = cellAt(px, py);
+                const cx = cell ? cell.px : px;
+                const cy = cell ? cell.py : py;
+                hold = { x: px, y: py, at: t, cx: cx, cy: cy };
+                hum = false;
+                particles = particles.filter(function (p) { return p.mode !== 'gather'; });
+                startLoop();
+            }
+
+            function release() {
+                if (!hold) return;
+                const t = performance.now();
+                doBurst(hold.cx, hold.cy, t);
+                hold = null;
+            }
+
+            function onPointerDown(e) {
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                const px = (clientX - rect.left) * (W / rect.width);
+                const py = (clientY - rect.top) * (H / rect.height);
+                press(px, py);
+            }
+            function onPointerUp(e) {
+                e.preventDefault();
+                release();
+            }
+
+            layout();
+            draw(performance.now());
+            // idle shimmer loop (subtle)
+            let idleRaf = 0;
+            function idleLoop(t) {
+                if (!hold && !rings.length && particles.length === 0) {
+                    draw(t);
+                }
+                idleRaf = requestAnimationFrame(idleLoop);
+            }
+            idleRaf = requestAnimationFrame(idleLoop);
+
+            canvas.addEventListener('mousedown', onPointerDown);
+            canvas.addEventListener('mouseup', onPointerUp);
+            canvas.addEventListener('mouseleave', function () { if (hold) release(); });
+            canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+            canvas.addEventListener('touchend', onPointerUp);
+            canvas.style.cursor = 'pointer';
+            canvas.setAttribute('role', 'button');
+            canvas.setAttribute('tabindex', '0');
+            canvas.setAttribute('aria-label', 'MiMo Code logo — hold to charge');
+            canvas.addEventListener('keydown', function (e) {
+                if (e.key === ' ' || e.key === 'Enter') {
+                    e.preventDefault();
+                    press(W / 2, H / 2);
                 }
             });
+            canvas.addEventListener('keyup', function (e) {
+                if (e.key === ' ' || e.key === 'Enter') {
+                    e.preventDefault();
+                    release();
+                }
+            });
+
+            window.addEventListener('resize', function () {
+                layout();
+                draw(performance.now());
+            });
+
+            return { layout: layout, destroy: function () {
+                cancelAnimationFrame(raf);
+                cancelAnimationFrame(idleRaf);
+            }};
+        }
+
+        function paintWelcome(host, opts) {
+            if (!host) return;
+            const compact = opts && opts.compact;
+            host.innerHTML = '';
+            const wrap = document.createElement('div');
+            wrap.className = 'mimo-welcome' + (compact ? ' mimo-welcome--compact' : '');
+            const logoBox = document.createElement('div');
+            logoBox.className = 'mimo-welcome-logo';
+            logoBox.id = 'mimo-welcome-logo';
+            const canvas = document.createElement('canvas');
+            canvas.className = 'mimo-logo-canvas';
+            logoBox.appendChild(canvas);
+            wrap.appendChild(logoBox);
+            if (!compact) {
+                const sub = document.createElement('div');
+                sub.className = 'mimo-welcome-sub';
+                sub.textContent = 'Where models and agents co-evolve';
+                wrap.appendChild(sub);
+                const hint = document.createElement('div');
+                hint.className = 'mimo-welcome-hint';
+                hint.innerHTML = 'Hold the logo to charge · release to burst · <kbd>/</kbd> commands';
+                wrap.appendChild(hint);
+            }
+            host.appendChild(wrap);
+            try {
+                createLogoEngine(canvas);
+            } catch (err) {
+                // fallback plain dual-color pre
+                const pre = document.createElement('pre');
+                pre.className = 'mimo-welcome-pre';
+                let html = '';
+                for (let i = 0; i < LOGO_LEFT.length; i++) {
+                    html += '<span class="mimo-logo-orange">' + LOGO_LEFT[i].replace(/</g, '&lt;') +
+                        '</span>  <span class="mimo-logo-gray">' + (LOGO_RIGHT[i] || '').replace(/</g, '&lt;') +
+                        '</span>\n';
+                }
+                pre.innerHTML = html;
+                logoBox.innerHTML = '';
+                logoBox.appendChild(pre);
+            }
         }
         window.__mimoPaintWelcome = paintWelcome;
         const host = document.getElementById('chat-welcome');
