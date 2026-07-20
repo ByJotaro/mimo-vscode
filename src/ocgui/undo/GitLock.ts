@@ -27,9 +27,9 @@ type AcquireOptions = {
     repoId?: string;
 };
 
-const DEFAULT_TIMEOUT_MS = 10000;
-const DEFAULT_STALE_WITH_OWNER_MS = 5000;
-const DEFAULT_STALE_LEGACY_MS = 30000;
+const DEFAULT_TIMEOUT_MS = 2500;
+const DEFAULT_STALE_WITH_OWNER_MS = 2000;
+const DEFAULT_STALE_LEGACY_MS = 8000;
 
 const isProcessAlive = (pid: number): boolean => {
     if (!Number.isFinite(pid) || pid <= 0) return false;
@@ -81,9 +81,16 @@ const tryReapStaleLock = async (
     let reason = 'unknown';
 
     if (hasOwnerPid) {
-        if (ageMs >= staleWithOwnerMs && !isProcessAlive(ownerPid)) {
+        // Dead owner: reap immediately. A leftover .lock from a crashed VS Code
+        // must never block session load / chat for 10s+ (was the main hang).
+        if (!isProcessAlive(ownerPid)) {
             shouldReap = true;
             reason = 'owner-dead';
+        } else if (ageMs >= Math.max(staleWithOwnerMs, 30000)) {
+            // Live owner but lock is ancient — almost certainly a stuck process
+            // that no longer holds real work. Prefer progress over deadlock.
+            shouldReap = true;
+            reason = 'owner-alive-stale';
         }
     } else if (ageMs >= staleLegacyMs) {
         shouldReap = true;
@@ -171,6 +178,53 @@ const releaseFileLock = async (handle: LockHandle): Promise<void> => {
         // ignore
     }
 };
+
+/**
+ * Best-effort cleanup of abandoned `.lock` files under a git-repos root.
+ * Safe: only deletes locks whose owner PID is dead (or unreadable/legacy-stale).
+ * Call on extension activate so a crashed VS Code never bricks session load.
+ */
+export async function reapStaleRepoLocks(
+    reposRoot: string,
+    logger: Logger = () => undefined
+): Promise<number> {
+    if (!reposRoot) return 0;
+    let reaped = 0;
+    const walk = async (dir: string): Promise<void> => {
+        let entries: fs.Dirent[];
+        try {
+            entries = await fs.promises.readdir(dir, { withFileTypes: true });
+        } catch {
+            return;
+        }
+        for (const entry of entries) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                await walk(full);
+                continue;
+            }
+            if (entry.name !== '.lock') continue;
+            try {
+                const did = await tryReapStaleLock(
+                    full,
+                    logger,
+                    path.basename(path.dirname(full)),
+                    0, // dead owner: reap immediately (see tryReapStaleLock)
+                    DEFAULT_STALE_LEGACY_MS
+                );
+                if (did) reaped += 1;
+            } catch {
+                /* ignore single-file failures */
+            }
+        }
+    };
+    try {
+        await walk(reposRoot);
+    } catch {
+        /* ignore */
+    }
+    return reaped;
+}
 
 export class RepoLockManager {
     private queues = new Map<string, Promise<void>>();

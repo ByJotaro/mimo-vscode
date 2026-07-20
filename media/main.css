@@ -1,24 +1,775 @@
 /* =========================
-   Base
+   Base — MiMo CLI dark (no neon)
    ========================= */
-body {
-    padding: 0;
-    margin: 0;
-    color: var(--vscode-foreground);
-    font-family: var(--vscode-font-family);
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    background-color: transparent;
-    position: relative;
-    overflow: hidden;
+/* Colors 1:1 with packages/opencode .../theme/mimocode.json (dark) */
+:root {
+    --mimo-bg: #0a0a0a;          /* darkStep1 */
+    --mimo-bg-panel: #141414;    /* darkStep2 */
+    --mimo-bg-element: #1e1e1e;  /* darkStep3 */
+    --mimo-fg: #eeeeee;          /* darkStep12 / markdownText */
+    --mimo-muted: #808080;       /* darkStep11 */
+    --mimo-border: #484848;      /* darkStep7 */
+    --mimo-border-subtle: #3c3c3c; /* darkStep6 */
+    --mimo-surface: #141414;
+    --mimo-surface-2: #1e1e1e;
+    --mimo-primary: #FF6A00;     /* darkStep9 */
+    --mimo-secondary: #FF8A3C;   /* darkSecondary */
+    --mimo-accent: #818CF8;      /* darkAccent — headings */
+    --mimo-orange: #FBBF24;      /* darkOrange — strong */
+    --mimo-yellow: #e5c07b;      /* darkYellow — emph / blockquote */
+    --mimo-red: #FB7185;
+    --mimo-code: #FF6A00;        /* markdownCode */
+    --mimo-link: #FF6A00;
+    --mimo-link-text: #FF8A3C;
     --card-header-size: 0.9em;
 }
 
-/* MiMo Code starfield sits behind the UI; lift real UI above it */
-body > *:not(.bg) {
+html, body {
+    padding: 0;
+    margin: 0;
+    height: 100%;
+    width: 100%;
+    color: var(--mimo-fg);
+    font-family: var(--vscode-font-family, system-ui, sans-serif);
+    display: flex;
+    flex-direction: column;
+    /* Solid void — starfield paints on top of this */
+    background: var(--mimo-bg) !important;
+    background-color: var(--mimo-bg) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Only lift normal UI above starfield. NEVER force position on overlays —
+   that used to override position:fixed and shove session/slash into the flex flow. */
+body > .session-header,
+body > .session-search-bar,
+body > .chat-area,
+body > .mimo-goal-bar,
+body > .input-container {
     position: relative;
     z-index: 1;
+}
+body > .bg {
+    z-index: 0 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: block !important;
+}
+/* Floating layers — always out of document flow, always on top of chat */
+body > .panel-backdrop,
+body > .session-panel,
+body > .slash-palette {
+    position: fixed !important;
+    flex: none !important;
+}
+
+.session-header {
+    background: rgba(10, 10, 10, 0.72) !important;
+    border-bottom: 1px solid var(--mimo-border) !important;
+}
+.input-container {
+    background: rgba(18, 18, 18, 0.88) !important;
+    border-color: var(--mimo-border) !important;
+}
+.chat-area {
+    background: transparent !important;
+}
+
+/* ---- Thinking: collapsible (default closed), muted, no neon box ---- */
+.mimo-thinking {
+    margin: 6px 0 10px;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    color: var(--mimo-muted);
+}
+.mimo-thinking > summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 2px;
+    user-select: none;
+    color: var(--mimo-muted);
+}
+.mimo-thinking > summary::-webkit-details-marker { display: none; }
+.mimo-thinking > summary::before {
+    content: '';
+    width: 0;
+    height: 0;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 5px solid var(--mimo-muted);
+    flex: 0 0 auto;
+    transition: transform 0.12s ease;
+    opacity: 0.7;
+}
+.mimo-thinking[open] > summary::before { transform: rotate(90deg); }
+.mimo-thinking-title {
+    font-style: italic;
+    font-size: 0.9em;
+    color: var(--mimo-muted);
+    font-weight: 400;
+}
+.mimo-thinking-hint {
+    font-size: 0.72em;
+    color: #5c5c5c;
+    margin-left: 2px;
+}
+.mimo-thinking-body {
+    margin: 4px 0 0 18px;
+    padding: 0 0 4px;
+    color: var(--mimo-muted);
+    font-style: italic;
+    font-size: 0.9em;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 260px;
+    overflow: auto;
+    border-left: 1px solid var(--mimo-border);
+    padding-left: 10px;
+}
+
+.mimo-dur {
+    font-size: 0.72em;
+    font-family: "Cascadia Mono", Consolas, monospace;
+    color: #6a6a6a;
+    padding: 1px 6px;
+    border: 1px solid #2a2a2a;
+    border-radius: 999px;
+    flex: 0 0 auto;
+}
+
+/* ---- Tool / patch: minimal CLI row (no heavy nested boxes) ---- */
+.mimo-part {
+    margin: 6px 0;
+    border: none;
+    border-left: 2px solid #2a2a2a;
+    border-radius: 0;
+    background: transparent;
+    overflow: hidden;
+    font-size: 0.9em;
+    color: var(--mimo-fg);
+}
+.mimo-part > summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    user-select: none;
+    color: var(--mimo-muted);
+    background: transparent;
+}
+.mimo-part > summary::-webkit-details-marker { display: none; }
+.mimo-part > summary::before {
+    content: '';
+    width: 0;
+    height: 0;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-left: 5px solid var(--mimo-muted);
+    flex: 0 0 auto;
+    transition: transform 0.12s ease;
+}
+.mimo-part[open] > summary::before { transform: rotate(90deg); }
+.mimo-ico {
+    flex: 0 0 auto;
+    color: var(--mimo-muted);
+    display: block;
+}
+.mimo-part-title {
+    font-weight: 500;
+    color: var(--mimo-fg);
+    font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+    font-size: 0.9em;
+    letter-spacing: 0.01em;
+}
+.mimo-part-meta {
+    margin-left: auto;
+    font-size: 0.75em;
+    color: var(--mimo-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 36%;
+    font-family: "Cascadia Mono", Consolas, monospace;
+}
+.mimo-part-body {
+    padding: 0 0 2px;
+    display: flex;
+    flex-direction: column;
+    border-top: none;
+    background: transparent;
+}
+.mimo-part-body:empty { display: none; }
+
+/* Completely flat IN/OUT — no nested boxes, just labels + hairline */
+.mimo-io,
+.mimo-io--flat {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    padding: 4px 0 6px;
+}
+.mimo-io-line {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr);
+    gap: 6px;
+    align-items: start;
+    min-width: 0;
+    padding: 2px 10px;
+}
+.mimo-io-k {
+    font-family: "Cascadia Mono", Consolas, monospace;
+    font-size: 0.68em;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #555;
+    user-select: none;
+    line-height: 1.55;
+    padding-top: 1px;
+}
+.mimo-io-v {
+    margin: 0;
+    padding: 0;
+    font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+    font-size: 0.82em;
+    line-height: 1.45;
+    color: #c8c8c8;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    min-width: 0;
+    max-height: 180px;
+    overflow: auto;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 0 !important;
+}
+.mimo-io-line--in .mimo-io-v {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    max-height: calc(1.45em * 4);
+    overflow: hidden;
+    color: #d0d0d0;
+}
+.mimo-io-line--out .mimo-io-v {
+    color: #8e8e8e;
+}
+.mimo-io-hr {
+    height: 1px;
+    margin: 4px 10px 4px 36px;
+    background: #242424;
+    border: 0;
+}
+/* Kill any leftover nested box look on tool body */
+.mimo-part-body .mimo-cmd-box,
+.mimo-part-body .mimo-out-box,
+.mimo-part-body .mimo-io-strip {
+    border: none !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+}
+
+.mimo-part--tool,
+.mimo-part--patch,
+.mimo-part--file {
+    border-color: var(--mimo-border);
+    background: var(--mimo-surface);
+}
+.mimo-part--tool > summary .mimo-part-title,
+.mimo-part--patch > summary .mimo-part-title,
+.mimo-part--file > summary .mimo-part-title {
+    color: var(--mimo-fg);
+}
+
+.mimo-text-seg {
+    margin: 4px 0;
+    color: var(--mimo-fg);
+}
+
+/* ---- Bot markdown 1:1 mimocode.json ---- */
+.message.bot .message-content,
+.message.bot .mimo-text-seg {
+    color: var(--mimo-fg); /* #eeeeee */
+    line-height: 1.55;
+}
+.message.bot .message-content strong,
+.message.bot .message-content b {
+    color: var(--mimo-orange); /* #FBBF24 markdownStrong */
+    font-weight: 700;
+}
+.message.bot .message-content em,
+.message.bot .message-content i {
+    color: var(--mimo-yellow); /* #e5c07b markdownEmph */
+    font-style: italic;
+}
+.message.bot .message-content h1,
+.message.bot .message-content h2,
+.message.bot .message-content h3,
+.message.bot .message-content h4,
+.message.bot .message-content h5,
+.message.bot .message-content h6 {
+    color: var(--mimo-accent); /* #818CF8 markdownHeading */
+    font-weight: 650;
+    margin: 0.7em 0 0.35em;
+    line-height: 1.3;
+}
+.message.bot .message-content h1 { font-size: 1.35em; }
+.message.bot .message-content h2 { font-size: 1.2em; }
+.message.bot .message-content h3 { font-size: 1.08em; }
+.message.bot .message-content a {
+    color: var(--mimo-link); /* #FF6A00 */
+    text-decoration: none;
+    border-bottom: 1px solid rgba(255, 106, 0, 0.4);
+}
+.message.bot .message-content a:hover {
+    color: var(--mimo-link-text);
+    border-bottom-color: var(--mimo-link-text);
+}
+.message.bot .message-content code {
+    font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+    color: var(--mimo-code); /* #FF6A00 markdownCode */
+    background: rgba(255, 106, 0, 0.08);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    font-size: 0.92em;
+}
+.message.bot .message-content pre {
+    background: var(--mimo-bg-panel) !important;
+    border: 1px solid var(--mimo-border-subtle);
+    border-radius: 6px;
+    padding: 10px 12px;
+    overflow: auto;
+}
+.message.bot .message-content pre code {
+    color: var(--mimo-fg); /* markdownCodeBlock = step12 */
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    font-size: 0.88em;
+}
+.message.bot .message-content blockquote {
+    margin: 0.5em 0;
+    padding: 0.25em 0 0.25em 12px;
+    border-left: 3px solid var(--mimo-yellow);
+    color: var(--mimo-yellow);
+}
+.message.bot .message-content hr {
+    border: 0;
+    border-top: 1px solid var(--mimo-muted);
+    margin: 0.9em 0;
+}
+.message.bot .message-content ul,
+.message.bot .message-content ol {
+    padding-left: 1.35em;
+    margin: 0.4em 0;
+}
+.message.bot .message-content li {
+    color: var(--mimo-fg);
+    margin: 0.2em 0;
+}
+.message.bot .message-content li::marker {
+    color: var(--mimo-primary); /* markdownListItem */
+}
+.message.bot .message-content p {
+    margin: 0.45em 0;
+}
+
+/* Expand / collapse animations */
+.mimo-part,
+.mimo-thinking {
+    animation: mimo-part-in 0.18s ease;
+}
+@keyframes mimo-part-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.mimo-part-body,
+.mimo-thinking-body {
+    animation: mimo-expand-in 0.2s ease;
+}
+@keyframes mimo-expand-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Startup session chooser */
+.mimo-startup {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 28px 16px 36px;
+    min-height: 48vh;
+    animation: mimo-part-in 0.25s ease;
+}
+.mimo-startup-title {
+    font-family: "Cascadia Mono", Consolas, monospace;
+    font-size: 0.72em;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--mimo-muted);
+}
+.mimo-startup-list {
+    width: min(420px, 100%);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 42vh;
+    overflow: auto;
+}
+.mimo-startup-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
+    padding: 10px 12px;
+    border: 1px solid var(--mimo-border-subtle);
+    border-radius: 8px;
+    background: rgba(20, 20, 20, 0.85);
+    color: var(--mimo-fg);
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+}
+.mimo-startup-item:hover {
+    border-color: var(--mimo-primary);
+    background: rgba(255, 106, 0, 0.06);
+    transform: translateY(-1px);
+}
+.mimo-startup-item-title {
+    font-size: 0.92em;
+    color: var(--mimo-fg);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mimo-startup-item-meta {
+    font-size: 0.72em;
+    color: var(--mimo-muted);
+    font-family: "Cascadia Mono", Consolas, monospace;
+}
+.mimo-startup-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 4px;
+}
+.mimo-startup-btn {
+    border: 1px solid var(--mimo-border-subtle);
+    background: var(--mimo-surface);
+    color: var(--mimo-fg);
+    border-radius: 6px;
+    padding: 7px 14px;
+    font-size: 0.85em;
+    cursor: pointer;
+    font-family: "Cascadia Mono", Consolas, monospace;
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+.mimo-startup-btn:hover {
+    border-color: var(--mimo-primary);
+    color: var(--mimo-secondary);
+}
+.mimo-startup-btn--primary {
+    border-color: rgba(255, 106, 0, 0.45);
+    color: var(--mimo-secondary);
+}
+.mimo-startup-empty {
+    color: var(--mimo-muted);
+    font-size: 0.85em;
+    padding: 12px;
+}
+
+/* Session hydrate loading strip */
+.session-load-bar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 10px 12px;
+    margin: 0;
+    background: rgba(10, 10, 10, 0.88);
+    border-bottom: 1px solid var(--mimo-border-subtle);
+    color: var(--mimo-muted);
+    font-size: 0.82em;
+    font-family: "Cascadia Mono", Consolas, monospace;
+    animation: mimo-part-in 0.2s ease;
+}
+.session-load-bar .mimo-spin {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--mimo-border-subtle);
+    border-top-color: var(--mimo-primary);
+    border-radius: 50%;
+    animation: mimo-spin 0.7s linear infinite;
+}
+@keyframes mimo-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ---- Welcome — CLI logoThin ASCII (clickable easter egg) ---- */
+.chat-welcome,
+.mimo-welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 10px;
+    padding: 36px 16px 28px;
+    min-height: 42vh;
+    user-select: none;
+}
+.mimo-welcome-logo {
+    cursor: pointer;
+    pointer-events: auto;
+    display: inline-block;
+    padding: 8px 4px;
+    border-radius: 6px;
+    transition: transform 0.15s ease, filter 0.2s ease;
+}
+.mimo-welcome-logo:hover {
+    filter: brightness(1.15);
+}
+.mimo-welcome-logo:active {
+    transform: scale(0.98);
+}
+.mimo-welcome-logo.is-pulse {
+    animation: mimo-logo-pulse 0.55s ease;
+}
+@keyframes mimo-logo-pulse {
+    0% { filter: brightness(1); transform: scale(1); }
+    35% { filter: brightness(1.55); transform: scale(1.03); }
+    100% { filter: brightness(1); transform: scale(1); }
+}
+.mimo-welcome-pre {
+    margin: 0;
+    font-family: "Cascadia Mono", Consolas, "Courier New", monospace;
+    font-size: clamp(11px, 2.6vw, 15px);
+    line-height: 1.15;
+    letter-spacing: 0;
+    color: #fb8147; /* MIMO_ORANGE from CLI logo.tsx */
+    white-space: pre;
+    text-align: left;
+}
+.mimo-welcome-pre .mimo-logo-dim {
+    color: #a0a0a0; /* MIMO_GRAY */
+}
+/* No separate text mark under logo — ASCII logo IS the brand (fixes dual "MiMo Code") */
+.mimo-welcome-mark {
+    display: none !important;
+}
+.mimo-welcome-sub {
+    font-size: 0.82em;
+    color: var(--mimo-muted);
+    font-style: italic;
+}
+.mimo-welcome-hint {
+    margin-top: 6px;
+    font-size: 0.75em;
+    color: #5c5c5c;
+    font-family: "Cascadia Mono", Consolas, monospace;
+}
+.mimo-welcome-hint kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    border: 1px solid #2a2a2a;
+    border-radius: 4px;
+    background: #161616;
+    color: #a0a0a0;
+    font: inherit;
+}
+
+/* ---- Goal bar (above input) ---- */
+.mimo-goal-bar {
+    position: relative;
+    z-index: 2;
+    margin: 0 10px 0;
+    padding: 0;
+    flex-shrink: 0;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transform: translateY(6px);
+    transition: max-height 0.22s ease, opacity 0.18s ease, transform 0.18s ease, margin 0.18s ease;
+    pointer-events: none;
+}
+.mimo-goal-bar.is-visible {
+    max-height: 220px;
+    opacity: 1;
+    transform: translateY(0);
+    margin: 0 10px 8px;
+    pointer-events: auto;
+}
+.mimo-goal-inner {
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    background: rgba(18, 18, 18, 0.92);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    overflow: hidden;
+}
+.mimo-goal-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    cursor: pointer;
+    user-select: none;
+}
+.mimo-goal-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #fb8147;
+    box-shadow: 0 0 0 0 rgba(251, 129, 71, 0.45);
+    animation: mimo-goal-pulse 1.6s ease-in-out infinite;
+    flex: 0 0 auto;
+}
+.mimo-goal-bar.is-paused .mimo-goal-dot {
+    background: #666;
+    animation: none;
+}
+@keyframes mimo-goal-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(251, 129, 71, 0.4); }
+    50% { box-shadow: 0 0 0 5px rgba(251, 129, 71, 0); }
+}
+.mimo-goal-label {
+    font-size: 0.7em;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #7a7a7a;
+    font-family: "Cascadia Mono", Consolas, monospace;
+    flex: 0 0 auto;
+}
+.mimo-goal-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.88em;
+    color: #d4d4d4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mimo-goal-time {
+    font-size: 0.72em;
+    color: #6a6a6a;
+    font-family: "Cascadia Mono", Consolas, monospace;
+    flex: 0 0 auto;
+}
+.mimo-goal-actions {
+    display: flex;
+    gap: 4px;
+    flex: 0 0 auto;
+}
+.mimo-goal-btn {
+    border: 1px solid #2a2a2a;
+    background: #161616;
+    color: #a0a0a0;
+    border-radius: 4px;
+    font-size: 0.7em;
+    padding: 2px 7px;
+    cursor: pointer;
+    font-family: "Cascadia Mono", Consolas, monospace;
+}
+.mimo-goal-btn:hover {
+    color: #e0e0e0;
+    border-color: #3a3a3a;
+}
+.mimo-goal-body {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.2s ease, opacity 0.16s ease, padding 0.16s ease;
+    border-top: 0 solid #2a2a2a;
+    padding: 0 10px;
+    color: #9a9a9a;
+    font-size: 0.85em;
+    white-space: pre-wrap;
+    line-height: 1.45;
+}
+.mimo-goal-bar.is-expanded .mimo-goal-body {
+    max-height: 140px;
+    opacity: 1;
+    padding: 8px 10px 10px;
+    border-top: 1px solid #2a2a2a;
+    overflow: auto;
+}
+
+/* ---- Loading spinners ---- */
+.mimo-spinner {
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid #2a2a2a;
+    border-top-color: #a0a0a0;
+    border-radius: 50%;
+    display: inline-block;
+    animation: mimo-spin 0.7s linear infinite;
+    flex: 0 0 auto;
+}
+.mimo-spinner--inline {
+    width: 11px;
+    height: 11px;
+    margin-left: 8px;
+    vertical-align: -1px;
+}
+@keyframes mimo-spin {
+    to { transform: rotate(360deg); }
+}
+.session-loading,
+.session-load-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 18px 12px;
+    color: #8a8a8a;
+    font-size: 0.85em;
+    font-family: "Cascadia Mono", Consolas, monospace;
+}
+.session-load-bar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: rgba(10, 10, 10, 0.85);
+    border-bottom: 1px solid #2a2a2a;
+    backdrop-filter: blur(4px);
+}
+
+/* ---- Thin modern scrollbars (CLI dark) ---- */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #3a3a3a transparent;
+}
+*::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+    background: #4a4a4a;
+}
+*::-webkit-scrollbar-corner {
+    background: transparent;
 }
 
 /* --- Session Header --- */
@@ -29,6 +780,8 @@ body > *:not(.bg) {
     border-bottom: 1px solid var(--vscode-widget-border);
     flex-shrink: 0;
     min-height: 24px;
+    /* Semi-transparent so CLI starfield shows through */
+    background: color-mix(in srgb, var(--vscode-sideBar-background, #1e1e1e) 72%, transparent);
 }
 
 .session-header-left {
@@ -41,7 +794,7 @@ body > *:not(.bg) {
 .session-title {
     font-size: 0.9em;
     font-weight: 500;
-    color: var(--vscode-textLink-foreground);
+    color: var(--mimo-fg, var(--vscode-foreground));
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -311,35 +1064,56 @@ body > *:not(.bg) {
     cursor: not-allowed;
 }
 
-/* --- Sessions Panel --- */
+/* --- Sessions Panel: pure overlay ABOVE chat (never pushes layout) --- */
 .panel-backdrop {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.25);
-    z-index: 10;
+    position: fixed !important;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.62);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    z-index: 900 !important;
+    margin: 0;
+    padding: 0;
+    pointer-events: auto;
+    opacity: 1;
+    transition: opacity 0.16s ease;
+}
+.panel-backdrop.hidden {
+    display: none !important;
+    opacity: 0;
+    pointer-events: none;
 }
 
 .session-panel {
-    position: fixed;
-    top: 44px;
-    left: 12px;
-    right: 12px;
-    width: calc(100% - 24px);
-    max-height: 60vh;
-    background: var(--vscode-editor-background);
-    border: 1px solid var(--vscode-widget-border);
-    border-radius: 8px;
-    z-index: 11;
+    position: fixed !important;
+    top: 48px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-height: min(68vh, 480px);
+    background: #121212;
+    border: 1px solid #2a2a2a;
+    border-radius: 10px;
+    z-index: 910 !important;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65);
+    margin: 0;
+    padding: 0;
+    pointer-events: auto;
+    transform: translateY(0);
+    opacity: 1;
+    transition: opacity 0.16s ease, transform 0.16s ease;
+}
+.session-panel.hidden {
+    display: none !important;
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
 }
 
 .hidden {
-    display: none;
+    display: none !important;
 }
 
 .session-panel-header {
@@ -360,9 +1134,18 @@ body > *:not(.bg) {
 .session-list {
     padding: 8px;
     overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
     gap: 6px;
+    flex: 1 1 auto;
+    min-height: 0;
+    background: #121212;
+    /* isolate so chat never paints through */
+    isolation: isolate;
+}
+.session-panel-header {
+    background: #161616;
 }
 
 .session-item-row {
@@ -377,9 +1160,9 @@ body > *:not(.bg) {
 
 .session-item {
     text-align: left;
-    border: 1px solid var(--vscode-widget-border);
-    background: var(--vscode-sideBar-background);
-    color: var(--vscode-foreground);
+    border: 1px solid #2a2a2a;
+    background: #161616;
+    color: #d4d4d4;
     border-radius: 6px;
     padding: 0;
     cursor: pointer;
@@ -528,7 +1311,8 @@ body > *:not(.bg) {
     display: flex;
     flex-direction: column;
     gap: 12px;
-    background: linear-gradient(180deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0) 35%);
+    /* Keep chat transparent so starfield shows through */
+    background: transparent;
 }
 
 .message-row {
@@ -554,30 +1338,37 @@ body > *:not(.bg) {
     word-wrap: break-word;
     white-space: pre-wrap;
     border: 1px solid transparent;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+    box-shadow: none;
     position: relative;
 }
 
 .message.user {
     align-self: flex-end;
-    background-color: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    border-color: rgba(0,0,0,0.08);
+    background-color: #1a1a1a;
+    color: var(--mimo-fg, #d4d4d4);
+    border: 1px solid var(--mimo-border, #2a2a2a);
+    box-shadow: none;
     overflow: visible;
     transition: transform 0.16s ease, max-width 0.16s ease;
 }
 
+/* Assistant: no bubble — only user messages get a subtle box (CLI-like). */
 .message.bot {
     align-self: flex-start;
     background-color: transparent;
-    color: var(--vscode-editor-foreground);
+    background: transparent;
+    color: var(--mimo-fg, #d4d4d4);
     border: none;
+    box-shadow: none;
+    padding-left: 2px;
+    padding-right: 2px;
 }
 
 .message.bot .message-content strong,
 .message.bot .message-content b {
-    color: var(--vscode-button-background);
-    filter: brightness(1.69);
+    color: var(--mimo-fg, #e8e8e8);
+    filter: none;
+    font-weight: 600;
 }
 
 .message.system {
@@ -2834,58 +3625,83 @@ select#mode-select {
     opacity: 0.6;
 }
 
+/* Slash palette — anchored above input, slides up like CLI (never shifts layout) */
 .slash-palette {
-    position: absolute;
-    bottom: 60px;
-    left: 8px;
-    right: 8px;
-    max-height: 40vh;
-    min-height: 60px;
-    overflow-y: auto;
-    background: var(--vscode-editor-background);
-    border: 1px solid var(--vscode-widget-border);
+    position: fixed !important;
+    left: 12px;
+    right: 12px;
+    bottom: 96px; /* JS overrides to sit just above input */
+    max-height: min(42vh, 280px);
+    min-height: 0;
+    overflow: hidden;
+    background: #121212;
+    border: 1px solid #2a2a2a;
     border-radius: 8px;
-    z-index: 20;
-    display: flex;
+    z-index: 800 !important;
+    display: none;
     flex-direction: column;
-    box-shadow: 0 -4px 16px rgba(0,0,0,0.25);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.55);
+    pointer-events: auto;
+    margin: 0;
+    padding: 0;
+    transform-origin: bottom center;
+    opacity: 0;
+    transform: translateY(8px) scaleY(0.96);
+    transition: opacity 0.14s ease, transform 0.16s ease;
+}
+.slash-palette.is-open {
+    display: flex !important;
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
 }
 .slash-palette-header {
-    padding: 6px 8px;
-    font-size: 0.75em;
-    color: var(--vscode-descriptionForeground);
-    border-bottom: 1px solid var(--vscode-widget-border);
-    letter-spacing: 1px;
+    flex: 0 0 auto;
+    padding: 6px 10px;
+    font-size: 0.7em;
+    color: #7a7a7a;
+    border-bottom: 1px solid #2a2a2a;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
 }
 .slash-palette-list {
     display: flex;
     flex-direction: column;
     padding: 4px 0;
+    overflow-y: auto;
+    max-height: min(36vh, 240px);
 }
 .slash-item {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 10px;
+    gap: 10px;
+    padding: 8px 12px;
     cursor: pointer;
-    font-size: 0.85em;
-    transition: background 0.1s;
+    font-size: 0.88em;
+    transition: background 0.08s;
+    color: #d4d4d4;
 }
 .slash-item:hover,
 .slash-item.active {
-    background: var(--vscode-list-hoverBackground);
+    background: #1a1a1a;
+}
+.slash-item.active {
+    background: #1f1f1f;
+    box-shadow: inset 2px 0 0 var(--mimo-accent, #c8b27a);
 }
 .slash-name {
-    color: var(--vscode-textLink-foreground);
+    color: #e0e0e0;
     font-weight: 500;
-    font-family: monospace;
+    font-family: "Cascadia Mono", Consolas, monospace;
     white-space: nowrap;
+    flex: 0 0 auto;
 }
 .slash-desc {
-    color: var(--vscode-descriptionForeground);
+    color: #8a8a8a;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    flex: 1 1 auto;
+    font-size: 0.85em;
 }
 .load-full-btn:hover {
     background: var(--vscode-button-hoverBackground);

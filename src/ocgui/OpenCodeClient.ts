@@ -9053,20 +9053,122 @@ export class OpenCodeClient {
         return { session: info, messages };
     }
 
+    /**
+     * Full slash surface from MiMo Code CLI:
+     * packages/opencode/src/command/index.ts + mimocode skill reference/commands.md
+     * + prompt-side client commands (btw, voice, skills, …).
+     */
+    private getSlashCommandCatalog(): Array<{ name: string; description: string }> {
+        const core: Array<{ name: string; description: string }> = [
+            // Built-in Command.Default from CLI command/index.ts
+            { name: 'init', description: 'Guided AGENTS.md setup' },
+            { name: 'review', description: 'Review changes [commit|branch|pr]' },
+            { name: 'dream', description: 'Consolidate project memory from traces' },
+            { name: 'distill', description: 'Package repeated workflows into skills/commands' },
+            { name: 'goal', description: 'Set stop-condition goal (judge verifies). /goal clear to abort' },
+            { name: 'rebuild', description: 'Rebuild context from latest checkpoint now' },
+            { name: 'deep-research', description: 'Deep multi-source research report workflow' },
+            { name: 'loops', description: 'List scheduled jobs; /loops cancel <id>' },
+            { name: 'loop', description: '[interval] <prompt> — schedule a repeating prompt' },
+            { name: 'voice', description: 'Toggle streaming voice input' },
+            { name: 'connect', description: 'Sign in to a provider' },
+            { name: 'login', description: 'Login / connect provider' },
+            // Client prompt slash (TUI)
+            { name: 'btw', description: 'Side question without derailing the main turn' },
+            { name: 'skills', description: 'Browse / invoke skills' },
+            { name: 'help', description: 'Show help' },
+            { name: 'new', description: 'Start a new session' },
+            { name: 'clear', description: 'Clear the current chat view' },
+            { name: 'sessions', description: 'Open session history' },
+            { name: 'model', description: 'Switch model' },
+            { name: 'agent', description: 'Switch agent / mode' },
+            { name: 'undo', description: 'Undo last file changes' },
+            { name: 'redo', description: 'Redo last undo' },
+            { name: 'compact', description: 'Compact context' },
+            { name: 'export', description: 'Export session' },
+            { name: 'share', description: 'Share session' },
+            { name: 'stop', description: 'Stop current turn' },
+            { name: 'retry', description: 'Retry last message' },
+            { name: 'plan', description: 'Enter plan mode' },
+            { name: 'build', description: 'Enter build mode' },
+            { name: 'compose', description: 'Enter compose mode' },
+            { name: 'diff', description: 'Show pending diffs' },
+            { name: 'cost', description: 'Show token / cost usage' },
+            { name: 'status', description: 'Show session status' },
+            { name: 'editor', description: 'Open external editor' },
+            { name: 'theme', description: 'Theme settings' },
+            { name: 'exit', description: 'Exit session' },
+            { name: 'stash', description: 'Stash prompt draft' },
+            { name: 'details', description: 'Toggle tool details' },
+        ];
+        const skills = [
+            'arxiv', 'claude-code', 'codex', 'deep-research', 'design-blueprint',
+            'docx-official', 'drive-mimo', 'evolve', 'frontend-design',
+            'html-to-video-pipeline', 'loop', 'mimocode', 'modern-python-toolchain',
+            'pdf-official', 'pptx-official', 'research-paper-writing',
+            'skill-creator', 'super-research', 'xlsx-official',
+        ].map((name) => ({ name, description: `Skill: ${name}` }));
+        return [...core, ...skills];
+    }
+
     /** Fetch available slash commands from the MiMo CLI. Returns [{name, description}]. */
     public async fetchSlashCommands(): Promise<Array<{ name: string; description: string }>> {
+        const fallback = this.getSlashCommandCatalog();
         try {
             await this.ensureServer();
-            const raw = await this.requestJson<any>('GET', `/command`);
-            const list = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.commands) ? raw.commands : []);
-            const out: Array<{ name: string; description: string }> = [];
-            for (const item of list) {
-                if (!item || typeof item.name !== 'string') continue;
-                out.push({ name: item.name, description: typeof item.description === 'string' ? item.description : '' });
+            let raw: any = null;
+            for (const path of ['/command', '/commands', '/slash', '/agent/command', '/skill', '/skills']) {
+                try {
+                    raw = await this.requestJson<any>('GET', path);
+                    if (raw) break;
+                } catch { /* next path */ }
             }
-            return out;
+            // Also try merging /skill separately if first was /command
+            let skillsRaw: any = null;
+            try { skillsRaw = await this.requestJson<any>('GET', '/skill'); } catch { /* optional */ }
+            try {
+                if (!skillsRaw) skillsRaw = await this.requestJson<any>('GET', '/skills');
+            } catch { /* optional */ }
+
+            const lists: any[] = [];
+            const pushList = (r: any) => {
+                if (!r) return;
+                if (Array.isArray(r)) lists.push(...r);
+                else if (Array.isArray(r.commands)) lists.push(...r.commands);
+                else if (Array.isArray(r.skills)) lists.push(...r.skills);
+                else if (Array.isArray(r.data)) lists.push(...r.data);
+            };
+            pushList(raw);
+            pushList(skillsRaw);
+
+            const out: Array<{ name: string; description: string }> = [];
+            const seen = new Set<string>();
+            for (const item of lists) {
+                if (!item) continue;
+                const name = typeof item.name === 'string' ? item.name
+                    : (typeof item.id === 'string' ? item.id
+                        : (typeof item.command === 'string' ? item.command : ''));
+                if (!name) continue;
+                const clean = name.replace(/^\//, '');
+                if (seen.has(clean)) continue;
+                seen.add(clean);
+                out.push({
+                    name: clean,
+                    description: typeof item.description === 'string' ? item.description
+                        : (typeof item.desc === 'string' ? item.desc
+                            : (typeof item.title === 'string' ? item.title : '')),
+                });
+            }
+            for (const f of fallback) {
+                if (!seen.has(f.name)) {
+                    seen.add(f.name);
+                    out.push(f);
+                }
+            }
+            out.sort((a, b) => a.name.localeCompare(b.name));
+            return out.length ? out : fallback;
         } catch {
-            return [];
+            return fallback;
         }
     }
 
@@ -9076,6 +9178,19 @@ export class OpenCodeClient {
         const messages = await this.requestJson<any[]>('GET', `/session/${sessionId}/message?limit=${safeLimit}`);
         const info = await this.requestJson<any>('GET', `/session/${sessionId}`);
         return { session: info, messages };
+    }
+
+    /** Session busy state from /session/status. type is typically idle | busy | retry | ... */
+    public async getSessionStatus(sessionId: string): Promise<{ type: string; raw?: any }> {
+        try {
+            await this.ensureServer();
+            const statusMap = await this.requestJson<Record<string, { type?: string }>>('GET', '/session/status');
+            const status = statusMap?.[sessionId];
+            const type = typeof status?.type === 'string' ? status.type : 'unknown';
+            return { type, raw: status };
+        } catch {
+            return { type: 'unknown' };
+        }
     }
 
     /**
@@ -9091,7 +9206,9 @@ export class OpenCodeClient {
                 "SELECT json_group_array(json_object(" +
                 "'mid', p.message_id, 'role', json_extract(m.data,'$.role'), 'type', json_extract(p.data,'$.type'), 'text', json_extract(p.data,'$.text'), " +
                 "'tool', json_extract(p.data,'$.tool'), 'cmd', json_extract(p.data,'$.state.input.command'), 'path', json_extract(p.data,'$.state.input.path'), " +
-                "'result', json_extract(p.data,'$.state.output'), 'callID', json_extract(p.data,'$.callID'), 'time', p.time_created)) " +
+                "'result', json_extract(p.data,'$.state.output'), 'callID', json_extract(p.data,'$.callID'), " +
+                "'hash', json_extract(p.data,'$.hash'), 'files', json_extract(p.data,'$.files'), " +
+                "'time', p.time_created)) " +
                 "FROM part p JOIN (SELECT message_id, MAX(time_created) as mt FROM part WHERE session_id = '" + esc(sessionId) + "' GROUP BY message_id ORDER BY mt DESC LIMIT " + safeLimit + ") sm ON p.message_id = sm.message_id " +
                 "JOIN message m ON m.id = p.message_id WHERE p.session_id = '" + esc(sessionId) + "' ORDER BY p.time_created;";
             const out = this.runMimoDb(sql);
@@ -9103,6 +9220,10 @@ export class OpenCodeClient {
                 if (!byMsg.has(row.mid)) {
                     byMsg.set(row.mid, { id: row.mid, role: row.role, parts: [] });
                     order.push(row.mid);
+                }
+                // files may arrive as JSON string from sqlite json_extract
+                if (typeof row.files === 'string' && row.files.startsWith('[')) {
+                    try { row.files = JSON.parse(row.files); } catch { /* keep string */ }
                 }
                 byMsg.get(row.mid).parts.push(row);
             }

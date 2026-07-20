@@ -1,25 +1,21 @@
-/* ---------- MiMo Code symbolic starfield + meteors (СЛИ exact) ---------- */
+/* MiMo CLI void + canvas starfield */
 .bg {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 0 !important;
   overflow: hidden;
   pointer-events: none;
-  background: #0a0a0a;
+  background: #0a0a0a !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
 }
 
-.bg__stars {
+.bg__canvas {
   position: absolute;
   inset: 0;
-  display: block;
   width: 100%;
   height: 100%;
-}
-
-.bg__comets {
-  position: absolute;
-  inset: 0;
   display: block;
-  width: 100%;
-  height: 100%;
+  pointer-events: none;
 }

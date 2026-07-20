@@ -4,7 +4,7 @@
   "publisher": "mimo",
   "description": "VS Code UI for MiMo Code CLI (OpenCode-compatible) with subagents, code diff, change lists, and undo/restore.",
   "icon": "media/marketplace-icon.png",
-  "version": "0.2.2",
+  "version": "0.5.1",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -88,6 +88,10 @@
       {
         "command": "mimo.debugWebviewLivenessAckDropOff",
         "title": "MiMo Code: Debug Webview Liveness Ack Drop Off"
+      },
+      {
+        "command": "mimo.clearStaleGitLocks",
+        "title": "MiMo Code: Clear Stale Git Locks"
       }
     ],
     "menus": {

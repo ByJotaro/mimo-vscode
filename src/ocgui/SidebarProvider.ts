@@ -214,6 +214,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     private client: OpenCodeClient;
     private currentSessionId?: string;
     private _loadedSessions = new Map<string, any[]>();
+    /** Polls /session/status + recent export while the viewed session is busy (CLI/other UI). */
+    private liveFollowTimer: ReturnType<typeof setInterval> | undefined;
+    private liveFollowSessionId: string | undefined;
+    private liveFollowLastFingerprint = '';
+    private liveFollowInFlight = false;
     private userOwnedSessionIds = new Set<string>();
     private userOwnedSessionsLoaded: Promise<void>;
     private activeSubagentSessionIds = new Set<string>();
@@ -686,7 +691,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     private currentWorkspaceKey = '';
     private initPosted = false;
     private sessionSelectionEpoch = 0;
-    private readonly recentSessionLoadLimit = 200;
+    /** Higher default so session open shows full recent history without extra clicks. */
+    private readonly recentSessionLoadLimit = 400;
     private readonly webviewLivenessPingTimeoutMs = 3000;
     private readonly webviewAutoRescueCooldownMs = 60000;
     private readonly webviewAutoRescueNotificationTtlMs = 60000;
@@ -3131,21 +3137,132 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         this.postUndoStatus(webview, sessionId, enabled);
     }
 
+    private stopLiveFollow(reason = 'stop'): void {
+        if (this.liveFollowTimer) {
+            clearInterval(this.liveFollowTimer);
+            this.liveFollowTimer = undefined;
+        }
+        if (this.liveFollowSessionId) {
+            rtLog(`LIVE_FOLLOW stop id=${this.liveFollowSessionId} reason=${reason}`);
+        }
+        this.liveFollowSessionId = undefined;
+        this.liveFollowLastFingerprint = '';
+        this.liveFollowInFlight = false;
+    }
+
+    /**
+     * When the user opens a session that is still busy (turn running in CLI or another
+     * client), keep reloading recent history so the webview mirrors the console stream.
+     * SSE already covers the session when this extension owns the turn; this is the
+     * bridge for "session active elsewhere".
+     */
+    private startLiveFollow(sessionId: string, webview: vscode.Webview): void {
+        if (!sessionId) return;
+        this.stopLiveFollow('restart');
+        this.liveFollowSessionId = sessionId;
+        rtLog(`LIVE_FOLLOW start id=${sessionId}`);
+        const tick = async () => {
+            if (this.liveFollowInFlight) return;
+            if (this.currentSessionId !== sessionId || this.liveFollowSessionId !== sessionId) {
+                this.stopLiveFollow('session-changed');
+                return;
+            }
+            this.liveFollowInFlight = true;
+            try {
+                const status = await this.client.getSessionStatus(sessionId);
+                const busy = status.type && status.type !== 'idle' && status.type !== 'unknown';
+                const live = this._view?.webview || webview;
+                live.postMessage({
+                    type: 'sessionBusy',
+                    sessionId,
+                    busy: Boolean(busy),
+                    status: status.type,
+                });
+                // Always pull once after open; then only while busy (or every 4th idle tick for catch-up).
+                const exportData = await this.client.exportSessionRecent(sessionId, this.recentSessionLoadLimit);
+                if (this.currentSessionId !== sessionId) return;
+                const formatted = this.formatSession(exportData);
+                const fingerprint = `${formatted.messages.length}:${formatted.messages.map((m) => m.id).join(',')}:${formatted.messages.map((m) => (m.text || '').length).join(',')}`;
+                if (fingerprint !== this.liveFollowLastFingerprint) {
+                    this.liveFollowLastFingerprint = fingerprint;
+                    live.postMessage({
+                        type: 'sessionData',
+                        sessionId,
+                        title: formatted.title,
+                        messages: formatted.messages,
+                        meta: { source: 'live-follow', status: status.type, time: Date.now() },
+                        phase: 'recent',
+                    });
+                    if (busy) {
+                        live.postMessage({ type: 'turnInFlight', sessionId, inFlight: true });
+                    }
+                }
+                if (!busy) {
+                    // Stay for one more quiet window then stop (SSE will keep streaming if we own the turn)
+                    // Soft-stop after idle: keep a slow poll for 30s then stop.
+                    if (!(this as any)._liveFollowIdleSince) {
+                        (this as any)._liveFollowIdleSince = Date.now();
+                    } else if (Date.now() - (this as any)._liveFollowIdleSince > 30000) {
+                        live.postMessage({ type: 'turnInFlight', sessionId, inFlight: false });
+                        this.stopLiveFollow('idle');
+                        (this as any)._liveFollowIdleSince = 0;
+                    }
+                } else {
+                    (this as any)._liveFollowIdleSince = 0;
+                }
+            } catch (e) {
+                rtLog(`LIVE_FOLLOW_ERR ${String(e).slice(0, 100)}`);
+            } finally {
+                this.liveFollowInFlight = false;
+            }
+        };
+        void tick();
+        this.liveFollowTimer = setInterval(() => { void tick(); }, 1500);
+    }
+
     private async ensureSessionUndoReady(sessionId: string, webview: vscode.Webview): Promise<void> {
         if (!this.gitUndoEnabled) {
             this.baselineReady = false;
             this.setSessionUndoEnabled(sessionId, false, webview);
             return;
         }
-        const result = await this.client.ensureBaselineReady(sessionId, sessionId);
-        this.baselineReady = result.ok;
-        if (!result.ok) {
-            webview.postMessage({ type: 'baselineStatus', ready: false, message: 'Git baseline failed. Undo unavailable.' });
+        // Soft-timeout: never block session/chat on git baseline. A stuck .lock
+        // previously made selectSession throw "Failed to load session" after 10s+.
+        const softMs = 3000;
+        try {
+            const result = await Promise.race([
+                this.client.ensureBaselineReady(sessionId, sessionId),
+                new Promise<{ ok: false; reason: string }>((resolve) =>
+                    setTimeout(() => resolve({ ok: false, reason: 'soft-timeout' }), softMs)
+                ),
+            ]);
+            this.baselineReady = Boolean(result?.ok);
+            if (!result?.ok) {
+                this.uiDebugChannel.appendLine(
+                    `[EXT][UNDO_SOFT] ensureSessionUndoReady sessionId=${sessionId} reason=${result?.reason || 'failed'}`
+                );
+                webview.postMessage({
+                    type: 'baselineStatus',
+                    ready: false,
+                    message: 'Undo temporarily unavailable (git busy). Chat still works.',
+                });
+                this.setSessionUndoEnabled(sessionId, false, webview);
+                return;
+            }
+            webview.postMessage({ type: 'baselineStatus', ready: true });
+            this.setSessionUndoEnabled(sessionId, true, webview);
+        } catch (err) {
+            this.baselineReady = false;
+            this.uiDebugChannel.appendLine(
+                `[EXT][UNDO_SOFT] ensureSessionUndoReady threw sessionId=${sessionId} err=${String(err).slice(0, 160)}`
+            );
+            webview.postMessage({
+                type: 'baselineStatus',
+                ready: false,
+                message: 'Undo unavailable. Chat still works.',
+            });
             this.setSessionUndoEnabled(sessionId, false, webview);
-            return;
         }
-        webview.postMessage({ type: 'baselineStatus', ready: true });
-        this.setSessionUndoEnabled(sessionId, true, webview);
     }
 
     private getWorkspaceRootPath(): string {
@@ -3894,38 +4011,31 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                     this.handleWebviewLivenessAck(data);
                     break;
                 }
-                case "selectSession": {
-                    const selId = typeof data.sessionId === 'string' && data.sessionId.trim()
-                        ? data.sessionId.trim()
-                        : undefined;
-                    rtLog(`SELECT_SESSION id=${selId || 'null'}`);
-                    if (selId) {
-                        void this.loadSessionMessages(selId);
-                    }
-                    break;
-                }
+                // selectSession is handled once below (full snapshot+recent+export path).
+                // A previous early case short-circuited that path and only loaded 60 DB rows.
                 case "loadMoreSession": {
                     const msId = typeof data.sessionId === 'string' && data.sessionId.trim()
                         ? data.sessionId.trim()
                         : this.currentSessionId;
                     if (!msId) break;
                     const cur = this._loadedSessions.get(msId) ?? [];
-                    const moreCt = typeof data.count === 'number' ? Math.max(20, data.count) : 60;
+                    const moreCt = typeof data.count === 'number'
+                        ? Math.max(this.recentSessionLoadLimit, data.count)
+                        : this.recentSessionLoadLimit * 2;
                     rtLog(`LOAD_MORE id=${msId} have=${cur.length} want=${moreCt}`);
-                    if (cur.length >= moreCt) break; // already have enough
+                    if (cur.length >= moreCt) break;
                     try {
-                        const moreData = await this.client.querySessionFromDb(msId, moreCt);
-                        const msgs = moreData?.messages ?? [];
-                        this._loadedSessions.set(msId, msgs);
-                        const fmt = this.formatDbMessages(msgs);
+                        const moreData = await this.client.exportSessionRecent(msId, moreCt);
+                        const formatted = this.formatSession(moreData);
+                        this._loadedSessions.set(msId, moreData?.messages ?? []);
                         const wv = this._view?.webview;
                         if (wv) {
                             wv.postMessage({
                                 type: 'sessionData',
                                 sessionId: msId,
-                                title: moreData?.session?.title || msId,
-                                messages: fmt,
-                                meta: { source: 'select', time: Date.now(), loadMore: true },
+                                title: formatted.title || moreData?.session?.title || msId,
+                                messages: formatted.messages,
+                                meta: { source: 'loadMore', time: Date.now(), loadMore: true, limit: moreCt },
                             });
                         }
                     } catch (e) {
@@ -4767,6 +4877,7 @@ ${attachmentLines.join('\n')}`
                     if (!data.sessionId) return;
                     const targetSessionId = data.sessionId;
                     this.resetWebviewLiveness('session-switch');
+                    this.stopLiveFollow('select-session');
                     const selectionEpoch = ++this.sessionSelectionEpoch;
                     try {
                         this.resetUiState();
@@ -4794,9 +4905,25 @@ ${attachmentLines.join('\n')}`
                                 const workspaceKey = this.getWorkspaceKeyForRoot(workspaceFolder);
                                 await this._context.globalState.update(`recentSession.${workspaceKey}`, targetSessionId);
                             }
-                        await this.ensureSessionUndoReady(targetSessionId, activeWebview);
+                        // CRITICAL: never await undo/git before painting history.
+                        // A stuck git .lock used to throw here and surface
+                        // "Failed to load session: Timeout acquiring git lock…",
+                        // which also made the sidebar feel frozen (no chat, lag).
+                        void this.ensureSessionUndoReady(targetSessionId, activeWebview).catch((err) => {
+                            this.uiDebugChannel.appendLine(
+                                `[EXT][UNDO_BG_FAIL] sessionId=${targetSessionId} err=${String(err).slice(0, 160)}`
+                            );
+                        });
 
-                        const persisted = await this.loadPersistedSegment(targetSessionId);
+                        let persisted: Awaited<ReturnType<SidebarProvider['loadPersistedSegment']>> | undefined;
+                        try {
+                            persisted = await this.loadPersistedSegment(targetSessionId);
+                        } catch (err) {
+                            this.uiDebugChannel.appendLine(
+                                `[EXT][SEG_LOAD_FAIL] sessionId=${targetSessionId} err=${String(err).slice(0, 120)}`
+                            );
+                            persisted = undefined;
+                        }
                         if (persisted?.segment?.historySegments) {
                             this.revertedSegmentHistory = persisted.segment.historySegments;
                         } else {
@@ -4869,16 +4996,12 @@ ${attachmentLines.join('\n')}`
                             );
                         }
 
-                        if (sessionDataSent && Array.isArray(baseMessages) && baseMessages.length > 0) {
-                            this.uiDebugChannel.appendLine(
-                                `[EXT][SESSION_RECENT_SKIP] sessionId=${targetSessionId} reason=snapshot-authoritative messages=${baseMessages.length}`
-                            );
-                            break;
-                        }
-
+                        // Always refresh from API after snapshot paint so history is not stuck
+                        // on a stale/incomplete local snapshot (previous code broke out early).
                         let recentFailedReason = '';
                         const recentStart = Date.now();
                         try {
+                            rtLog(`SELECT_SESSION full id=${targetSessionId} snapMsgs=${baseMessages.length}`);
                             const recentExport = await this.client.exportSessionRecent(targetSessionId, this.recentSessionLoadLimit);
                             if (!isCurrentSelection()) {
                                 break;
@@ -5008,7 +5131,41 @@ ${attachmentLines.join('\n')}`
                         if (sent) {
                             this.uiDebugChannel.appendLine(`[EXT][SNAP_SAVE_SKIP] sessionId=${targetSessionId} reason=selectSession:full disabled=incremental-only`);
                         }
+                        // Mirror live CLI/other-client activity into this webview
+                        if (isCurrentSelection()) {
+                            this.startLiveFollow(targetSessionId, activeWebview);
+                        }
                         } catch (error) {
+                            const errText = String(error || '');
+                            // Git/undo lock failures must NEVER fail session load — chat is independent.
+                            if (/git lock|repoLock|ensureBaseline|undo/i.test(errText)) {
+                                this.uiDebugChannel.appendLine(
+                                    `[EXT][SESSION_LOAD_GIT_IGNORED] sessionId=${targetSessionId} err=${errText.slice(0, 200)}`
+                                );
+                                this.setSessionUndoEnabled(targetSessionId, false, activeWebview);
+                                try {
+                                    const recentExport = await this.client.exportSessionRecent(
+                                        targetSessionId,
+                                        this.recentSessionLoadLimit
+                                    );
+                                    const formatted = this.formatSession(recentExport);
+                                    const liveWebview = this._view?.webview || activeWebview;
+                                    liveWebview.postMessage({
+                                        type: 'sessionData',
+                                        sessionId: targetSessionId,
+                                        title: formatted.title,
+                                        messages: formatted.messages,
+                                        segments: [],
+                                        meta: { source: 'select-after-git-fail' },
+                                        phase: 'recent',
+                                    });
+                                } catch (e2) {
+                                    this.uiDebugChannel.appendLine(
+                                        `[EXT][SESSION_LOAD_FALLBACK_FAIL] err=${String(e2).slice(0, 120)}`
+                                    );
+                                }
+                                break;
+                            }
                             vscode.window.showErrorMessage(`Failed to load session: ${error}`);
                             this.postAddResponse(activeWebview, `Error: ${error}`);
                         }
@@ -6115,22 +6272,19 @@ ${attachmentLines.join('\n')}`
             }
         }
 
-        let initSessionCandidate = recentSessionId;
-        if (!initSessionCandidate && workspaceFolder) {
-            const workspaceRecent = await this.findMostRecentWorkspaceSession(sessions, workspaceFolder);
-            initSessionCandidate = workspaceRecent?.id;
-        }
+        // Startup policy: do NOT silently dump into last session.
+        // Webview shows center chooser (recent + History + New). Hydrate only after explicit selectSession / newSession.
+        // Keep recentSessionId for ranking in the chooser list only.
+        const initSessionCandidate: string | undefined = undefined;
 
         if (!this.initPosted) {
-            this.currentSessionId = this.currentSessionId || initSessionCandidate || undefined;
-            if (this.currentSessionId) {
-                this.client.setSessionId(this.currentSessionId);
-            }
-            const initSessionId = initSessionCandidate || this.currentSessionId || '';
+            // Leave currentSessionId empty until user picks — chooser UI on webview
+            this.currentSessionId = undefined;
+            const initSessionId = '';
             const liveWebview = this._view?.webview || webview;
             this.uiDebugChannel.appendLine(
                 `[EXT][INIT_SEND] models=${models.length} sessions=${sessions.length} ` +
-                `currentSessionId=${initSessionId || 'null'} selectedModel=${this.selectedModel || 'NULL'} selectedMode=${resolvedMode || 'null'} modeCount=${this.availableModes.length}`
+                `currentSessionId=null showStartupChooser=true selectedModel=${this.selectedModel || 'NULL'} selectedMode=${resolvedMode || 'null'} modeCount=${this.availableModes.length}`
             );
 
             let slashCommands: Array<{ name: string; description: string }> = [];
@@ -6141,27 +6295,32 @@ ${attachmentLines.join('\n')}`
                 rtLog(`SENDINIT slashCommands FAIL: ${String(error)}`);
             }
 
+            // Rank sessions for chooser: remembered recent first, then workspace-most-recent
+            const rankedSessions = Array.isArray(sessions) ? [...sessions] : [];
+            if (recentSessionId) {
+                const idx = rankedSessions.findIndex((s: any) => s?.id === recentSessionId);
+                if (idx > 0) {
+                    const [hit] = rankedSessions.splice(idx, 1);
+                    rankedSessions.unshift(hit);
+                }
+            }
+
             liveWebview.postMessage({
                 type: 'init',
                 models,
-                sessions,
+                sessions: rankedSessions,
                 modes: this.availableModes,
                 selectedModel: this.selectedModel,
                 selectedVariant: this.selectedVariant,
                 selectedMode: resolvedMode,
                 currentSessionId: initSessionId,
                 sessionId: initSessionId,
+                showStartupChooser: true,
+                recentSessionId: recentSessionId || '',
                 panelId: this.getWebviewLivenessPanelId(),
                 webviewInstanceId: this._webviewInstanceId,
                 slashCommands
             });
-            if (initSessionId) {
-                liveWebview.postMessage({
-                    type: 'turnInFlight',
-                    sessionId: initSessionId,
-                    inFlight: this.sendInFlightBySession.has(initSessionId)
-                });
-            }
 
             await this.postModelQuota(liveWebview, 'init');
 
@@ -6174,8 +6333,13 @@ ${attachmentLines.join('\n')}`
             this.sendServerStatus(this.serverStatus, 'init');
 
             this.initPosted = true;
+            // Skip silent recent-session hydrate — user picks from chooser
+            this.uiDebugChannel.appendLine(
+                `[EXT][INIT_CHOOSER] skipAutoHydrate recentRemembered=${recentSessionId || 'null'} sessions=${rankedSessions.length}`
+            );
+            return;
         } else {
-            const initSessionId = this.currentSessionId || initSessionCandidate || '';
+            const initSessionId = this.currentSessionId || '';
             const liveWebview = this._view?.webview || webview;
             this.uiDebugChannel.appendLine(
                 `[EXT][INIT_METADATA_RESEND] models=${models.length} sessions=${sessions.length} ` +
@@ -6192,6 +6356,7 @@ ${attachmentLines.join('\n')}`
                 selectedMode: resolvedMode,
                 currentSessionId: initSessionId,
                 sessionId: initSessionId,
+                showStartupChooser: !initSessionId,
                 panelId: this.getWebviewLivenessPanelId(),
                 webviewInstanceId: this._webviewInstanceId,
                 metadataOnly: true,
@@ -6204,11 +6369,20 @@ ${attachmentLines.join('\n')}`
                     inFlight: this.sendInFlightBySession.has(initSessionId)
                 });
             }
+            // If we already have an active session (user selected earlier), continue hydrate path below only when set
+            if (!this.currentSessionId) {
+                return;
+            }
         }
 
+        // After first-init chooser path we return early above.
+        // Remaining path: metadata resend with an already-selected currentSessionId only.
+        // Explicit open always goes through selectSession handler (not silent auto-hydrate).
         let snapshotLoaded = false;
         let sessionDataSent = false;
-                if (recentSessionId) {
+                if (this.currentSessionId && recentSessionId && this.currentSessionId === recentSessionId) {
+                    // keep variable name for existing hydrate block
+                    // (recentSessionId already validated against workspace above)
                     try {
                         this.currentSessionId = recentSessionId;
                         this.trackUserOwnedSession(this.currentSessionId);
@@ -6231,13 +6405,20 @@ ${attachmentLines.join('\n')}`
                             this.queueSendInitGuardCompensation(recentSessionId, 'sendInitGuard.defer', activeTurn);
                             return;
                         }
-                        try {
-                            await this.ensureSessionUndoReady(recentSessionId, liveWebview);
-                        } catch (err) {
+                        // Background only — never block recent-session hydrate on git lock.
+                        void this.ensureSessionUndoReady(recentSessionId, liveWebview).catch((err) => {
                             this.uiDebugChannel.appendLine(`[EXT][UNDO_WARN] ensureSessionUndoReady failed for ${recentSessionId}: ${err}`);
-                        }
+                        });
 
-                        const persisted = await this.loadPersistedSegment(recentSessionId);
+                        let persisted: Awaited<ReturnType<SidebarProvider['loadPersistedSegment']>> | undefined;
+                        try {
+                            persisted = await this.loadPersistedSegment(recentSessionId);
+                        } catch (err) {
+                            this.uiDebugChannel.appendLine(
+                                `[EXT][SEG_LOAD_FAIL] sessionId=${recentSessionId} err=${String(err).slice(0, 120)}`
+                            );
+                            persisted = undefined;
+                        }
                         if (persisted?.segment?.historySegments) {
                             this.revertedSegmentHistory = persisted.segment.historySegments;
                         } else {
@@ -6374,119 +6555,22 @@ ${attachmentLines.join('\n')}`
                 }
             }
 
-        // CRITICAL: Ensure we ALWAYS have a session selected
+        // Do NOT auto-select a session on empty state — webview shows startup chooser.
+        // User must pick Recent / History / New session explicitly.
         if (!this.currentSessionId) {
-            this.uiDebugChannel.appendLine(`[EXT][NO_SESSION] checking sessions.length=${sessions.length}`);
-            
-            if (sessions.length > 0) {
-                let mostRecent: SessionInfo | undefined;
-                if (workspaceFolder) {
-                    mostRecent = await this.findMostRecentWorkspaceSession(sessions, workspaceFolder);
-                    this.uiDebugChannel.appendLine(
-                        `[EXT][SESSION_FILTER_RESULT] workspace=${workspaceFolder} total=${sessions.length} matched=${mostRecent ? 1 : 0}`
-                    );
-                } else {
-                    mostRecent = sessions[0];
-                }
-
-                if (!mostRecent) {
-                    this.uiDebugChannel.appendLine('[EXT][AUTO_SELECT_SKIP] reason=no-workspace-session-match');
-                } else {
-                    this.currentSessionId = mostRecent.id;
-                    this.trackUserOwnedSession(this.currentSessionId);
-                    this.client.setSessionId(this.currentSessionId);
-                    this.uiDebugChannel.appendLine(`[EXT][AUTO_SELECT] sessionId=${this.currentSessionId} reason=no-current-session`);
-                
-                    // Save as recent session for this workspace
-                    if (workspaceFolder) {
-                        const workspaceKey = this.getWorkspaceKeyForRoot(workspaceFolder);
-                        await this._context.globalState.update(`recentSession.${workspaceKey}`, this.currentSessionId);
-                    }
-                
-                    // Try to load this session's data
-                    try {
-                        const exportResult = await this.client.exportSession(this.currentSessionId);
-                        const segMap = this.undoSegmentsBySession.get(this.currentSessionId);
-                        const segments = segMap ? Array.from(segMap.values()) : [];
-                        const formattedRaw = this.formatSession(exportResult);
-                        const formatted = await this.injectChangeLists(this.currentSessionId, formattedRaw);
-
-                        const liveWebview = this._view?.webview || webview;
-                        liveWebview.postMessage({
-                            type: 'sessionData',
-                            sessionId: this.currentSessionId,
-                            title: formatted.title,
-                            messages: formatted.messages,
-                            segments: segments,
-                            meta: {
-                                timelineMessageIds: this.collectVisibleSnapshotMessages(formatted.messages)
-                                    .map((message) => (typeof message?.id === 'string' ? message.id : ''))
-                                    .filter((id): id is string => Boolean(id))
-                            }
-                        });
-                        this.uiDebugChannel.appendLine(`[EXT][AUTO_SELECT_LOADED] sessionId=${this.currentSessionId} messages=${formatted.messages.length}`);
-                    } catch (err) {
-                        this.uiDebugChannel.appendLine(`[EXT][AUTO_SELECT_LOAD_FAILED] sessionId=${this.currentSessionId} err=${String(err)}`);
-                        // Try snapshot as fallback
-                        try {
-                            const snap = await this.readSnapshot(this.currentSessionId);
-                            if (snap?.obj?.sessionData) {
-                                const segMap = this.undoSegmentsBySession.get(this.currentSessionId);
-                                const segments = segMap ? Array.from(segMap.values()) : [];
-                                const snapshotFormatted = await this.injectChangeLists(this.currentSessionId, {
-                                    title: snap.obj.sessionData?.title || 'Session',
-                                    messages: Array.isArray(snap.obj.sessionData?.messages)
-                                        ? snap.obj.sessionData.messages
-                                        : []
-                                });
-                                const liveWebview = this._view?.webview || webview;
-                                liveWebview.postMessage({
-                                    ...snap.obj.sessionData,
-                                    title: snapshotFormatted.title,
-                                    messages: snapshotFormatted.messages,
-                                    segments
-                                });
-                                this.uiDebugChannel.appendLine(`[EXT][AUTO_SELECT_SNAP_OK] sessionId=${this.currentSessionId}`);
-                            }
-                        } catch (snapErr) {
-                            this.uiDebugChannel.appendLine(`[EXT][AUTO_SELECT_SNAP_FAILED] sessionId=${this.currentSessionId}`);
-                        }
-                    }
-                }
-
-            }
-
-            if (!this.currentSessionId) {
-                // No sessions exist - create new one
-                this.uiDebugChannel.appendLine(`[EXT][CREATE_NEW_SESSION] reason=${sessions.length > 0 ? 'no-workspace-session-match' : 'no-sessions-exist'}`);
-                try {
-                    const newSession = await this.client.createSession();
-                    this.currentSessionId = newSession.id;
-                    this.trackUserOwnedSession(this.currentSessionId);
-                    this.client.setSessionId(this.currentSessionId);
-                    this.uiDebugChannel.appendLine(`[EXT][SESSION_CREATED] sessionId=${this.currentSessionId}`);
-                    
-                    // Save as recent session
-                    if (workspaceFolder) {
-                        const workspaceKey = this.getWorkspaceKeyForRoot(workspaceFolder);
-                        await this._context.globalState.update(`recentSession.${workspaceKey}`, this.currentSessionId);
-                    }
-                    
-                    const liveWebview = this._view?.webview || webview;
-                    liveWebview.postMessage({
-                        type: 'sessionData',
-                        sessionId: this.currentSessionId,
-                        title: 'New Chat',
-                        messages: [],
-                        segments: []
-                    });
-                } catch (err) {
-                    this.uiDebugChannel.appendLine(`[EXT][SESSION_CREATE_FAILED] err=${String(err)}`);
-                    // Last resort: set a placeholder to avoid undefined
-                    this.currentSessionId = `fallback-${Date.now()}`;
-                }
-            }
+            this.uiDebugChannel.appendLine(
+                `[EXT][NO_SESSION] chooser-mode sessions.length=${sessions.length} (skip AUTO_SELECT)`
+            );
+            const liveWebview = this._view?.webview || webview;
+            liveWebview.postMessage({
+                type: 'showStartupChooser',
+                sessions,
+                recentSessionId: recentSessionId || ''
+            });
+            return;
         }
+
+        // No silent createSession on empty — user hits "New session" in chooser.
 
         const liveWebview = this._view?.webview || webview;
 
@@ -8715,6 +8799,116 @@ ${attachmentLines.join('\n')}`
         return formatted;
     }
 
+    /**
+     * Structured markers for the webview:
+     *   %%MIMO_PART:kind|title|meta|open|duration%% body %%/MIMO_PART%%
+     * body for tools uses IN:/OUT: blocks (parsed by main.js).
+     */
+    private wrapMimoPart(
+        kind: string,
+        title: string,
+        meta: string,
+        body: string,
+        open = false,
+        duration = ''
+    ): string {
+        const safe = (s: string) => String(s || '').replace(/\|/g, '/').replace(/\n/g, ' ').slice(0, 200);
+        const flag = open ? 'open' : 'closed';
+        return `\n%%MIMO_PART:${kind}|${safe(title)}|${safe(meta)}|${flag}|${safe(duration)}%%\n${body || ''}\n%%/MIMO_PART%%\n`;
+    }
+
+    private formatPartDuration(part: any): string {
+        const num = (v: any): number | undefined =>
+            typeof v === 'number' && Number.isFinite(v) ? v : undefined;
+        const start =
+            num(part?.time?.start) ??
+            num(part?.time?.created) ??
+            num(part?.start) ??
+            num(part?.timeStart);
+        const end =
+            num(part?.time?.end) ??
+            num(part?.time?.completed) ??
+            num(part?.end) ??
+            num(part?.timeEnd);
+        let ms = num(part?.duration) ?? num(part?.durationMs) ?? num(part?.ms);
+        if (ms === undefined && start !== undefined && end !== undefined && end >= start) {
+            // Heuristic: if values look like unix ms, use delta; if seconds, scale
+            ms = end - start;
+            if (ms > 0 && ms < 1000 && end < 1e12) ms = ms * 1000;
+        }
+        if (ms === undefined || ms < 0) return '';
+        if (ms < 1000) return `${Math.max(1, Math.round(ms))}ms`;
+        if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`;
+        const m = Math.floor(ms / 60_000);
+        const s = Math.round((ms % 60_000) / 1000);
+        return `${m}m ${s}s`;
+    }
+
+    private formatPartForDisplay(part: any): string {
+        if (!part || typeof part !== 'object') return '';
+        const type = typeof part.type === 'string' ? part.type : '';
+        if (type === 'step-start' || type === 'step-finish' || type === 'compaction') return '';
+        const duration = this.formatPartDuration(part);
+
+        if (type === 'patch') {
+            const files = Array.isArray(part.files)
+                ? part.files.map((f: any) => String(f)).filter(Boolean)
+                : [];
+            const fileLabel = files.length
+                ? files.map((f: string) => {
+                    const norm = f.replace(/\\/g, '/');
+                    return norm.includes('/') ? norm.slice(norm.lastIndexOf('/') + 1) : norm;
+                }).join(', ')
+                : (typeof part.path === 'string' ? part.path : '');
+            const body = typeof part.text === 'string' && part.text.trim()
+                ? part.text
+                : (typeof part.diff === 'string' ? part.diff : '');
+            const meta = fileLabel || (part.hash ? String(part.hash).slice(0, 12) : '');
+            const content = body
+                ? `OUT:\n${body}`
+                : (part.hash ? `OUT:\npatch ${String(part.hash).slice(0, 12)}` : `OUT:\n${fileLabel || 'file edit'}`);
+            return this.wrapMimoPart('patch', 'edit', meta, content, false, duration);
+        }
+        if (type === 'tool' || type === 'tool_use') {
+            const toolName = part.tool || part.name || 'tool';
+            const cmd = part.cmd || part.state?.input?.command || part.input?.command || '';
+            const path = part.path || part.state?.input?.path || part.input?.path || '';
+            const status = part.state?.status || part.status || '';
+            const result = part.result || part.state?.output || part.output;
+            const inLine = cmd || path || '';
+            let body = '';
+            if (inLine) body += `IN:\n${inLine}\n`;
+            if (typeof result === 'string' && result.trim()) body += `OUT:\n${result}`;
+            else if (typeof part.text === 'string' && part.text.trim() && !inLine) body += `OUT:\n${part.text}`;
+            else if (!body) body = status ? `OUT:\n${status}` : '';
+            // Tools stay collapsed by default; running ones stay open so user sees live work
+            const open = status === 'running' || status === 'pending';
+            const meta = status && status !== 'completed' ? String(status) : '';
+            return this.wrapMimoPart('tool', String(toolName), meta, body, open, duration);
+        }
+        if (type === 'tool_result') {
+            const body = typeof part.text === 'string' ? part.text : '';
+            return this.wrapMimoPart('tool', 'result', '', body ? `OUT:\n${body}` : '', false, duration);
+        }
+        if (type === 'reasoning' || type === 'thinking') {
+            const body = typeof part.text === 'string' ? part.text : '';
+            if (!body.trim()) return '';
+            // Always closed by default — click to expand
+            return this.wrapMimoPart('thinking', 'thinking', '', body, false, duration);
+        }
+        if (type === 'file') {
+            const p = part.path || part.text || '';
+            return this.wrapMimoPart('file', 'file', String(p), p ? `IN:\n${p}` : '', false, duration);
+        }
+        if (type === 'text' || type === 'system' || !type) {
+            return typeof part.text === 'string' ? part.text : '';
+        }
+        if (typeof part.text === 'string' && part.text.trim()) {
+            return this.wrapMimoPart('tool', type, '', `OUT:\n${part.text}`, false, duration);
+        }
+        return '';
+    }
+
     private formatSession(exportData: any): { title: string; messages: SessionMessage[] } {
         const title = exportData?.session?.title || exportData?.info?.title || 'Session';
         const messages: SessionMessage[] = [];
@@ -8844,24 +9038,10 @@ ${attachmentLines.join('\n')}`
                 this.uiDebugChannel.appendLine(`sessionData.skipMessage | reason | invalid-msg-id | id | ${resolvedId || 'null'}`);
                 continue;
             }
-            // Show EVERY message (no finalAssistantIds filter) so tool_use / edits / steps all render.
-            const parts = Array.isArray(message?.parts)
-                ? message.parts.filter((part: any) =>
-                    (part.type === 'text' || part.type === 'patch' || part.type === 'tool_use' || part.type === 'tool_result' || part.type === 'system' || part.type === 'reasoning') &&
-                    typeof part.text === 'string')
-                : [];
-            if (!parts.length) continue;
-            const text = parts.map((part: any) => {
-                if (part.type === 'patch') {
-                    const lines = (part.text || '').split('\n').length;
-                    const head = '📝 [file edit] ' + lines + ' lines changed';
-                    return '\n' + head + '\n' + part.text + '\n';
-                }
-                if (part.type === 'tool_use') return '\n🔧 [tool call]\n' + (part.text || '') + '\n';
-                if (part.type === 'tool_result') return '\n📤 [tool result]\n' + (part.text || '') + '\n';
-                if (part.type === 'reasoning') return '\n💭 [thinking]\n' + (part.text || '') + '\n';
-                return part.text || '';
-            }).join('');
+            // Real mimo export parts: text | patch{files,hash} | step-* | (rarely tool/reasoning).
+            // Do NOT require part.text — patch parts have files[] and no text body.
+            const parts = Array.isArray(message?.parts) ? message.parts : [];
+            const text = parts.map((part: any) => this.formatPartForDisplay(part)).join('');
             if (!text.trim()) continue;
             const mode = typeof message?.info?.mode === 'string' ? message.info.mode.toLowerCase() : '';
             const agent = typeof message?.info?.agent === 'string' ? message.info.agent.toLowerCase() : '';
@@ -8910,30 +9090,36 @@ ${attachmentLines.join('\n')}`
         if (!liveWebview) return;
         this.currentSessionId = sessionId;
         this.client.setSessionId(sessionId);
+        const limit = this.recentSessionLoadLimit;
         try {
             const t0 = Date.now();
-            // Read FULL session from DB (includes reasoning, tool, file parts the API drops)
-            const exportData = await this.client.querySessionFromDb(sessionId, 60);
-            rtLog(`LOAD_SESSION db_ms=${Date.now() - t0}`);
-            const messages = this.formatDbMessages(exportData?.messages ?? []);
+            // Prefer API export (real part shapes: text/patch/files). DB is enrichment for tool/reasoning.
+            const exportData = await this.client.exportSessionRecent(sessionId, limit);
+            rtLog(`LOAD_SESSION api_ms=${Date.now() - t0}`);
+            const formatted = this.formatSession(exportData);
             this._loadedSessions.set(sessionId, exportData?.messages ?? []);
             liveWebview.postMessage({
                 type: 'sessionData',
                 sessionId,
-                title: exportData?.session?.title || sessionId,
-                messages,
-                meta: { source: 'select', time: Date.now() },
+                title: formatted.title || exportData?.session?.title || sessionId,
+                messages: formatted.messages,
+                meta: { source: 'select', time: Date.now(), limit },
             });
-            rtLog(`LOAD_SESSION done msgs=${messages.length}`);
+            rtLog(`LOAD_SESSION done msgs=${formatted.messages.length}`);
+            // Optional DB enrich in background when API returned sparse parts
+            void this.enrichSessionFromDb(sessionId, limit);
         } catch (e) {
             rtLog(`LOAD_SESSION_ERR ${String(e).slice(0, 120)}`);
             try {
-                // Fallback to API
-                const exportData = await this.client.exportSessionRecent(sessionId, 60);
-                const formatted = this.formatSession(exportData);
+                const exportData = await this.client.querySessionFromDb(sessionId, limit);
+                const messages = this.formatDbMessages(exportData?.messages ?? []);
+                this._loadedSessions.set(sessionId, exportData?.messages ?? []);
                 liveWebview.postMessage({
-                    type: 'sessionData', sessionId, title: formatted.title,
-                    messages: formatted.messages, meta: { source: 'select', time: Date.now() },
+                    type: 'sessionData',
+                    sessionId,
+                    title: exportData?.session?.title || sessionId,
+                    messages,
+                    meta: { source: 'select-db', time: Date.now() },
                 });
             } catch (e2) {
                 rtLog(`LOAD_SESSION_FALLBACK_ERR ${String(e2).slice(0, 120)}`);
@@ -8941,44 +9127,45 @@ ${attachmentLines.join('\n')}`
         }
     }
 
+    private async enrichSessionFromDb(sessionId: string, limit: number): Promise<void> {
+        try {
+            const dbData = await this.client.querySessionFromDb(sessionId, limit);
+            const dbMsgs = this.formatDbMessages(dbData?.messages ?? []);
+            if (!dbMsgs.length) return;
+            if (this.currentSessionId !== sessionId) return;
+            const liveWebview = this._view?.webview;
+            if (!liveWebview) return;
+            // Only post if DB has more labeled tool/thinking content than silent API
+            const hasRich = dbMsgs.some((m: any) =>
+                typeof m.text === 'string' && (m.text.includes('[tool') || m.text.includes('[thinking]') || m.text.includes('[file edit]'))
+            );
+            if (!hasRich) return;
+            liveWebview.postMessage({
+                type: 'sessionData',
+                sessionId,
+                title: dbData?.session?.title || sessionId,
+                messages: dbMsgs,
+                meta: { source: 'select-db-enrich', time: Date.now() },
+            });
+        } catch {
+            /* optional path */
+        }
+    }
+
     /** Convert DB rows (flat per-part) into webview-ready messages with rich labels. */
     private formatDbMessages(dbRows: any[]): any[] {
         const result: any[] = [];
         for (const msg of dbRows) {
-            const cleanParts = (msg.parts || []).filter((p: any) =>
-                p.type !== 'step-start' && p.type !== 'step-finish' && p.type !== 'compaction'
-            );
-            if (!cleanParts.length) continue;
+            const parts = Array.isArray(msg.parts) ? msg.parts : [];
             let fullText = '';
-            for (const p of cleanParts) {
-                switch (p.type) {
-                    case 'reasoning':
-                        fullText += '\n💭 [thinking]\n' + (p.text || '') + '\n';
-                        break;
-                    case 'tool': {
-                        const toolName = p.tool || 'tool';
-                        const cmd = p.cmd || '';
-                        fullText += '\n🔧 [' + toolName + ']' + (cmd ? ' ' + cmd : '') + '\n';
-                        if (p.result) fullText += p.result + '\n';
-                        break;
-                    }
-                    case 'file':
-                        fullText += '\n📁 [file] ' + (p.path || p.text || '') + '\n';
-                        break;
-                    case 'patch': {
-                        const lines = (p.text || '').split('\n').length;
-                        fullText += '\n📝 [file edit] ' + lines + ' lines affected\n```diff\n' + (p.text || '') + '\n```\n';
-                        break;
-                    }
-                    default:
-                        fullText += p.text || '';
-                        break;
-                }
+            for (const p of parts) {
+                fullText += this.formatPartForDisplay(p);
             }
             if (!fullText.trim()) continue;
-            const role = msg.role || 'assistant';
+            const role = msg.role || msg.info?.role || 'assistant';
+            if (role !== 'user' && role !== 'assistant') continue;
             result.push({
-                id: msg.id,
+                id: msg.id || msg.info?.id,
                 role,
                 text: fullText,
                 time: msg.time ? { created: msg.time } : undefined,
@@ -9203,6 +9390,19 @@ ${attachmentLines.join('\n')}`
         const starfieldUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, "media", "starfield.css")
         );
+        // CLI logo easter-egg wavs (packages/opencode/.../tui/asset/*.wav)
+        const sfxChargeUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, "media", "sfx", "charge.wav")
+        );
+        const sfxPulseAUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, "media", "sfx", "pulse-a.wav")
+        );
+        const sfxPulseBUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, "media", "sfx", "pulse-b.wav")
+        );
+        const sfxPulseCUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this._extensionUri, "media", "sfx", "pulse-c.wav")
+        );
 
         const markdownItUri = webview.asWebviewUri(
             vscode.Uri.joinPath(this._extensionUri, "media", "markdown-it.min.js")
@@ -9242,141 +9442,466 @@ ${attachmentLines.join('\n')}`
                 <script src="${texmathScriptUri}"></script>
                 <script src="${domPurifyUri}"></script>
                 <script src="${highlightScriptUri}"></script>
+                <script>
+                window.__mimoSfx = {
+                    charge: ${JSON.stringify(String(sfxChargeUri))},
+                    pulseA: ${JSON.stringify(String(sfxPulseAUri))},
+                    pulseB: ${JSON.stringify(String(sfxPulseBUri))},
+                    pulseC: ${JSON.stringify(String(sfxPulseCUri))}
+                };
+                </script>
                 <title>MiMo Code</title>
             </head>
             <body>
-                                                                <div class="bg" id="bg">
-                    <canvas class="bg__stars" id="bgStars"></canvas>
-                    <canvas class="bg__comets" id="bgComets"></canvas>
+                                                                                                                <div class="bg" id="bg" aria-hidden="true">
+                    <canvas class="bg__canvas" id="bgCanvas"></canvas>
                 </div>
 
                 <script>
-                    (function () {
-                        var DENSITY = 0.00394, METEOR_INTERVAL = 8000, METEOR_DURATION = 3600, METEOR_ANGLE = 0.36, METEOR_TAIL = 32;
-                        var FONT_SIZE = 32, STEP_X = 16, STEP_Y = 32;
-                        function brailleBit(col, row) { return col === 0 ? (row === 3 ? 6 : row) : (row === 3 ? 7 : 3 + row); }
-                        function brailleChar(bits) { var c = 0x2800; for (var i = 0; i < bits.length; i++) if (bits[i]) c |= (1 << bits[i]); return String.fromCharCode(c); }
-                        function brailleStar(b) { var bits = []; for (var i = 0; i < 8; i++) bits.push(Math.random() < b ? 1 : 0); if (bits.every(function (x) { return !x; })) bits[Math.floor(Math.random() * 8)] = 1; return brailleChar(bits); }
-                        var starC = document.getElementById('bgStars'), meteorC = document.getElementById('bgComets');
-                        var sctx, mctx, W = 0, H = 0, dpr = window.devicePixelRatio || 1, field = [], meteors = [], lastMeteor = 0;
-                        function resize() {
-                            W = starC.clientWidth; H = starC.clientHeight;
-                            if (W < 10 || H < 10) { W = window.innerWidth; H = window.innerHeight; }
-                            [starC, meteorC].forEach(function (c) { c.width = W * dpr; c.height = H * dpr; });
-                            sctx = starC.getContext('2d'); mctx = meteorC.getContext('2d');
-                            sctx.scale(dpr, dpr); mctx.scale(dpr, dpr);
-                            field = []; var cols = Math.ceil(W / STEP_X), rows = Math.ceil(H / STEP_Y);
-                            for (var y = 0; y < rows; y++) { var row = []; for (var x = 0; x < cols; x++) { if (Math.random() < DENSITY * 40) { var b = 0.15 + Math.random() * 0.4; row.push({ ch: brailleStar(b), b: b }); } else row.push(null); } field.push(row); }
-                            draw();
+                (function () {
+                    // Port of XiaomiMiMo/MiMo-Code starry-background.tsx (CLI TUI)
+                    // Rendered on canvas so webview never shows a blank black void.
+                    var STAR_CHARS = ['\u2726', '\u2727', '\u2726', '\u2727', '\u2726', '\u2727', '\u2726'];
+                    var HOT_CHAR = '\u2736';
+                    var HOT_THRESHOLD = 0.88;
+                    var TWINKLE_INTERVAL = 220;
+                    var DENSITY = 0.00394;
+                    var METEOR_INTERVAL = 8000;
+                    var METEOR_DURATION = 3600;
+                    var METEOR_ANGLE = 0.36;
+                    var METEOR_TAIL = 32;
+                    var METEOR_FRAME_INTERVAL = 50;
+                    var METEOR_STEP = 0.15;
+                    var BG = { r: 10, g: 10, b: 10 };
+                    var STAR = { r: 237, g: 220, b: 170 };
+                    var HOT = { r: 255, g: 255, b: 255 };
+                    var BEAM_CORE = { r: 255, g: 255, b: 255 };
+                    var BEAM_GLOW = { r: 180, g: 215, b: 255 };
+
+                    function tint(a, b, t) {
+                        t = Math.max(0, Math.min(1, t));
+                        return {
+                            r: Math.round(a.r + (b.r - a.r) * t),
+                            g: Math.round(a.g + (b.g - a.g) * t),
+                            b: Math.round(a.b + (b.b - a.b) * t)
+                        };
+                    }
+                    function css(c, a) {
+                        if (a === undefined || a >= 0.999) return 'rgb(' + c.r + ',' + c.g + ',' + c.b + ')';
+                        return 'rgba(' + c.r + ',' + c.g + ',' + c.b + ',' + a + ')';
+                    }
+                    function brailleBit(col, row) {
+                        if (col === 0) return row === 3 ? 6 : row;
+                        return row === 3 ? 7 : 3 + row;
+                    }
+
+                    var canvas = document.getElementById('bgCanvas');
+                    if (!canvas) return;
+                    var ctx = canvas.getContext('2d');
+                    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+                    var cellW = 9, cellH = 16;
+                    var cols = 0, rows = 0;
+                    var grid = [];
+                    var brightness = [];
+                    var meteor = null;
+                    var timers = [];
+
+                    function measureCell() {
+                        // Approximate terminal cell for 14px mono
+                        ctx.font = '14px "Cascadia Mono", Consolas, monospace';
+                        var m = ctx.measureText('M');
+                        cellW = Math.max(7, Math.ceil(m.width));
+                        cellH = 16;
+                    }
+
+                    function densFor(w, h) {
+                        var cells = Math.max(1, w * h);
+                        // Target ~40-70 stars in a sidebar so they are actually visible
+                        var target = Math.min(80, Math.max(36, Math.floor(cells * 0.022)));
+                        return Math.max(DENSITY, Math.min(0.05, target / cells));
+                    }
+
+                    function generate(w, h) {
+                        var dens = densFor(w, h);
+                        grid = [];
+                        brightness = [];
+                        for (var y = 0; y < h; y++) {
+                            var row = [], brow = [];
+                            for (var x = 0; x < w; x++) {
+                                if (Math.random() < dens) {
+                                    row.push(Math.floor(Math.random() * STAR_CHARS.length));
+                                    brow.push(0.15 + Math.random() * 0.4);
+                                } else {
+                                    row.push(-1);
+                                    brow.push(0);
+                                }
+                            }
+                            grid.push(row);
+                            brightness.push(brow);
                         }
-                        function draw() {
-                            if (!sctx) return; sctx.clearRect(0, 0, W, H); sctx.font = FONT_SIZE + 'px monospace'; sctx.textBaseline = 'top';
-                            for (var y = 0; y < field.length; y++) for (var x = 0; x < field[y].length; x++) { var cell = field[y][x]; if (!cell) continue; sctx.fillStyle = cell.b > 0.85 ? 'rgba(255,221,148,0.9)' : cell.b > 0.55 ? 'rgba(237,220,170,0.6)' : 'rgba(237,220,170,0.3)'; sctx.fillText(cell.ch, x * STEP_X, y * STEP_Y); }
+                    }
+
+                    function resize() {
+                        var W = window.innerWidth || document.documentElement.clientWidth || 320;
+                        var H = window.innerHeight || document.documentElement.clientHeight || 480;
+                        if (W < 20) W = 320;
+                        if (H < 20) H = 480;
+                        canvas.width = Math.floor(W * dpr);
+                        canvas.height = Math.floor(H * dpr);
+                        canvas.style.width = W + 'px';
+                        canvas.style.height = H + 'px';
+                        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                        measureCell();
+                        var nextCols = Math.max(8, Math.floor(W / cellW));
+                        var nextRows = Math.max(8, Math.floor(H / cellH));
+                        if (nextCols !== cols || nextRows !== rows || !grid.length) {
+                            cols = nextCols;
+                            rows = nextRows;
+                            generate(cols, rows);
                         }
-                        function spawnMeteor() {
-                            if (!mctx) return;
-                            var sx = 30 + Math.random() * 40, sy = 5 + Math.random() * 20;
-                            var met = { angle: METEOR_ANGLE, x: sx, y: sy, spawn: Date.now(), speed: 0.4 + Math.random() * 0.3 };
-                            meteors.push(met);
-                        }
-                        function drawMeteors() {
-                            if (!mctx) return; mctx.clearRect(0, 0, W, H); var now = Date.now();
-                            for (var i = meteors.length - 1; i >= 0; i--) {
-                                var m = meteors[i]; var age = now - m.spawn;
-                                if (age > METEOR_DURATION) { meteors.splice(i, 1); continue; }
-                                var p = age / METEOR_DURATION, dist = p * W * 0.7;
-                                var mx = m.x / 100 * W + Math.cos(m.angle) * dist, my = m.y / 100 * H + Math.sin(m.angle) * dist;
-                                if (mx > W || my > H || mx < -50 || my < -50) { meteors.splice(i, 1); continue; }
-                                var fade = p < 0.05 ? p / 0.05 : p > 0.9 ? (1 - p) / 0.1 : 1;
-                                mctx.globalAlpha = fade * 0.8;
-                                for (var j = 0; j < METEOR_TAIL; j++) { var tp = j / METEOR_TAIL; mctx.fillStyle = 'rgba(237,220,170,' + (1 - tp * 0.8) + ')'; mctx.fillRect(mx - tp * 40 * Math.cos(m.angle) - 1, my - tp * 40 * Math.sin(m.angle) - 1, 2, 2); }
-                                mctx.globalAlpha = 1;
+                        paint();
+                    }
+
+                    function twinkle() {
+                        if (!grid.length || document.hidden) return;
+                        var count = Math.floor(cols * rows * 0.008);
+                        for (var i = 0; i < count; i++) {
+                            var y = Math.floor(Math.random() * rows);
+                            var x = Math.floor(Math.random() * cols);
+                            if (grid[y] && grid[y][x] >= 0) {
+                                var r = Math.random();
+                                brightness[y][x] =
+                                    r < 0.12 ? 0.92 + Math.random() * 0.08
+                                    : r < 0.8 ? 0.7 + Math.random() * 0.22
+                                    : 0.05 + Math.random() * 0.2;
                             }
                         }
-                        function loop() {
-                            if (Date.now() - lastMeteor > METEOR_INTERVAL) { lastMeteor = Date.now(); spawnMeteor(); }
-                            drawMeteors(); requestAnimationFrame(loop);
+                        paint();
+                    }
+
+                    function spawnMeteor() {
+                        if (!cols || !rows) return;
+                        var startY = Math.floor(Math.random() * 2);
+                        var speed = Math.max(0.011, Math.min(0.038, (rows - startY) / (Math.sin(METEOR_ANGLE) * METEOR_DURATION)));
+                        meteor = {
+                            at: performance.now(),
+                            startX: cols - Math.random() * Math.max(1, cols * 0.15),
+                            startY: startY,
+                            speed: speed
+                        };
+                    }
+
+                    function meteorMap() {
+                        var map = {};
+                        if (!meteor) return map;
+                        var elapsed = performance.now() - meteor.at;
+                        if (elapsed < 0 || elapsed > METEOR_DURATION) return map;
+                        var distance = elapsed * meteor.speed;
+                        var dx = -Math.cos(METEOR_ANGLE);
+                        var dy = Math.sin(METEOR_ANGLE);
+                        var headX = meteor.startX + distance * dx;
+                        var headY = meteor.startY + distance * dy;
+                        var envelope = Math.sin((elapsed / METEOR_DURATION) * Math.PI);
+                        var cellAcc = {};
+                        function setDot(px, py, t) {
+                            var subX = Math.floor(px * 2);
+                            var subY = Math.floor(py * 4);
+                            var cx = subX >> 1;
+                            var cy = subY >> 2;
+                            if (cx < 0 || cx >= cols || cy < 0 || cy >= rows) return;
+                            var bit = brailleBit(subX & 1, subY & 3);
+                            var key = cx + ',' + cy;
+                            var ex = cellAcc[key];
+                            cellAcc[key] = {
+                                dots: (ex ? ex.dots : 0) | (1 << bit),
+                                minT: Math.min(ex ? ex.minT : Infinity, t)
+                            };
                         }
+                        for (var t = 0; t <= METEOR_TAIL; t += METEOR_STEP) {
+                            setDot(headX - t * dx, headY - t * dy, t);
+                        }
+                        var headSubX = Math.floor(headX * 2);
+                        var headSubY = Math.floor(headY * 4);
+                        for (var dsx = -1; dsx <= 1; dsx++) {
+                            for (var dsy = -1; dsy <= 1; dsy++) {
+                                if (dsx * dsx + dsy * dsy > 1) continue;
+                                var sx = headSubX + dsx, sy = headSubY + dsy;
+                                var cx = sx >> 1, cy = sy >> 2;
+                                if (cx < 0 || cx >= cols || cy < 0 || cy >= rows) continue;
+                                var bit = brailleBit(sx & 1, sy & 3);
+                                var key = cx + ',' + cy;
+                                var ex = cellAcc[key];
+                                cellAcc[key] = { dots: (ex ? ex.dots : 0) | (1 << bit), minT: 0 };
+                            }
+                        }
+                        for (var key in cellAcc) {
+                            if (!Object.prototype.hasOwnProperty.call(cellAcc, key)) continue;
+                            var val = cellAcc[key];
+                            var fade = Math.pow(1 - val.minT / METEOR_TAIL, 1.3) * envelope;
+                            var headBlend = Math.max(0, 1 - val.minT / 5);
+                            var mid = tint(BEAM_GLOW, BEAM_CORE, headBlend);
+                            var color = tint(BG, mid, Math.max(0.02, fade));
+                            map[key] = {
+                                ch: String.fromCharCode(0x2800 + val.dots),
+                                color: color
+                            };
+                        }
+                        return map;
+                    }
+
+                    function paint() {
+                        if (!ctx) return;
+                        var W = canvas.width / dpr;
+                        var H = canvas.height / dpr;
+                        ctx.clearRect(0, 0, W, H);
+                        // Fill void so stars sit on pure CLI black
+                        ctx.fillStyle = '#0a0a0a';
+                        ctx.fillRect(0, 0, W, H);
+                        if (!grid.length) return;
+                        ctx.font = '14px "Cascadia Mono", Consolas, monospace';
+                        ctx.textBaseline = 'top';
+                        var mMap = meteorMap();
+                        for (var y = 0; y < rows; y++) {
+                            for (var x = 0; x < cols; x++) {
+                                var key = x + ',' + y;
+                                var overlay = mMap[key];
+                                var px = x * cellW;
+                                var py = y * cellH;
+                                if (overlay) {
+                                    ctx.fillStyle = css(overlay.color);
+                                    ctx.fillText(overlay.ch, px, py);
+                                    continue;
+                                }
+                                var idx = grid[y][x];
+                                var b = brightness[y][x];
+                                if (idx < 0 || b <= 0) continue;
+                                var isHot = b >= HOT_THRESHOLD;
+                                var peak = isHot ? Math.min(1, (b - HOT_THRESHOLD) / (1 - HOT_THRESHOLD)) : 0;
+                                var ch = isHot ? HOT_CHAR : STAR_CHARS[idx % STAR_CHARS.length];
+                                var base = tint(BG, STAR, Math.min(1, b * 1.05));
+                                var col = peak > 0 ? tint(base, HOT, peak * 0.65) : base;
+                                ctx.fillStyle = css(col);
+                                ctx.fillText(ch, px, py);
+                            }
+                        }
+                    }
+
+                    function start() {
+                        for (var i = 0; i < timers.length; i++) clearInterval(timers[i]);
+                        timers = [];
                         resize();
-                        window.addEventListener('resize', function () { resize(); });
-                        requestAnimationFrame(loop);
-                    })();
+                        timers.push(setInterval(function () {
+                            if (!document.hidden) twinkle();
+                        }, TWINKLE_INTERVAL));
+                        timers.push(setInterval(function () {
+                            if (!document.hidden) spawnMeteor();
+                        }, METEOR_INTERVAL));
+                        timers.push(setInterval(function () {
+                            if (document.hidden || !meteor) return;
+                            if (performance.now() - meteor.at > METEOR_DURATION) {
+                                meteor = null;
+                                paint();
+                                return;
+                            }
+                            paint();
+                        }, METEOR_FRAME_INTERVAL));
+                        setTimeout(spawnMeteor, 1500);
+                    }
+
+                    window.addEventListener('resize', function () {
+                        clearTimeout(window.__mimoStarR);
+                        window.__mimoStarR = setTimeout(resize, 80);
+                    });
+                    if (document.readyState === 'loading') {
+                        document.addEventListener('DOMContentLoaded', start);
+                    } else {
+                        start();
+                    }
+                    setTimeout(resize, 50);
+                    setTimeout(resize, 300);
+                    setTimeout(resize, 1000);
+                })();
                 </script>
 
-                <div class="slash-palette" id="slashPalette" style="display:none">
-    <div class="slash-palette-header">SLASH COMMANDS</div>
-    <div class="slash-palette-list" id="slashPaletteList"></div>
-</div>
 
-<script>
-(function () {
-    var SLASH = [];
-    var palette = document.getElementById('slashPalette');
-    var listEl = document.getElementById('slashPaletteList');
-    var activeIndex = -1;
-    function render(filter) {
-        listEl.innerHTML = '';
-        if (!SLASH.length) { palette.style.display = 'none'; return; }
-        var items = SLASH.filter(function (c) { return !filter || c.name.toLowerCase().indexOf(filter.toLowerCase()) >= 0; });
-        if (!items.length) { palette.style.display = 'none'; return; }
-        items.forEach(function (c, i) {
-            var row = document.createElement('div');
-            row.className = 'slash-item' + (i === activeIndex ? ' active' : '');
-            row.innerHTML = '<span class="slash-name">/' + c.name + '</span><span class="slash-desc">' + (c.description || '') + '</span>';
-            row.onmousedown = function (e) { e.preventDefault(); apply('/' + c.name + ' '); };
-            listEl.appendChild(row);
-        });
-        palette.style.display = '';
-    }
-    function hide() { palette.style.display = 'none'; activeIndex = -1; }
-    function apply(text) {
-        var el = document.activeElement;
-        if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) {
-            el.value = text;
-            el.focus();
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-        hide();
-    }
-    function getActiveVal() {
-        var el = document.activeElement;
-        if (!el) return null;
-        if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') return el.value || '';
-        if (el.isContentEditable) return el.textContent || '';
-        return null;
-    }
-    function onActivity() {
-        var val = getActiveVal();
-        if (val === null) return;
-        var m = val.match(/\/([a-zA-Z0-9_-]*)$/);
-        if (m) { activeIndex = 0; render(m[1]); } else { hide(); }
-    }
-    // Capture phase so React synthetic events don't swallow them
-    document.addEventListener('keyup', function () { onActivity(); }, true);
-    document.addEventListener('input', function () { onActivity(); }, true);
-    document.addEventListener('click', function () { onActivity(); }, true);
-    document.addEventListener('keydown', function (e) {
-        if (palette.style.display === 'none') return;
-        var items = listEl.children;
-        if (e.key === 'ArrowDown') { e.preventDefault(); activeIndex = Math.min(items.length - 1, activeIndex + 1); render(currentFilter()); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); activeIndex = Math.max(0, activeIndex - 1); render(currentFilter()); }
-        else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); if (items[activeIndex]) items[activeIndex].onmousedown({ preventDefault: function () {} }); }
-        else if (e.key === 'Escape') { hide(); }
-    });
-    function currentFilter() {
-        var val = getActiveVal() || '';
-        var m = val.match(/\/([a-zA-Z0-9_-]*)$/);
-        return m ? m[1] : '';
-    }
-    window.addEventListener('message', function (ev) {
-        var d = ev.data;
-        if (d && (d.type === 'init' || d.type === 'slashCommands') && Array.isArray(d.slashCommands || d.commands)) {
-            SLASH = d.slashCommands || d.commands;
-        }
-    });
-    try { acquireVsCodeApi().postMessage({ type: 'fetchSlashCommands' }); } catch (e) {}
-})();
-</script>
+                <div class="slash-palette" id="slashPalette" style="display:none" role="listbox" aria-label="Slash commands">
+                    <div class="slash-palette-header">SLASH COMMANDS</div>
+                    <div class="slash-palette-list" id="slashPaletteList"></div>
+                </div>
+
+                <script>
+                (function () {
+                    var SLASH = [];
+                    var palette = document.getElementById('slashPalette');
+                    var listEl = document.getElementById('slashPaletteList');
+                    var activeIndex = 0;
+                    // acquireVsCodeApi may only be called ONCE per webview.
+                    // This script runs before media/main.js — stash for main.js.
+                    var api = null;
+                    try {
+                        if (typeof acquireVsCodeApi === 'function') {
+                            api = acquireVsCodeApi();
+                            window.__mimoVscodeApi = api;
+                        }
+                    } catch (e) {
+                        api = window.__mimoVscodeApi || null;
+                    }
+
+                    function showPalette() {
+                        if (!palette) return;
+                        // main.css uses display:flex — honour that
+                        palette.style.display = 'flex';
+                    }
+                    function hide() {
+                        if (palette) palette.style.display = 'none';
+                        activeIndex = 0;
+                    }
+                    function render(filter) {
+                        if (!palette || !listEl) return;
+                        listEl.innerHTML = '';
+                        if (!SLASH.length) { hide(); return; }
+                        var items = SLASH.filter(function (c) {
+                            return !filter || c.name.toLowerCase().indexOf(filter.toLowerCase()) === 0
+                                || c.name.toLowerCase().indexOf(filter.toLowerCase()) >= 0;
+                        });
+                        if (!items.length) { hide(); return; }
+                        if (activeIndex >= items.length) activeIndex = items.length - 1;
+                        if (activeIndex < 0) activeIndex = 0;
+                        items.forEach(function (c, i) {
+                            var row = document.createElement('div');
+                            row.className = 'slash-item' + (i === activeIndex ? ' active' : '');
+                            row.setAttribute('role', 'option');
+                            row.innerHTML = '<span class="slash-name">/' + escapeHtml(c.name) + '</span>'
+                                + '<span class="slash-desc">' + escapeHtml(c.description || '') + '</span>';
+                            row.onmousedown = function (e) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                apply('/' + c.name + ' ');
+                            };
+                            listEl.appendChild(row);
+                        });
+                        showPalette();
+                    }
+                    function escapeHtml(s) {
+                        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                    }
+                    function getInput() {
+                        return document.getElementById('chat-input');
+                    }
+                    function getActiveVal() {
+                        var el = getInput() || document.activeElement;
+                        if (!el) return null;
+                        if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') return el.value || '';
+                        if (el.isContentEditable) return el.textContent || '';
+                        return null;
+                    }
+                    function apply(text) {
+                        var el = getInput();
+                        if (!el) return;
+                        el.value = text;
+                        el.focus();
+                        try { el.setSelectionRange(text.length, text.length); } catch (e) {}
+                        // Fire both so any listeners in main.js pick it up
+                        el.dispatchEvent(new Event('input', { bubbles: true }));
+                        el.dispatchEvent(new Event('change', { bubbles: true }));
+                        hide();
+                    }
+                    function onActivity() {
+                        var val = getActiveVal();
+                        if (val === null) return;
+                        // Trigger when the whole input is a slash-command draft: /foo
+                        var m = val.match(/^\/([a-zA-Z0-9_-]*)$/);
+                        if (m) {
+                            render(m[1] || '');
+                        } else {
+                            hide();
+                        }
+                    }
+                    function currentFilter() {
+                        var val = getActiveVal() || '';
+                        var m = val.match(/^\/([a-zA-Z0-9_-]*)$/);
+                        return m ? (m[1] || '') : '';
+                    }
+                    // Capture phase so nothing in main.js can swallow us
+                    document.addEventListener('input', onActivity, true);
+                    document.addEventListener('keyup', onActivity, true);
+                    document.addEventListener('click', function (e) {
+                        if (palette && palette.style.display !== 'none' && !palette.contains(e.target)
+                            && e.target !== getInput()) {
+                            hide();
+                        }
+                    }, true);
+                    document.addEventListener('keydown', function (e) {
+                        if (!palette || palette.style.display === 'none') return;
+                        var items = listEl ? listEl.children : [];
+                        if (!items.length) return;
+                        if (e.key === 'ArrowDown') {
+                            e.preventDefault(); e.stopPropagation();
+                            activeIndex = Math.min(items.length - 1, activeIndex + 1);
+                            render(currentFilter());
+                        } else if (e.key === 'ArrowUp') {
+                            e.preventDefault(); e.stopPropagation();
+                            activeIndex = Math.max(0, activeIndex - 1);
+                            render(currentFilter());
+                        } else if (e.key === 'Enter' || e.key === 'Tab') {
+                            e.preventDefault(); e.stopPropagation();
+                            if (items[activeIndex] && items[activeIndex].onmousedown) {
+                                items[activeIndex].onmousedown({ preventDefault: function(){}, stopPropagation: function(){} });
+                            }
+                        } else if (e.key === 'Escape') {
+                            hide();
+                        }
+                    }, true);
+
+                    window.addEventListener('message', function (ev) {
+                        var d = ev.data;
+                        if (!d) return;
+                        var list = null;
+                        if (d.type === 'slashCommands' && Array.isArray(d.commands)) list = d.commands;
+                        if (d.type === 'init' && Array.isArray(d.slashCommands)) list = d.slashCommands;
+                        if (d.type === 'slashCommands' && Array.isArray(d.slashCommands)) list = d.slashCommands;
+                        if (list) {
+                            SLASH = list;
+                            window.__mimoSlashCommands = list;
+                            onActivity();
+                        }
+                    });
+
+                    // Fallback built-ins so palette is never empty if server /command fails
+                    var FALLBACK = [
+                        { name: 'help', description: 'Show help' },
+                        { name: 'new', description: 'New session' },
+                        { name: 'clear', description: 'Clear chat' },
+                        { name: 'model', description: 'Switch model' },
+                        { name: 'undo', description: 'Undo last change' },
+                        { name: 'sessions', description: 'List sessions' }
+                    ];
+                    SLASH = FALLBACK.slice();
+                    window.__mimoSlashCommands = SLASH;
+
+                    function requestCommands() {
+                        if (!api) return;
+                        try { api.postMessage({ type: 'fetchSlashCommands' }); } catch (e) {}
+                    }
+                    requestCommands();
+                    // Re-request after main.js init (server may not be up yet on first paint)
+                    setTimeout(requestCommands, 800);
+                    setTimeout(requestCommands, 2500);
+
+                    // Also bind directly to chat-input when it appears
+                    function bindInput() {
+                        var el = getInput();
+                        if (el && !el.__mimoSlashBound) {
+                            el.__mimoSlashBound = true;
+                            el.addEventListener('input', onActivity);
+                            el.addEventListener('keyup', onActivity);
+                        }
+                    }
+                    bindInput();
+                    var mo = new MutationObserver(bindInput);
+                    mo.observe(document.documentElement, { childList: true, subtree: true });
+                })();
+                </script>
 
                 <div class="session-header">
                     <div class="session-header-left">
@@ -9435,7 +9960,23 @@ ${attachmentLines.join('\n')}`
                 </div>
 
                 <div class="chat-area" id="chat">
-                    <div class="message bot">Hello! I am mimo. How can I help you today?</div>
+                    <div class="chat-welcome" id="chat-welcome"></div>
+                </div>
+
+                <div class="mimo-goal-bar" id="mimo-goal-bar" aria-live="polite">
+                    <div class="mimo-goal-inner">
+                        <div class="mimo-goal-head" id="mimo-goal-head">
+                            <span class="mimo-goal-dot" aria-hidden="true"></span>
+                            <span class="mimo-goal-label">goal</span>
+                            <span class="mimo-goal-text" id="mimo-goal-text">No active goal</span>
+                            <span class="mimo-goal-time" id="mimo-goal-time"></span>
+                            <div class="mimo-goal-actions">
+                                <button type="button" class="mimo-goal-btn" id="mimo-goal-toggle" title="Pause / resume goal">pause</button>
+                                <button type="button" class="mimo-goal-btn" id="mimo-goal-clear" title="Clear goal">clear</button>
+                            </div>
+                        </div>
+                        <div class="mimo-goal-body" id="mimo-goal-body"></div>
+                    </div>
                 </div>
 
                 <div class="input-container">
@@ -9489,8 +10030,8 @@ ${attachmentLines.join('\n')}`
                             if (chat && !chat.__lazyScroll) {
                                 chat.__lazyScroll = true;
                                 chat.addEventListener('scroll', function () {
-                                    if (this.scrollTop < 30 && loadedSid) {
-                                        loadedCount += 60;
+                                    if (this.scrollTop < 80 && loadedSid) {
+                                        loadedCount += 120;
                                         v.postMessage({ type: 'loadMoreSession', sessionId: loadedSid, count: loadedCount });
                                     }
                                 });

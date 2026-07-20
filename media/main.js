@@ -1,4 +1,8 @@
-﻿const vscode = acquireVsCodeApi();
+// Prefer API instance created by inline slash bootstrap (only one acquireVsCodeApi per webview).
+const vscode = (typeof window !== 'undefined' && window.__mimoVscodeApi)
+    ? window.__mimoVscodeApi
+    : acquireVsCodeApi();
+if (typeof window !== 'undefined') window.__mimoVscodeApi = vscode;
 
 // Global error handler for catching uncaught exceptions
 window.onerror = function (message, source, lineno, colno, error) {
@@ -169,7 +173,7 @@ let pendingContextItems = [];
 let pendingFileRefs = [];
 let sendBlockedNotice = '';
 let systemNoticeText = '';
-let baseSessionTitle = 'OpenCode: Chat';
+let baseSessionTitle = 'MiMo Code';
 let headerStatusText = '';
 const sessionUsageById = new Map();
 let textMeasureCanvas = null;
@@ -4331,19 +4335,296 @@ function shouldLinkifyAssistantMessage(message) {
     return Boolean(message?.role === 'assistant' && message?.meta?.isThinking !== true);
 }
 
+/**
+ * Markers: %%MIMO_PART:kind|title|meta|open|duration%% body %%/MIMO_PART%%
+ * Thinking → collapsible (default closed) + duration.
+ * Tools → command (line-clamp, no h-scroll) · strip out · output.
+ */
 function renderAssistantMarkdown(content, message) {
     const text = typeof message?.text === 'string' ? message.text : '';
     const linkifyRefs = shouldLinkifyAssistantMessage(message);
-    const signature = `${linkifyRefs ? '1' : '0'}:${text}`;
+    const signature = `parts3:${linkifyRefs ? '1' : '0'}:${text}`;
     if (message && message._renderSignature === signature && typeof message._renderHtml === 'string') {
         content.innerHTML = message._renderHtml;
         return;
     }
-    renderMarkdownInto(content, text, { linkifyRefs });
+    content.innerHTML = '';
+    for (const seg of splitMimoParts(text)) {
+        if (seg.kind === 'text') {
+            if (!seg.body || !String(seg.body).trim()) continue;
+            const wrap = document.createElement('div');
+            wrap.className = 'mimo-text-seg';
+            renderMarkdownInto(wrap, seg.body, { linkifyRefs });
+            content.appendChild(wrap);
+            continue;
+        }
+        if (seg.kind === 'thinking') {
+            content.appendChild(buildMimoThinking(seg));
+            continue;
+        }
+        content.appendChild(buildMimoPartCard(seg));
+    }
     if (message && typeof message === 'object') {
         message._renderSignature = signature;
         message._renderHtml = content.innerHTML;
     }
+}
+
+function splitMimoParts(text) {
+    const src = String(text || '');
+    const out = [];
+    // duration is optional 5th field
+    const re = /%%MIMO_PART:([^|%]+)\|([^|%]*)\|([^|%]*)\|([^|%]*)\|?([^%]*)%%\n?([\s\S]*?)%%\/MIMO_PART%%/g;
+    let last = 0;
+    let m;
+    let found = false;
+    while ((m = re.exec(src)) !== null) {
+        found = true;
+        if (m.index > last) out.push({ kind: 'text', body: src.slice(last, m.index) });
+        const openFlag = (m[4] || '').trim();
+        out.push({
+            kind: m[1].trim(),
+            title: m[2].trim(),
+            meta: m[3].trim(),
+            open: openFlag === 'open',
+            duration: (m[5] || '').trim(),
+            body: m[6] || '',
+        });
+        last = m.index + m[0].length;
+    }
+    if (found) {
+        if (last < src.length) out.push({ kind: 'text', body: src.slice(last) });
+        return out;
+    }
+    const legacy = /(?:^|\n)((?:💭\s*\[thinking\]|🔧\s*\[[^\]]+\]|📝\s*\[file edit\][^\n]*|📁\s*\[file\][^\n]*|📤\s*\[tool result\]))\n?([\s\S]*?)(?=(?:\n(?:💭\s*\[thinking\]|🔧\s*\[|📝\s*\[file edit\]|📁\s*\[file\]|📤\s*\[tool result\]))|$)/g;
+    last = 0;
+    found = false;
+    while ((m = legacy.exec(src)) !== null) {
+        found = true;
+        if (m.index > last) out.push({ kind: 'text', body: src.slice(last, m.index) });
+        const head = m[1];
+        let kind = 'tool';
+        let title = head.replace(/^[^\[]*\[|\][\s\S]*$/g, '').trim() || 'tool';
+        if (/thinking/i.test(head)) { kind = 'thinking'; title = 'thinking'; }
+        else if (/file edit/i.test(head)) { kind = 'patch'; title = 'edit'; }
+        else if (/file\]/i.test(head)) { kind = 'file'; title = 'file'; }
+        out.push({ kind, title, meta: '', open: false, duration: '', body: m[2] || '' });
+        last = m.index + m[0].length;
+    }
+    if (found) {
+        if (last < src.length) out.push({ kind: 'text', body: src.slice(last) });
+        return out;
+    }
+    return [{ kind: 'text', body: src }];
+}
+
+function parseInOutBody(bodyText) {
+    const src = String(bodyText || '').trim();
+    let inn = '';
+    let out = '';
+    if (/^IN:\s*/m.test(src) || /^OUT:\s*/m.test(src)) {
+        const inMatch = src.match(/^IN:\s*\n?([\s\S]*?)(?=^OUT:\s*|$)/m);
+        const outMatch = src.match(/^OUT:\s*\n?([\s\S]*)$/m);
+        if (inMatch) inn = inMatch[1].trim();
+        if (outMatch) out = outMatch[1].trim();
+        // If only OUT without proper match (OUT after IN consumed)
+        if (!out && /OUT:\s*/.test(src)) {
+            const i = src.indexOf('OUT:');
+            out = src.slice(i + 4).replace(/^\s*\n?/, '').trim();
+            if (inn && inn.includes('OUT:')) {
+                const j = inn.indexOf('OUT:');
+                out = inn.slice(j + 4).trim() || out;
+                inn = inn.slice(0, j).trim();
+            }
+        }
+        return { inn, out };
+    }
+    // Legacy $ command
+    const cmdMatch = src.match(/^\$\s+(.+?)(?:\n([\s\S]*))?$/);
+    if (cmdMatch) return { inn: cmdMatch[1].trim(), out: (cmdMatch[2] || '').trim() };
+    return { inn: '', out: src };
+}
+
+function buildMimoThinking(seg) {
+    const details = document.createElement('details');
+    details.className = 'mimo-thinking';
+    // default closed always
+    details.open = false;
+    const summary = document.createElement('summary');
+    summary.appendChild(mimoOutlineIcon('thinking'));
+    const title = document.createElement('span');
+    title.className = 'mimo-thinking-title';
+    title.textContent = seg.title || 'thinking';
+    summary.appendChild(title);
+    const bodyText = String(seg.body || '').trim();
+    const words = bodyText ? bodyText.split(/\s+/).filter(Boolean).length : 0;
+    const dur = seg.duration || (words ? `~${Math.max(1, Math.round(words / 40))}s` : '');
+    if (dur) {
+        const d = document.createElement('span');
+        d.className = 'mimo-dur';
+        d.textContent = dur;
+        summary.appendChild(d);
+    }
+    if (words) {
+        const w = document.createElement('span');
+        w.className = 'mimo-thinking-hint';
+        w.textContent = words + ' words';
+        summary.appendChild(w);
+    }
+    details.appendChild(summary);
+    const body = document.createElement('div');
+    body.className = 'mimo-thinking-body';
+    body.textContent = bodyText;
+    details.appendChild(body);
+    return details;
+}
+
+/** Thin-line outline icons (stroke only) — Kilocode / CLI style, not emoji. */
+function mimoOutlineIcon(kind) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('class', 'mimo-ico');
+    svg.setAttribute('width', '14');
+    svg.setAttribute('height', '14');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.5');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = (d) => {
+        const p = document.createElementNS(ns, 'path');
+        p.setAttribute('d', d);
+        svg.appendChild(p);
+    };
+    const circle = (cx, cy, r) => {
+        const c = document.createElementNS(ns, 'circle');
+        c.setAttribute('cx', String(cx));
+        c.setAttribute('cy', String(cy));
+        c.setAttribute('r', String(r));
+        svg.appendChild(c);
+    };
+    const rect = (x, y, w, h, rx) => {
+        const r = document.createElementNS(ns, 'rect');
+        r.setAttribute('x', String(x));
+        r.setAttribute('y', String(y));
+        r.setAttribute('width', String(w));
+        r.setAttribute('height', String(h));
+        if (rx) r.setAttribute('rx', String(rx));
+        svg.appendChild(r);
+    };
+    if (kind === 'thinking') {
+        // brain-ish / spark
+        circle(12, 12, 8);
+        path('M12 8v4l2 2');
+    } else if (kind === 'patch') {
+        path('M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z');
+        path('M14 2v6h6');
+        path('M9 15h6');
+        path('M12 12v6');
+    } else if (kind === 'file') {
+        path('M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z');
+        path('M14 2v6h6');
+    } else if (kind === 'bash' || kind === 'tool') {
+        rect(3, 4, 18, 16, 2);
+        path('M7 9l3 3-3 3');
+        path('M13 15h4');
+    } else {
+        circle(12, 12, 3);
+        path('M12 2v3M12 19v3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1L7 17M17 7l2.1-2.1');
+    }
+    return svg;
+}
+
+function buildMimoPartCard(seg) {
+    const kind = seg.kind || 'tool';
+    const details = document.createElement('details');
+    details.className = `mimo-part mimo-part--${kind === 'patch' ? 'patch' : kind === 'file' ? 'file' : 'tool'}`;
+    // default closed; only open when explicitly marked (running tools)
+    details.open = Boolean(seg.open);
+
+    const summary = document.createElement('summary');
+    summary.appendChild(mimoOutlineIcon(kind === 'patch' ? 'patch' : kind === 'file' ? 'file' : 'tool'));
+    const title = document.createElement('span');
+    title.className = 'mimo-part-title';
+    title.textContent = seg.title || kind;
+    summary.appendChild(title);
+    if (seg.duration) {
+        const d = document.createElement('span');
+        d.className = 'mimo-dur';
+        d.textContent = seg.duration;
+        summary.appendChild(d);
+    }
+    if (seg.meta) {
+        const meta = document.createElement('span');
+        meta.className = 'mimo-part-meta';
+        meta.textContent = seg.meta;
+        meta.title = seg.meta;
+        summary.appendChild(meta);
+    }
+    details.appendChild(summary);
+
+    const body = document.createElement('div');
+    body.className = 'mimo-part-body';
+    const { inn, out } = parseInOutBody(seg.body);
+    // Prefer IN; fall back to meta if it looks like a path/command
+    let command = inn;
+    if (!command && seg.meta && kind === 'tool') {
+        const looksCmd = /[\s\/\\-]/.test(seg.meta) || seg.meta.length > 8;
+        if (looksCmd && !/^(running|pending|completed|error)$/i.test(seg.meta)) {
+            command = seg.meta;
+        }
+    }
+
+    // Completely flat: plain text lines, hairline only — no nested boxes
+    if (command || out) {
+        const io = document.createElement('div');
+        io.className = 'mimo-io mimo-io--flat';
+        if (command) {
+            const line = document.createElement('div');
+            line.className = 'mimo-io-line mimo-io-line--in';
+            const k = document.createElement('span');
+            k.className = 'mimo-io-k';
+            k.textContent = 'in';
+            const v = document.createElement('span');
+            v.className = 'mimo-io-v';
+            v.textContent = command;
+            v.title = command;
+            line.appendChild(k);
+            line.appendChild(v);
+            io.appendChild(line);
+        }
+        if (command && out) {
+            const hr = document.createElement('div');
+            hr.className = 'mimo-io-hr';
+            io.appendChild(hr);
+        }
+        if (out) {
+            const line = document.createElement('div');
+            line.className = 'mimo-io-line mimo-io-line--out';
+            const k = document.createElement('span');
+            k.className = 'mimo-io-k';
+            k.textContent = 'out';
+            const v = document.createElement('pre');
+            v.className = 'mimo-io-v';
+            v.textContent = (kind === 'patch' || /```diff|^(diff |@@ |\+|-)/m.test(out))
+                ? out.replace(/^```diff\n?|```$/g, '')
+                : out;
+            line.appendChild(k);
+            line.appendChild(v);
+            io.appendChild(line);
+        }
+        body.appendChild(io);
+    } else if (String(seg.body || '').trim()) {
+        const pre = document.createElement('pre');
+        pre.className = 'mimo-io-v';
+        pre.textContent = String(seg.body).trim();
+        body.appendChild(pre);
+    }
+
+    details.appendChild(body);
+    return details;
 }
 
 function renderUserMarkdown(content, text) {
@@ -4930,7 +5211,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const panelBackdrop = document.getElementById('panel-backdrop');
     const refreshSessionsBtn = document.getElementById('refresh-sessions');
     const closeSessionsBtn = document.getElementById('close-sessions');
-    baseSessionTitle = sessionTitle?.textContent || 'OpenCode: Chat';
+    baseSessionTitle = sessionTitle?.textContent || 'MiMo Code';
     renderHeaderTitle();
     renderHeaderUsage();
 
@@ -5496,16 +5777,120 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setDefaultGreeting() {
+        // Single welcome surface — never nest a second "MiMo Code" mark under logo
         chatContainer.innerHTML = '';
-        const div = document.createElement('div');
-        div.className = 'message bot';
-        const session = getSessionState(activeSessionId);
-        const content = document.createElement('div');
-        content.className = 'message-content';
-        content.textContent = 'Hello! I am OpenCode. How can I help you today?';
-        div.appendChild(content);
-        chatContainer.appendChild(div);
+        const wrap = document.createElement('div');
+        wrap.id = 'chat-welcome';
+        wrap.className = 'chat-welcome';
+        chatContainer.appendChild(wrap);
+        if (typeof window.__mimoPaintWelcome === 'function') {
+            window.__mimoPaintWelcome(wrap);
+        } else {
+            wrap.innerHTML =
+                '<div class="mimo-welcome">' +
+                '<div class="mimo-welcome-sub">Where models and agents co-evolve</div>' +
+                '<div class="mimo-welcome-hint">Type a message, or press <kbd>/</kbd></div></div>';
+        }
     }
+
+    /** Center chooser: recent workspace sessions + History + New (no silent dump into last session). */
+    function showStartupChooser(sessionList) {
+        chatContainer.innerHTML = '';
+        const root = document.createElement('div');
+        root.className = 'mimo-startup';
+        root.id = 'mimo-startup';
+        const title = document.createElement('div');
+        title.className = 'mimo-startup-title';
+        title.textContent = 'Recent sessions';
+        root.appendChild(title);
+
+        // Compact logo above list (no second text mark)
+        const logoHost = document.createElement('div');
+        logoHost.id = 'chat-welcome';
+        logoHost.className = 'chat-welcome';
+        logoHost.style.minHeight = 'auto';
+        logoHost.style.padding = '8px 0 4px';
+        root.appendChild(logoHost);
+        if (typeof window.__mimoPaintWelcome === 'function') {
+            window.__mimoPaintWelcome(logoHost);
+        }
+
+        const list = document.createElement('div');
+        list.className = 'mimo-startup-list';
+        const items = Array.isArray(sessionList) ? sessionList.slice(0, 12) : [];
+        if (!items.length) {
+            const empty = document.createElement('div');
+            empty.className = 'mimo-startup-empty';
+            empty.textContent = 'No recent sessions in this folder';
+            list.appendChild(empty);
+        } else {
+            for (const s of items) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'mimo-startup-item';
+                const t = document.createElement('span');
+                t.className = 'mimo-startup-item-title';
+                t.textContent = s.title || s.id || 'Session';
+                const m = document.createElement('span');
+                m.className = 'mimo-startup-item-meta';
+                const when = s.updated || s.time?.updated || s.time?.created || s.id || '';
+                m.textContent = String(when).slice(0, 32);
+                btn.appendChild(t);
+                btn.appendChild(m);
+                btn.addEventListener('click', () => {
+                    showSessionLoadingBar('Loading session…');
+                    pendingExplicitSessionSelectionId = s.id || '';
+                    activeSessionId = s.id || '';
+                    vscode.postMessage({ type: 'selectSession', sessionId: s.id });
+                });
+                list.appendChild(btn);
+            }
+        }
+        root.appendChild(list);
+
+        const actions = document.createElement('div');
+        actions.className = 'mimo-startup-actions';
+        const hist = document.createElement('button');
+        hist.type = 'button';
+        hist.className = 'mimo-startup-btn';
+        hist.textContent = 'Show history';
+        hist.addEventListener('click', () => {
+            try { openSessionPanel(); } catch (_) {}
+        });
+        const neu = document.createElement('button');
+        neu.type = 'button';
+        neu.className = 'mimo-startup-btn mimo-startup-btn--primary';
+        neu.textContent = 'New session';
+        neu.addEventListener('click', () => {
+            try {
+                const btn = document.getElementById('new-session-btn');
+                if (btn) btn.click();
+                else vscode.postMessage({ type: 'newSession' });
+            } catch (_) {
+                vscode.postMessage({ type: 'newSession' });
+            }
+        });
+        actions.appendChild(hist);
+        actions.appendChild(neu);
+        root.appendChild(actions);
+        chatContainer.appendChild(root);
+    }
+
+    function showSessionLoadingBar(label) {
+        try {
+            let bar = document.getElementById('session-load-bar');
+            if (!bar) {
+                bar = document.createElement('div');
+                bar.id = 'session-load-bar';
+                bar.className = 'session-load-bar';
+                chatContainer.insertBefore(bar, chatContainer.firstChild);
+            }
+            bar.innerHTML = '<span class="mimo-spin" aria-hidden="true"></span><span>' +
+                (label || 'Loading session…') + '</span>';
+        } catch (_) {}
+    }
+    window.__mimoShowStartupChooser = showStartupChooser;
+    window.__mimoShowSessionLoadingBar = showSessionLoadingBar;
 
     function updateUndoStatusDisplay(sessionId) {
         if (!undoStatusEl) return;
@@ -8124,8 +8509,16 @@ function shouldHideDcpUiMessage(message) {
     window.__oc = window.__oc || {};
     window.__oc.scrollToBottom = scrollToBottom;
 
-    function renderSessionList() {
+    function renderSessionList(options = {}) {
+        const loading = options.loading === true;
         sessionList.innerHTML = '';
+        if (loading) {
+            const load = document.createElement('div');
+            load.className = 'session-loading';
+            load.innerHTML = '<span class="mimo-spinner"></span><span>Loading sessions…</span>';
+            sessionList.appendChild(load);
+            return;
+        }
         if (!sessions.length) {
             armedDeleteSessionId = '';
             const empty = document.createElement('div');
@@ -8161,11 +8554,28 @@ function shouldHideDcpUiMessage(message) {
             button.addEventListener('click', () => {
                 armedDeleteSessionId = '';
                 pendingExplicitSessionSelectionId = item.id;
+                // Loading indicator while history hydrates
+                try {
+                    const chat = document.getElementById('chat');
+                    if (chat) {
+                        let bar = document.getElementById('session-load-bar');
+                        if (!bar) {
+                            bar = document.createElement('div');
+                            bar.id = 'session-load-bar';
+                            bar.className = 'session-load-bar';
+                            bar.innerHTML = '<span class="mimo-spinner"></span><span>Loading session…</span>';
+                            chat.prepend(bar);
+                        } else {
+                            bar.classList.remove('hidden');
+                        }
+                    }
+                } catch (_) {}
                 vscode.postMessage({
                     type: 'ui-debug',
                     payload: ['[WV][SESSION_SELECTION_TARGET]', `sessionId=${item.id || 'null'}`]
                 });
                 vscode.postMessage({ type: 'selectSession', sessionId: item.id });
+                closeSessionPanel();
             });
 
             const actions = document.createElement('div');
@@ -8545,10 +8955,24 @@ function shouldHideDcpUiMessage(message) {
     }
 
     function openSessionPanel() {
+        // slash must not fight the sessions overlay
+        try { if (typeof mimoSlashHide === 'function') mimoSlashHide(); } catch (_) {}
         sessionPanel.classList.add('open');
         panelBackdrop.classList.add('open');
         sessionPanel.classList.remove('hidden');
         panelBackdrop.classList.remove('hidden');
+        void sessionPanel.offsetHeight;
+        // Show spinner immediately while names load
+        if (!sessions.length) {
+            renderSessionList({ loading: true });
+        } else {
+            // still mark header as refreshing for freshness
+            const hdr = sessionPanel.querySelector('.session-panel-header span');
+            if (hdr) {
+                hdr.dataset.prev = hdr.textContent || 'Sessions';
+                hdr.innerHTML = 'Sessions <span class="mimo-spinner mimo-spinner--inline"></span>';
+            }
+        }
         pendingRefreshRequestId = `refresh-${Date.now()}`;
         vscode.postMessage({ type: 'refreshSessions', requestId: pendingRefreshRequestId });
     }
@@ -9380,9 +9804,25 @@ function appendMessageImages(parentEl, message) {
                 payload: ['[WV][SEG_DISCARD_SKIP]', 'reason=sendMessage-does-not-lock', `mode=${mode}`, `sessionId=${activeSessionId || 'null'}`]
             });
         }
+        // Intercept client-side slash commands (goal, sessions, help, btw, …)
+        let outboundText = messageText;
+        if (typeof window.__mimoHandleClientSlash === 'function' && /^\/[a-zA-Z]/.test(String(messageText || '').trim())) {
+            const handled = window.__mimoHandleClientSlash(messageText);
+            if (handled === true) {
+                input.value = '';
+                const s = getSessionState(activeSessionId);
+                if (s) s.inputDraft = '';
+                closeFileMentionList();
+                try { mimoSlashHide(); } catch (_) {}
+                return;
+            }
+            if (handled && typeof handled === 'object' && handled.rewrite) {
+                outboundText = handled.rewrite;
+            }
+        }
         vscode.postMessage({
             type: 'sendMessage',
-            value: messageText,
+            value: outboundText,
             attachments: attachmentsPayload,
             contextItems: contextPayload,
             files: filesPayload,
@@ -9400,6 +9840,7 @@ function appendMessageImages(parentEl, message) {
         const sentSession = getSessionState(activeSessionId);
         if (sentSession) sentSession.inputDraft = '';
         closeFileMentionList();
+        try { mimoSlashHide(); } catch (_) {}
     });
 
     input.addEventListener('paste', handlePaste);
@@ -9414,13 +9855,521 @@ function appendMessageImages(parentEl, message) {
             }
             closeFileMentionList();
             updateSendGate();
+            mimoSlashOnInput();
             return;
         }
         if (session) {
             session.inputDraft = input.value;
         }
         scheduleFileMentionUpdate();
+        mimoSlashOnInput();
     });
+
+    // --- Slash command palette: fixed overlay above input (CLI-like slide-up) ---
+    const mimoSlashPalette = document.getElementById('slashPalette');
+    const mimoSlashList = document.getElementById('slashPaletteList');
+    const mimoInputContainer = document.querySelector('.input-container');
+    let mimoSlashCommands = Array.isArray(window.__mimoSlashCommands) ? window.__mimoSlashCommands.slice() : [
+        { name: 'help', description: 'Show help' },
+        { name: 'new', description: 'Start a new session' },
+        { name: 'clear', description: 'Clear the current chat view' },
+        { name: 'sessions', description: 'Open session history' },
+        { name: 'model', description: 'Switch model' },
+        { name: 'agent', description: 'Switch agent / mode' },
+        { name: 'undo', description: 'Undo last file changes' },
+        { name: 'compact', description: 'Compact context' },
+        { name: 'export', description: 'Export session' },
+        { name: 'stop', description: 'Stop current turn' },
+        { name: 'plan', description: 'Enter plan mode' },
+        { name: 'build', description: 'Enter build mode' },
+        { name: 'cost', description: 'Show token / cost usage' },
+        { name: 'deep-research', description: 'Skill: deep-research' },
+        { name: 'super-research', description: 'Skill: super-research' },
+        { name: 'mimocode', description: 'Skill: mimocode' },
+    ];
+    let mimoSlashActive = 0;
+    function mimoSlashPosition() {
+        if (!mimoSlashPalette) return;
+        // Anchor just above the input container so layout never shifts
+        const anchor = mimoInputContainer || input;
+        if (!anchor) {
+            mimoSlashPalette.style.bottom = '96px';
+            return;
+        }
+        const rect = anchor.getBoundingClientRect();
+        const gap = 8;
+        const bottom = Math.max(8, window.innerHeight - rect.top + gap);
+        mimoSlashPalette.style.left = Math.max(8, rect.left) + 'px';
+        mimoSlashPalette.style.right = Math.max(8, window.innerWidth - rect.right) + 'px';
+        mimoSlashPalette.style.bottom = bottom + 'px';
+        mimoSlashPalette.style.top = 'auto';
+        mimoSlashPalette.style.width = 'auto';
+    }
+    function mimoSlashHide() {
+        if (!mimoSlashPalette) return;
+        mimoSlashPalette.classList.remove('is-open');
+        // keep display:flex during transition then hide
+        window.clearTimeout(mimoSlashPalette.__hideT);
+        mimoSlashPalette.__hideT = window.setTimeout(() => {
+            if (!mimoSlashPalette.classList.contains('is-open')) {
+                mimoSlashPalette.style.display = 'none';
+            }
+        }, 160);
+        mimoSlashActive = 0;
+    }
+    function mimoSlashRender(filter) {
+        if (!mimoSlashPalette || !mimoSlashList) return;
+        const q = (filter || '').toLowerCase();
+        const items = mimoSlashCommands.filter((c) => !q || String(c.name || '').toLowerCase().indexOf(q) >= 0);
+        mimoSlashList.innerHTML = '';
+        if (!items.length) { mimoSlashHide(); return; }
+        if (mimoSlashActive >= items.length) mimoSlashActive = items.length - 1;
+        if (mimoSlashActive < 0) mimoSlashActive = 0;
+        items.forEach((c, i) => {
+            const row = document.createElement('div');
+            row.className = 'slash-item' + (i === mimoSlashActive ? ' active' : '');
+            row.innerHTML = '<span class="slash-name">/' + String(c.name) + '</span><span class="slash-desc">' + String(c.description || '') + '</span>';
+            row.onmousedown = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                input.value = '/' + c.name + ' ';
+                input.focus();
+                try { input.setSelectionRange(input.value.length, input.value.length); } catch (_) {}
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                mimoSlashHide();
+            };
+            mimoSlashList.appendChild(row);
+        });
+        mimoSlashPosition();
+        mimoSlashPalette.style.display = 'flex';
+        // next frame so CSS transition from closed → open plays
+        requestAnimationFrame(() => {
+            mimoSlashPalette.classList.add('is-open');
+            // scroll active into view
+            const active = mimoSlashList.children[mimoSlashActive];
+            if (active && active.scrollIntoView) {
+                try { active.scrollIntoView({ block: 'nearest' }); } catch (_) {}
+            }
+        });
+        mimoSlashPalette.__items = items;
+    }
+    function mimoSlashOnInput() {
+        if (!input) return;
+        const val = input.value || '';
+        const m = val.match(/^\/([a-zA-Z0-9_-]*)$/);
+        if (m) mimoSlashRender(m[1] || '');
+        else mimoSlashHide();
+    }
+    window.addEventListener('resize', () => {
+        if (mimoSlashPalette && mimoSlashPalette.classList.contains('is-open')) mimoSlashPosition();
+    });
+    function mimoSlashSetCommands(list) {
+        if (!Array.isArray(list) || !list.length) return;
+        mimoSlashCommands = list.map((c) => ({
+            name: String(c.name || c.id || '').replace(/^\//, ''),
+            description: String(c.description || c.desc || ''),
+        })).filter((c) => c.name);
+        window.__mimoSlashCommands = mimoSlashCommands;
+        mimoSlashOnInput();
+    }
+    window.__mimoSlashSetCommands = mimoSlashSetCommands;
+    // Capture-phase keys so we win over file-mention / mode-tab handlers when palette is open
+    document.addEventListener('keydown', (e) => {
+        if (!mimoSlashPalette || !mimoSlashPalette.classList.contains('is-open')) return;
+        const items = mimoSlashPalette.__items || [];
+        if (!items.length) return;
+        if (e.key === 'ArrowDown') {
+            e.preventDefault(); e.stopPropagation();
+            mimoSlashActive = Math.min(items.length - 1, mimoSlashActive + 1);
+            mimoSlashRender((input.value || '').replace(/^\//, ''));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault(); e.stopPropagation();
+            mimoSlashActive = Math.max(0, mimoSlashActive - 1);
+            mimoSlashRender((input.value || '').replace(/^\//, ''));
+        } else if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault(); e.stopPropagation();
+            const pick = items[mimoSlashActive];
+            if (pick) {
+                input.value = '/' + pick.name + ' ';
+                input.focus();
+                try { input.setSelectionRange(input.value.length, input.value.length); } catch (_) {}
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                mimoSlashHide();
+            }
+        } else if (e.key === 'Escape') {
+            mimoSlashHide();
+        }
+    }, true);
+    // Ask extension for commands (and again later if server was still starting)
+    try { vscode.postMessage({ type: 'fetchSlashCommands' }); } catch (_) {}
+    setTimeout(() => { try { vscode.postMessage({ type: 'fetchSlashCommands' }); } catch (_) {} }, 1200);
+    setTimeout(() => { try { vscode.postMessage({ type: 'fetchSlashCommands' }); } catch (_) {} }, 3500);
+
+    // ---- CLI welcome (logoThin) + 1:1 CLI sfx (charge.wav + pulse-a/b/c.wav) ----
+    // sound.ts: start() plays charge @0.24; pulse(scale) cycles pulse files @0.26+0.14*scale
+    (function initMimoWelcome() {
+        const LOGO_LEFT = [
+            '                  ',
+            '                  ',
+            '█▀▄▀█ █ █▀▄▀█ █▀▀█',
+            '█ ▀ █ █ █ ▀ █ █  █',
+            '▀   ▀ ▀ ▀   ▀ ▀▀▀▀',
+        ];
+        const LOGO_RIGHT = [
+            '              Xiaomi',
+            '                    ',
+            '  █▀▀ █▀▀█ █▀▀▄ █▀▀▀',
+            '  █   █  █ █  █ █▀▀ ',
+            '  ▀▀▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀',
+        ];
+        function logoAscii() {
+            let ascii = '';
+            for (let i = 0; i < LOGO_LEFT.length; i++) {
+                ascii += LOGO_LEFT[i] + '  ' + (LOGO_RIGHT[i] || '') + '\n';
+            }
+            return ascii;
+        }
+
+        // CLI volumes from sound.ts
+        const CHARGE_VOL = 0.24;
+        const PULSE_BASE = 0.26;
+        const PULSE_SCALE = 0.14;
+        let pulseShot = 0;
+        let chargeAudio = null;
+        let chargeToken = 0;
+        const sfx = (window.__mimoSfx && typeof window.__mimoSfx === 'object') ? window.__mimoSfx : {};
+        const pulseUrls = [sfx.pulseA, sfx.pulseB, sfx.pulseC].filter(Boolean);
+
+        function playUrl(url, volume) {
+            if (!url) return null;
+            try {
+                const a = new Audio(url);
+                a.volume = Math.max(0, Math.min(1, volume));
+                const p = a.play();
+                if (p && typeof p.catch === 'function') p.catch(() => {});
+                return a;
+            } catch (_) {
+                return null;
+            }
+        }
+        function soundStart() {
+            // stop any previous charge
+            chargeToken++;
+            const my = chargeToken;
+            try { if (chargeAudio) { chargeAudio.pause(); chargeAudio = null; } } catch (_) {}
+            if (sfx.charge) {
+                chargeAudio = playUrl(sfx.charge, CHARGE_VOL);
+                if (chargeAudio) {
+                    chargeAudio.addEventListener('ended', () => {
+                        if (my === chargeToken) chargeAudio = null;
+                    });
+                }
+            }
+        }
+        function soundStop(delayMs) {
+            const my = ++chargeToken;
+            const run = () => {
+                if (my !== chargeToken) return;
+                try {
+                    if (chargeAudio) {
+                        chargeAudio.pause();
+                        chargeAudio.currentTime = 0;
+                        chargeAudio = null;
+                    }
+                } catch (_) {}
+            };
+            if (delayMs > 0) setTimeout(run, delayMs);
+            else run();
+        }
+        function soundPulse(scale) {
+            // CLI: stop(140) then play next pulse wav
+            soundStop(140);
+            const s = typeof scale === 'number' ? scale : 1;
+            const vol = PULSE_BASE + PULSE_SCALE * s;
+            if (pulseUrls.length) {
+                const url = pulseUrls[pulseShot++ % pulseUrls.length];
+                setTimeout(() => playUrl(url, vol), 30);
+            }
+        }
+        window.__mimoLogoSound = { start: soundStart, stop: soundStop, pulse: soundPulse };
+
+        function paintWelcome(host) {
+            if (!host) return;
+            host.innerHTML =
+                '<div class="mimo-welcome">' +
+                '<div class="mimo-welcome-logo" id="mimo-welcome-logo" role="button" tabindex="0" title="Hold / click — MiMo Code logo">' +
+                '<pre class="mimo-welcome-pre">' + logoAscii().replace(/</g, '&lt;') + '</pre></div>' +
+                '<div class="mimo-welcome-sub">Where models and agents co-evolve</div>' +
+                '<div class="mimo-welcome-hint">Type a message, or press <kbd>/</kbd> · hold logo for charge</div>' +
+                '</div>';
+            wireLogo(host.querySelector('#mimo-welcome-logo'));
+        }
+        function wireLogo(logo) {
+            if (!logo || logo.dataset.wired === '1') return;
+            logo.dataset.wired = '1';
+            let holdTimer = null;
+            let holding = false;
+            const CHARGE_MS = 3000; // logo.tsx CHARGE
+            const begin = (e) => {
+                if (e && e.type === 'keydown' && e.key !== ' ' && e.key !== 'Enter') return;
+                if (e && e.type === 'keydown') e.preventDefault();
+                holding = true;
+                logo.classList.add('is-pulse');
+                soundStart();
+                if (holdTimer) clearTimeout(holdTimer);
+                holdTimer = setTimeout(() => {
+                    // full charge complete — keep humming until release
+                }, CHARGE_MS);
+            };
+            const end = () => {
+                if (!holding) return;
+                holding = false;
+                if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+                logo.classList.remove('is-pulse');
+                // CLI: release → pulse(lerp(0.8,1,level)); use mid scale
+                soundPulse(0.9);
+            };
+            logo.addEventListener('mousedown', begin);
+            logo.addEventListener('mouseup', end);
+            logo.addEventListener('mouseleave', end);
+            logo.addEventListener('touchstart', begin, { passive: true });
+            logo.addEventListener('touchend', end);
+            logo.addEventListener('keydown', begin);
+            logo.addEventListener('keyup', end);
+            // short click also fires pulse (web convenience)
+            logo.addEventListener('click', (e) => {
+                if (!holding) {
+                    logo.classList.remove('is-pulse');
+                    void logo.offsetWidth;
+                    logo.classList.add('is-pulse');
+                    soundStart();
+                    setTimeout(() => soundPulse(0.85), 180);
+                }
+            });
+        }
+        window.__mimoPaintWelcome = paintWelcome;
+        const host = document.getElementById('chat-welcome');
+        if (host) paintWelcome(host);
+    })();
+
+    // ---- Goal bar (above input) ----
+    (function initMimoGoalBar() {
+        const bar = document.getElementById('mimo-goal-bar');
+        const textEl = document.getElementById('mimo-goal-text');
+        const timeEl = document.getElementById('mimo-goal-time');
+        const bodyEl = document.getElementById('mimo-goal-body');
+        const toggleBtn = document.getElementById('mimo-goal-toggle');
+        const clearBtn = document.getElementById('mimo-goal-clear');
+        const head = document.getElementById('mimo-goal-head');
+        if (!bar || !textEl) return;
+
+        let goal = null; // { text, startedAt, paused, pausedAt, accumulatedMs }
+        let tickTimer = null;
+
+        function fmtDur(ms) {
+            const s = Math.max(0, Math.floor(ms / 1000));
+            const m = Math.floor(s / 60);
+            const h = Math.floor(m / 60);
+            if (h > 0) return h + 'h ' + (m % 60) + 'm';
+            if (m > 0) return m + 'm ' + (s % 60) + 's';
+            return s + 's';
+        }
+        function activeMs() {
+            if (!goal) return 0;
+            let ms = goal.accumulatedMs || 0;
+            if (!goal.paused && goal.startedAt) ms += Date.now() - goal.startedAt;
+            return ms;
+        }
+        function render() {
+            if (!goal || !goal.text) {
+                bar.classList.remove('is-visible', 'is-expanded', 'is-paused');
+                textEl.textContent = 'No active goal';
+                if (timeEl) timeEl.textContent = '';
+                if (bodyEl) bodyEl.textContent = '';
+                if (toggleBtn) toggleBtn.textContent = 'pause';
+                return;
+            }
+            bar.classList.add('is-visible');
+            bar.classList.toggle('is-paused', Boolean(goal.paused));
+            textEl.textContent = goal.text;
+            if (bodyEl) bodyEl.textContent = goal.text;
+            if (timeEl) timeEl.textContent = fmtDur(activeMs());
+            if (toggleBtn) toggleBtn.textContent = goal.paused ? 'resume' : 'pause';
+        }
+        function startTick() {
+            if (tickTimer) clearInterval(tickTimer);
+            tickTimer = setInterval(() => {
+                if (goal && !goal.paused && timeEl) timeEl.textContent = fmtDur(activeMs());
+            }, 1000);
+        }
+        function setGoal(text) {
+            const t = String(text || '').trim();
+            if (!t || /^clear$/i.test(t)) {
+                goal = null;
+                try { localStorage.removeItem('mimo.goal'); } catch (_) {}
+                render();
+                return;
+            }
+            goal = {
+                text: t,
+                startedAt: Date.now(),
+                paused: false,
+                pausedAt: 0,
+                accumulatedMs: 0,
+            };
+            try { localStorage.setItem('mimo.goal', JSON.stringify(goal)); } catch (_) {}
+            render();
+            startTick();
+        }
+        function togglePause(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            if (!goal) return;
+            if (goal.paused) {
+                goal.paused = false;
+                goal.startedAt = Date.now();
+            } else {
+                goal.accumulatedMs = activeMs();
+                goal.paused = true;
+                goal.pausedAt = Date.now();
+                goal.startedAt = 0;
+            }
+            try { localStorage.setItem('mimo.goal', JSON.stringify(goal)); } catch (_) {}
+            render();
+        }
+        function clearGoal(e) {
+            if (e) { e.preventDefault(); e.stopPropagation(); }
+            setGoal('');
+        }
+        if (head) {
+            head.addEventListener('click', (e) => {
+                if (e.target && e.target.closest && e.target.closest('.mimo-goal-btn')) return;
+                bar.classList.toggle('is-expanded');
+            });
+        }
+        if (toggleBtn) toggleBtn.addEventListener('click', togglePause);
+        if (clearBtn) clearBtn.addEventListener('click', clearGoal);
+
+        try {
+            const raw = localStorage.getItem('mimo.goal');
+            if (raw) {
+                goal = JSON.parse(raw);
+                if (goal && goal.text) {
+                    // normalize timestamps after reload
+                    if (!goal.paused) {
+                        goal.accumulatedMs = goal.accumulatedMs || 0;
+                        goal.startedAt = Date.now();
+                    }
+                    render();
+                    startTick();
+                }
+            }
+        } catch (_) {}
+
+        window.__mimoSetGoal = setGoal;
+        window.__mimoGetGoal = () => goal;
+    })();
+
+    // Client-side slash command handlers (CLI parity for UI commands)
+    window.__mimoHandleClientSlash = function (raw) {
+        const text = String(raw || '').trim();
+        const m = text.match(/^\/([a-zA-Z0-9_-]+)(?:\s+([\s\S]*))?$/);
+        if (!m) return false;
+        const name = m[1].toLowerCase();
+        const args = (m[2] || '').trim();
+        if (name === 'goal') {
+            if (typeof window.__mimoSetGoal === 'function') window.__mimoSetGoal(args || '');
+            return true;
+        }
+        if (name === 'clear') {
+            // Clear local view only
+            try {
+                const chat = document.getElementById('chat');
+                if (chat) {
+                    chat.innerHTML = '';
+                    const w = document.createElement('div');
+                    w.id = 'chat-welcome';
+                    w.className = 'chat-welcome';
+                    chat.appendChild(w);
+                    // re-init welcome by reloading page fragment — simplest: post reset
+                }
+            } catch (_) {}
+            vscode.postMessage({ type: 'ui-debug', payload: ['[WV][SLASH]', 'clear'] });
+            // soft local clear of active session render
+            try {
+                if (activeSessionId) {
+                    const sess = getSessionState(activeSessionId, true);
+                    if (sess) {
+                        sess.timeline = [];
+                        sess.messagesById = new Map();
+                    }
+                    window.__oc?.renderFromState?.('slash-clear');
+                }
+            } catch (_) {}
+            return true;
+        }
+        if (name === 'sessions') {
+            try { openSessionPanel(); } catch (_) {}
+            return true;
+        }
+        if (name === 'new') {
+            try {
+                const btn = document.getElementById('new-session-btn');
+                if (btn) btn.click();
+                else vscode.postMessage({ type: 'newSession' });
+            } catch (_) {
+                vscode.postMessage({ type: 'newSession' });
+            }
+            return true;
+        }
+        if (name === 'help') {
+            const help = [
+                'MiMo Code slash commands (subset of CLI):',
+                '/goal <text> · /goal clear',
+                '/dream · /distill · /rebuild · /review · /init',
+                '/btw <side question>',
+                '/loop · /loops · /voice · /connect',
+                '/sessions · /new · /clear · /model · /agent',
+                '/stop · /undo · /compact · /export · /cost',
+                '/<skill-name>  (e.g. deep-research, super-research)',
+            ].join('\n');
+            try {
+                const chat = document.getElementById('chat');
+                if (chat) {
+                    const div = document.createElement('div');
+                    div.className = 'message bot';
+                    const content = document.createElement('div');
+                    content.className = 'message-content';
+                    content.style.whiteSpace = 'pre-wrap';
+                    content.style.fontFamily = 'Cascadia Mono, Consolas, monospace';
+                    content.style.fontSize = '0.85em';
+                    content.style.color = '#9a9a9a';
+                    content.textContent = help;
+                    div.appendChild(content);
+                    chat.appendChild(div);
+                    chat.scrollTop = chat.scrollHeight;
+                }
+            } catch (_) {}
+            return true;
+        }
+        if (name === 'btw') {
+            // Side-question: send with a prefix so model treats as side channel
+            if (!args) return true;
+            // fall through by rewriting value and returning false after mutate? 
+            // We'll set input and let normal send happen from caller with rewritten text
+            return { rewrite: '[btw / side question — answer briefly without changing the main plan]\n' + args };
+        }
+        // UI-only stubs that open overlays / status
+        if (name === 'cost' || name === 'status' || name === 'details') {
+            try {
+                const usage = document.getElementById('header-usage');
+                if (usage) usage.click();
+            } catch (_) {}
+            return true;
+        }
+        // Everything else (dream, distill, init, review, rebuild, skills, …) → send to agent
+        return false;
+    };
+
     input.addEventListener('click', () => {
         if (appendInputMode) {
             closeFileMentionList();
@@ -9573,7 +10522,7 @@ function appendMessageImages(parentEl, message) {
     newSessionBtn.addEventListener('click', () => {
         exitAppendInputMode({ restoreDraft: false });
         activeSessionId = '';
-        baseSessionTitle = 'OpenCode: Chat';
+        baseSessionTitle = 'MiMo Code';
         renderHeaderTitle();
         renderHeaderUsage();
         refreshSendButtonState();
@@ -10271,7 +11220,14 @@ window.addEventListener('message', (event) => {
                 }
                 
                 if (!hydrated) {
-                    activeSessionId = incomingSessionId || activeSessionId || '';
+                    // Only adopt session id if host sent one; empty = startup chooser
+                    if (incomingSessionId) {
+                        activeSessionId = incomingSessionId;
+                    } else if (message.showStartupChooser) {
+                        activeSessionId = '';
+                    } else {
+                        activeSessionId = activeSessionId || '';
+                    }
                 }
                 modeSelect.value = selectedMode;
                 applyModeStyles(selectedMode);
@@ -10281,11 +11237,61 @@ window.addEventListener('message', (event) => {
                 updateSendQuotaVisual();
                 renderSessionList();
                 if (!hydrated) {
-                    window.__oc?.renderFromState?.();
+                    if (message.showStartupChooser || !activeSessionId) {
+                        if (typeof window.__mimoShowStartupChooser === 'function') {
+                            window.__mimoShowStartupChooser(sessions);
+                        } else {
+                            setDefaultGreeting();
+                        }
+                    } else {
+                        showSessionLoadingBar('Loading session…');
+                        window.__oc?.renderFromState?.();
+                    }
                 }
                 updateSendGate();
+                if (Array.isArray(message.slashCommands) && typeof window.__mimoSlashSetCommands === 'function') {
+                    window.__mimoSlashSetCommands(message.slashCommands);
+                }
                 logSegmentState(activeSessionId, 'after-init');
                 vscode.postMessage({ type: 'ui-debug', payload: ['webview', 'ready', Date.now()] });
+                break;
+            }
+            case 'slashCommands': {
+                const cmds = Array.isArray(message.commands) ? message.commands
+                    : (Array.isArray(message.slashCommands) ? message.slashCommands : []);
+                if (typeof window.__mimoSlashSetCommands === 'function') {
+                    window.__mimoSlashSetCommands(cmds);
+                }
+                break;
+            }
+            case 'showStartupChooser': {
+                sessions = Array.isArray(message.sessions) ? message.sessions : sessions;
+                if (typeof window.__mimoShowStartupChooser === 'function') {
+                    window.__mimoShowStartupChooser(sessions);
+                } else {
+                    setDefaultGreeting();
+                }
+                break;
+            }
+            case 'sessionBusy': {
+                const sid = typeof message.sessionId === 'string' ? message.sessionId : '';
+                if (sid && activeSessionId && sid !== activeSessionId) break;
+                const pending = document.getElementById('pending-indicator');
+                if (pending) {
+                    if (message.busy) {
+                        pending.classList.remove('hidden');
+                        pending.textContent = message.status && message.status !== 'busy'
+                            ? String(message.status)
+                            : 'live';
+                        pending.title = 'Session is active (streaming from CLI / server)';
+                    } else {
+                        // leave hide to turnInFlight false unless still marked live
+                        if (pending.textContent === 'live' || pending.textContent === message.status) {
+                            pending.classList.add('hidden');
+                            pending.textContent = '';
+                        }
+                    }
+                }
                 break;
             }
             case 'serverStatus': {
@@ -10432,6 +11438,11 @@ window.addEventListener('message', (event) => {
                 });
 
                 renderSessionList();
+                // Restore header text after spinner
+                try {
+                    const hdr = sessionPanel?.querySelector?.('.session-panel-header span');
+                    if (hdr) hdr.textContent = 'Sessions';
+                } catch (_) {}
                 break;
             }
             case 'sessionDeleteStarted': {
@@ -10544,6 +11555,13 @@ window.addEventListener('message', (event) => {
                 break;
             }
             case 'sessionData': {
+                // Hide session load indicator once history arrives
+                try {
+                    const bar = document.getElementById('session-load-bar');
+                    if (bar) bar.remove();
+                    const welcome = document.getElementById('chat-welcome');
+                    if (welcome) welcome.remove();
+                } catch (_) {}
                 const route = resolveEventSessionId(message, 'sessionData');
                 const sessionId = route?.sessionId || null;
                 if (!sessionId) {
@@ -10576,7 +11594,7 @@ window.addEventListener('message', (event) => {
                             pendingExplicitSessionSelectionId = '';
                         }
                         clearAppendInputForSessionChange(sessionId);
-                        baseSessionTitle = message.title || 'OpenCode: Chat';
+                        baseSessionTitle = message.title || 'MiMo Code';
                         renderHeaderTitle();
                         renderHeaderUsage();
                         updateUndoStatusDisplay(sessionId);
@@ -12783,7 +13801,7 @@ window.addEventListener('message', (event) => {
                 clearAppendInputForSessionChange(activeSessionId);
                 clearQuestionOverlay('new-session');
                 clearPermissionOverlay('new-session');
-                baseSessionTitle = 'OpenCode: Chat';
+                baseSessionTitle = 'MiMo Code';
                 renderHeaderTitle();
                 renderHeaderUsage();
                 isSwitchingSession = true;
