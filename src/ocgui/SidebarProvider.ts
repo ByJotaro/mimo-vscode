@@ -8962,37 +8962,83 @@ ${attachmentLines.join('\n')}`
         }
         if (type === 'tool' || type === 'tool_use') {
             const toolName = String(part.tool || part.name || 'tool');
-            const cmd = part.cmd || part.state?.input?.command || part.input?.command || '';
-            const path = part.path || part.state?.input?.path || part.input?.path
-                || part.state?.input?.filePath || part.input?.filePath
-                || part.state?.input?.file || part.input?.file || '';
-            const contentIn = part.state?.input?.content || part.input?.content
-                || part.state?.input?.text || part.input?.text || '';
+            const input = (part.state && typeof part.state.input === 'object' && part.state.input)
+                ? part.state.input
+                : (part.input && typeof part.input === 'object' ? part.input : {});
+            const pick = (...keys: string[]): string => {
+                for (const k of keys) {
+                    const v = (input as any)?.[k] ?? (part as any)?.[k];
+                    if (typeof v === 'string' && v.trim()) return v;
+                }
+                return '';
+            };
+            const cmd = pick('command', 'cmd');
+            // MiMo edit uses file_path; write uses path/filePath; patch may use files[]
+            const path = pick(
+                'file_path', 'filePath', 'path', 'file', 'filename', 'target', 'uri'
+            );
+            const contentIn = pick('content', 'text', 'new_string', 'newString', 'contents');
+            const oldStr = pick('old_string', 'oldString', 'old_str', 'before');
+            const newStr = pick('new_string', 'newString', 'new_str', 'after');
             const status = part.state?.status || part.status || '';
-            const result = part.result || part.state?.output || part.output;
-            // write/edit: show path as title meta + content/diff in OUT
-            const isWrite = /^(write|edit|apply_patch|str_replace|create_file|notebook)/i.test(toolName);
+            const result = part.result || part.state?.output || part.output
+                || part.state?.metadata?.output || '';
+            const isWrite = /^(write|edit|apply_patch|str_replace|create_file|notebook|multiedit)/i.test(toolName);
+            const isEdit = /^(edit|str_replace|multiedit)/i.test(toolName);
             let body = '';
             if (cmd) body += `IN:\n${cmd}\n`;
             else if (path) body += `IN:\n${path}\n`;
-            if (isWrite && typeof contentIn === 'string' && contentIn.trim()) {
-                // Show written content (truncate huge blobs in display only)
-                const shown = contentIn.length > 12000
+            // Build OUT: prefer mini-diff for edit tools, else content/result
+            let outText = '';
+            if (isEdit && (oldStr || newStr)) {
+                // Lightweight unified-ish diff for visual (green/red via main.js)
+                const oldLines = oldStr ? oldStr.split('\n') : [];
+                const newLines = newStr ? newStr.split('\n') : [];
+                const maxShow = 80;
+                const lines: string[] = [];
+                lines.push(`--- a/${path || 'file'}`);
+                lines.push(`+++ b/${path || 'file'}`);
+                for (let i = 0; i < Math.min(oldLines.length, maxShow); i++) {
+                    lines.push('-' + oldLines[i]);
+                }
+                if (oldLines.length > maxShow) lines.push(`-… (${oldLines.length - maxShow} more lines)`);
+                for (let i = 0; i < Math.min(newLines.length, maxShow); i++) {
+                    lines.push('+' + newLines[i]);
+                }
+                if (newLines.length > maxShow) lines.push(`+… (${newLines.length - maxShow} more lines)`);
+                outText = lines.join('\n');
+            } else if (isWrite && contentIn) {
+                outText = contentIn.length > 12000
                     ? contentIn.slice(0, 12000) + `\n… (${contentIn.length} chars total)`
                     : contentIn;
-                body += `OUT:\n${shown}`;
             } else if (typeof result === 'string' && result.trim()) {
-                body += `OUT:\n${result}`;
+                outText = result;
             } else if (typeof part.text === 'string' && part.text.trim() && !cmd && !path) {
-                body += `OUT:\n${part.text}`;
-            } else if (!body) {
-                body = status ? `OUT:\n${status}` : (path ? `OUT:\n${path}` : '');
+                outText = part.text;
+            }
+            if (outText) {
+                body += `OUT:\n${outText}`;
+            } else {
+                // Never leave edit/write with only IN and empty body — always show status/path
+                const fallback = status && status !== 'completed'
+                    ? status
+                    : (isWrite || isEdit ? 'ok' : (status || toolName));
+                if (!body) {
+                    body = path
+                        ? `IN:\n${path}\nOUT:\n${fallback}`
+                        : `OUT:\n${fallback}`;
+                } else if (!/^OUT:/m.test(body)) {
+                    body += `OUT:\n${fallback}`;
+                }
             }
             const open = status === 'running' || status === 'pending';
-            const meta = (path && isWrite)
+            const baseName = path
                 ? String(path).replace(/\\/g, '/').split('/').pop() || String(path)
-                : (status && status !== 'completed' ? String(status) : '');
-            return this.wrapMimoPart('tool', toolName, meta, body, open, duration);
+                : '';
+            const meta = baseName || (status && status !== 'completed' ? String(status) : '');
+            // Use 'edit' title for edit tools so UI labels OUT as diff
+            const title = isEdit ? 'edit' : (isWrite && toolName === 'write' ? 'write' : toolName);
+            return this.wrapMimoPart(isEdit ? 'patch' : 'tool', title, meta, body, open, duration);
         }
         if (type === 'tool_result') {
             const body = typeof part.text === 'string' ? part.text : '';

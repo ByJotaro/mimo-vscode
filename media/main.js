@@ -4422,20 +4422,23 @@ function parseInOutBody(bodyText) {
     const src = String(bodyText || '').trim();
     let inn = '';
     let out = '';
-    if (/^IN:\s*/m.test(src) || /^OUT:\s*/m.test(src)) {
+    // Only treat as structured IO when the body *starts* with IN:/OUT: (host markers).
+    // Do NOT match mid-body (grep results often contain the strings "IN:" / "OUT:").
+    if (/^IN:\s*/.test(src) || /^OUT:\s*/.test(src)) {
         const inMatch = src.match(/^IN:\s*\n?([\s\S]*?)(?=^OUT:\s*|$)/m);
-        const outMatch = src.match(/^OUT:\s*\n?([\s\S]*)$/m);
-        if (inMatch) inn = inMatch[1].trim();
-        if (outMatch) out = outMatch[1].trim();
-        // If only OUT without proper match (OUT after IN consumed)
-        if (!out && /OUT:\s*/.test(src)) {
-            const i = src.indexOf('OUT:');
-            out = src.slice(i + 4).replace(/^\s*\n?/, '').trim();
-            if (inn && inn.includes('OUT:')) {
-                const j = inn.indexOf('OUT:');
-                out = inn.slice(j + 4).trim() || out;
-                inn = inn.slice(0, j).trim();
+        if (inMatch) {
+            inn = inMatch[1].trim();
+            // If IN block still contains an OUT: line, split it
+            const outInInn = inn.match(/^([\s\S]*?)^OUT:\s*\n?([\s\S]*)$/m);
+            if (outInInn) {
+                inn = outInInn[1].trim();
+                out = outInInn[2].trim();
             }
+        }
+        if (!out) {
+            const outMatch = src.match(/^OUT:\s*\n?([\s\S]*)$/m)
+                || src.match(/\nOUT:\s*\n?([\s\S]*)$/);
+            if (outMatch) out = outMatch[1].trim();
         }
         return { inn, out };
     }
@@ -4624,10 +4627,13 @@ function buildMimoPartCard(seg) {
             line.className = 'mimo-io-line mimo-io-line--out';
             const k = document.createElement('span');
             k.className = 'mimo-io-k';
-            k.textContent = (kind === 'patch' || /write|edit/i.test(seg.title || '')) ? 'diff' : 'out';
+            const looksDiff = kind === 'patch'
+                || /^(write|edit)$/i.test(seg.title || '')
+                || /```diff|^(diff |@@ |\+|-|--- |\+\+\+ )/m.test(out);
+            k.textContent = looksDiff ? 'diff' : 'out';
             const v = document.createElement('pre');
             v.className = 'mimo-io-v';
-            if (kind === 'patch' || /```diff|^(diff |@@ |\+|-)/m.test(out)) {
+            if (looksDiff && /^(diff |@@ |\+|-|--- |\+\+\+ )/m.test(out)) {
                 fillDiffPre(v, out);
             } else {
                 v.textContent = out;
@@ -4776,9 +4782,11 @@ function enhanceCodeBlocksWithCopyButtons(root) {
 
 function escapeSystemReminderTags(text) {
     if (!text || typeof text !== 'string') return text;
+    // Prefer full strip — do not show reminder tags in chat at all
     return text
-        .replace(/<system-reminder\b[^>]*>/gi, '&lt;system-reminder&gt;')
-        .replace(/<\/system-reminder>/gi, '&lt;/system-reminder&gt;')
+        .replace(/<system-reminder\b[^>]*>[\s\S]*?<\/system-reminder>/gi, '')
+        .replace(/<system-reminder\b[^>]*>[\s\S]*$/gi, '')
+        .replace(/<\/?system-reminder\b[^>]*>/gi, '')
         .replace(/\r\n/g, '\n');
 }
 
@@ -7602,7 +7610,15 @@ function renderMessageElement(message, renderedSet) {
 
 function stripSystemInjections(text) {
         if (!text) return text;
-        let s = text;
+        let s = String(text);
+
+        // Remove system-reminder blocks entirely (including unclosed / nested content)
+        s = s.replace(/<system-reminder\b[^>]*>[\s\S]*?<\/system-reminder>/gi, '');
+        s = s.replace(/<system-reminder\b[^>]*>[\s\S]*$/gi, '');
+        s = s.replace(/<\/?system-reminder\b[^>]*>/gi, '');
+        // Escaped variants that may reappear after sanitize
+        s = s.replace(/&lt;system-reminder\b[^&]*&gt;[\s\S]*?&lt;\/system-reminder&gt;/gi, '');
+        s = s.replace(/&lt;\/?system-reminder\b[^&]*&gt;/gi, '');
 
         // Remove injected mode blocks (including trailing blank lines).
         const modeBlockRe = /^\[(analyze-mode|search-mode)\][\s\S]*?^\s*---\s*(?:\r?\n(?:\s*\r?\n)*)?/im;
