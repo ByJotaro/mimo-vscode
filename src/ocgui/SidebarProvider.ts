@@ -6222,48 +6222,46 @@ ${attachmentLines.join('\n')}`
     private async sendInit(webview: vscode.Webview): Promise<void> {
         this.uiDebugChannel.appendLine(`[EXT][SENDINIT_START] initPosted=${this.initPosted}`);
         rtLog(`SENDINIT_START clientReady=${!!this.client}`);
-        let models: ModelInfo[] = [];
-        let agents: AgentInfo[] = [];
-        let sessions: SessionInfo[] = [];
-        try {
-            models = await this.client.listModels();
-            if (models.length) {
-                this.lastKnownModels = models;
-            }
-            rtLog(`SENDINIT models=${models.length}`);
-        } catch (error) {
-            rtLog(`SENDINIT models FAIL: ${String(error)}`);
-            this.postAddResponse(webview, `Failed to load models: ${error}`);
-        }
 
-        try {
-            agents = await this.client.listAgents();
-            rtLog(`SENDINIT agents=${agents.length}`);
-        } catch (error) {
-            rtLog(`SENDINIT agents FAIL: ${String(error)}`);
-            this.uiDebugChannel.appendLine(`EXT: agents.load.fail | err=${String(error)}`);
-        }
-
-        // Home + session panel: show ALL main sessions (no workspace cwd filter).
-        // Workspace filter was dropping nearly everything (user saw only 1 session).
+        // CRITICAL: fetch sessions FIRST and fire init immediately so home renders.
+        // Model resolution can happen after; blocking on it delays the entire UI.
         const initWorkspaceRoot = this.client.getWorkspaceRoot() || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         let allMainSessions: SessionInfo[] = [];
         try {
             const raw = await this.client.listSessions();
             allMainSessions = raw.filter((s) => !s.parentID);
-            // Extra safety: if parentID is wrongly set on everything, still show list
             if (!allMainSessions.length && raw.length) {
                 allMainSessions = raw.slice();
             }
             rtLog(`SENDINIT sessions=${raw.length} main=${allMainSessions.length}`);
             this.uiDebugChannel.appendLine(
-                `[EXT][INIT_SESSIONS] total=${raw.length} main=${allMainSessions.length} (no workspace filter)`
+                `[EXT][INIT_SESSIONS] total=${raw.length} main=${allMainSessions.length}`
             );
         } catch (error) {
             rtLog(`SENDINIT sessions FAIL: ${String(error)}`);
-            this.postAddResponse(webview, `Failed to load sessions: ${error}`);
         }
-        sessions = allMainSessions.slice(0, 80);
+        const sessions = allMainSessions.slice(0, 80);
+
+        // Models + agents: fetch in parallel, don't block init on failure
+        let models: ModelInfo[] = [];
+        let agents: AgentInfo[] = [];
+        const [modelResult, agentResult] = await Promise.allSettled([
+            this.client.listModels(),
+            this.client.listAgents()
+        ]);
+        if (modelResult.status === 'fulfilled') {
+            models = modelResult.value;
+            if (models.length) this.lastKnownModels = models;
+        } else {
+            rtLog(`SENDINIT models FAIL: ${String(modelResult.reason)}`);
+            models = this.lastKnownModels;
+        }
+        if (agentResult.status === 'fulfilled') {
+            agents = agentResult.value;
+        } else {
+            rtLog(`SENDINIT agents FAIL: ${String(agentResult.reason)}`);
+        }
+        rtLog(`SENDINIT models=${models.length} agents=${agents.length} sessions=${sessions.length}`);
         const storedModel = this._context.globalState.get<string>('mimo.model');
         const storedVariant = this._context.globalState.get<string>('mimo.variant');
         const storedMode = this._context.globalState.get<string>('mimo.mode');
@@ -9287,7 +9285,14 @@ ${attachmentLines.join('\n')}`
             if (!liveWebview) return;
             // Only post if DB has more labeled tool/thinking content than silent API
             const hasRich = dbMsgs.some((m: any) =>
-                typeof m.text === 'string' && (m.text.includes('[tool') || m.text.includes('[thinking]') || m.text.includes('[file edit]'))
+                typeof m.text === 'string' && (
+                    m.text.includes('%%MIMO_PART') ||
+                    m.text.includes('[tool') ||
+                    m.text.includes('[thinking]') ||
+                    m.text.includes('[file edit]') ||
+                    m.text.includes('IN:\n') ||
+                    m.text.includes('OUT:\n')
+                )
             );
             if (!hasRich) return;
             liveWebview.postMessage({
@@ -9309,6 +9314,16 @@ ${attachmentLines.join('\n')}`
             const parts = Array.isArray(msg.parts) ? msg.parts : [];
             let fullText = '';
             for (const p of parts) {
+                // Remap flat DB fields into state.input structure expected by formatPartForDisplay
+                if (!p.state) p.state = {};
+                if (!p.state.input) p.state.input = {};
+                // Map extracted DB fields → state.input (only if missing from original data)
+                if (p.path && !p.state.input.file_path) p.state.input.file_path = p.path;
+                if (p.old_string && !p.state.input.old_string) p.state.input.old_string = p.old_string;
+                if (p.new_string && !p.state.input.new_string) p.state.input.new_string = p.new_string;
+                if (p.content && !p.state.input.content) p.state.input.content = p.content;
+                if (p.cmd && !p.state.input.command) p.state.input.command = p.cmd;
+                if (p.result && !p.state.output) p.state.output = p.result;
                 fullText += this.formatPartForDisplay(p);
             }
             if (!fullText.trim()) continue;

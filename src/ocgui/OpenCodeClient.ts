@@ -9286,7 +9286,11 @@ export class OpenCodeClient {
             const sql =
                 "SELECT json_group_array(json_object(" +
                 "'mid', p.message_id, 'role', json_extract(m.data,'$.role'), 'type', json_extract(p.data,'$.type'), 'text', json_extract(p.data,'$.text'), " +
-                "'tool', json_extract(p.data,'$.tool'), 'cmd', json_extract(p.data,'$.state.input.command'), 'path', json_extract(p.data,'$.state.input.path'), " +
+                "'tool', json_extract(p.data,'$.tool'), 'cmd', json_extract(p.data,'$.state.input.command'), " +
+                "'path', json_extract(p.data,'$.state.input.file_path'), " +
+                "'old_string', json_extract(p.data,'$.state.input.old_string'), " +
+                "'new_string', json_extract(p.data,'$.state.input.new_string'), " +
+                "'content', json_extract(p.data,'$.state.input.content'), " +
                 "'result', json_extract(p.data,'$.state.output'), 'callID', json_extract(p.data,'$.callID'), " +
                 "'hash', json_extract(p.data,'$.hash'), 'files', json_extract(p.data,'$.files'), " +
                 "'time', p.time_created)) " +
