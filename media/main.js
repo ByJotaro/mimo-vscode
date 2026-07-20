@@ -4580,16 +4580,60 @@ function buildMimoPartCard(seg) {
         }
     }
 
-    // Full-width flat IN/OUT; colorize diffs for patch/write
+    // Full-width flat IN/OUT; colorize diffs; side-by-side when wide
     function fillDiffPre(pre, text) {
         const raw = String(text || '').replace(/^```diff\n?|```$/g, '');
         if (!/^(diff |@@ |\+|-|---|\+\+\+)/m.test(raw)) {
             pre.textContent = raw;
             return;
         }
+        const lines = raw.split('\n');
+        const dels = [];
+        const adds = [];
+        let hasPair = false;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (/^\+/.test(line) && !/^\+\+\+/.test(line)) {
+                adds.push(line.slice(1));
+                hasPair = true;
+            } else if (/^-/.test(line) && !/^---/.test(line)) {
+                dels.push(line.slice(1));
+                hasPair = true;
+            }
+        }
+        // Side-by-side when extension wide enough and we have both sides
+        const wide = (typeof window !== 'undefined' && window.innerWidth >= 480)
+            || (chatContainer && chatContainer.clientWidth >= 420);
+        if (hasPair && wide && (dels.length || adds.length)) {
+            const split = document.createElement('div');
+            split.className = 'mimo-diff-split';
+            const left = document.createElement('pre');
+            left.className = 'mimo-diff-col mimo-diff-col--del';
+            const leftLab = document.createElement('span');
+            leftLab.className = 'mimo-diff-col-label';
+            leftLab.textContent = 'removed';
+            left.appendChild(leftLab);
+            left.appendChild(document.createTextNode(dels.join('\n') || '—'));
+            const right = document.createElement('pre');
+            right.className = 'mimo-diff-col mimo-diff-col--add';
+            const rightLab = document.createElement('span');
+            rightLab.className = 'mimo-diff-col-label';
+            rightLab.textContent = 'added';
+            right.appendChild(rightLab);
+            right.appendChild(document.createTextNode(adds.join('\n') || '—'));
+            split.appendChild(left);
+            split.appendChild(right);
+            // replace pre with split
+            if (pre.parentNode) {
+                pre.parentNode.replaceChild(split, pre);
+            } else {
+                pre.replaceWith(split);
+            }
+            return;
+        }
+        // Unified colored fallback
         pre.classList.add('mimo-io-v--diff');
         pre.textContent = '';
-        const lines = raw.split('\n');
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
             const span = document.createElement('span');
@@ -5846,7 +5890,7 @@ document.addEventListener('DOMContentLoaded', () => {
         root.className = 'mimo-startup';
         root.id = 'mimo-startup';
 
-        // 1) Logo + tips
+        // 1) Logo + tips (centered block)
         const logoHost = document.createElement('div');
         logoHost.id = 'chat-welcome';
         logoHost.className = 'mimo-startup-logo';
@@ -5857,7 +5901,7 @@ document.addEventListener('DOMContentLoaded', () => {
             logoHost.innerHTML = '<div class="mimo-welcome-sub">MiMo Code</div>';
         }
 
-        // 2) Recent sessions under tips — always render section
+        // 2) Recent sessions — ALWAYS visible block under logo/tips
         const title = document.createElement('div');
         title.className = 'mimo-startup-title';
         title.textContent = 'Recent sessions';
@@ -5866,9 +5910,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const list = document.createElement('div');
         list.className = 'mimo-startup-list';
         list.id = 'mimo-startup-list';
+        // Placeholder so the section is never invisible
+        list.innerHTML = '<div class="mimo-startup-empty" id="mimo-startup-empty">Loading recent sessions…</div>';
         root.appendChild(list);
 
-        // 3) Actions
+        // 3) Actions under list
         const actions = document.createElement('div');
         actions.className = 'mimo-startup-actions';
         const hist = document.createElement('button');
@@ -5905,7 +5951,10 @@ document.addEventListener('DOMContentLoaded', () => {
         chatContainer.appendChild(root);
 
         function fillList(src) {
-            const raw = Array.isArray(src) ? src : [];
+            let raw = Array.isArray(src) ? src : [];
+            // Also accept sessions global / cache
+            if (!raw.length && Array.isArray(window.__mimoSessionsCache)) raw = window.__mimoSessionsCache;
+            if (!raw.length && Array.isArray(sessions)) raw = sessions;
             if (raw.length) {
                 window.__mimoSessionsCache = raw;
                 sessions = raw;
@@ -5916,10 +5965,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const empty = document.createElement('div');
                 empty.className = 'mimo-startup-empty';
                 empty.id = 'mimo-startup-empty';
-                empty.textContent = 'Loading recent sessions…';
+                empty.textContent = 'No sessions yet — click New session or Show history';
                 list.appendChild(empty);
-                // Ask host for sessions (may arrive late after serve start)
                 try { vscode.postMessage({ type: 'fetchSessions' }); } catch (_) {}
+                try {
+                    vscode.postMessage({
+                        type: 'ui-debug',
+                        payload: ['[WV][STARTUP_CHOOSER]', 'empty', 'sessionsArr=' + (Array.isArray(sessions) ? sessions.length : -1)]
+                    });
+                } catch (_) {}
                 return;
             }
             items.forEach(function (s, idx) {
@@ -5958,17 +6012,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? window.__mimoSessionsCache
                 : (Array.isArray(sessions) ? sessions : []));
         fillList(seed);
-        // Retry once if empty (server may still be listing)
-        if (!seed.length) {
+        // Always re-fetch so list is not stuck empty after late serve start
+        try { vscode.postMessage({ type: 'fetchSessions' }); } catch (_) {}
+        [600, 1500, 3000].forEach(function (ms) {
             setTimeout(function () {
                 if (!document.getElementById('mimo-startup')) return;
                 try { vscode.postMessage({ type: 'fetchSessions' }); } catch (_) {}
-            }, 800);
-            setTimeout(function () {
-                if (!document.getElementById('mimo-startup')) return;
-                try { vscode.postMessage({ type: 'fetchSessions' }); } catch (_) {}
-            }, 2200);
-        }
+            }, ms);
+        });
         window.__mimoFillStartupList = fillList;
     }
 

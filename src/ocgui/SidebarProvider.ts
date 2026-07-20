@@ -9809,7 +9809,7 @@ ${attachmentLines.join('\n')}`
                         var H = canvas.height / dpr;
                         ctx.clearRect(0, 0, W, H);
                         // Fill void so stars sit on pure CLI black
-                        ctx.fillStyle = '#0a0a0a';
+                        ctx.fillStyle = '#0a0a0a'; /* mimocode darkStep1 */
                         ctx.fillRect(0, 0, W, H);
                         if (!grid.length) return;
                         ctx.font = '14px "Cascadia Mono", Consolas, monospace';

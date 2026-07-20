@@ -8996,21 +8996,39 @@ export class OpenCodeClient {
 
     public async listSessions(): Promise<SessionInfo[]> {
         await this.ensureServer();
-        const sessions = await this.requestJson<any[]>('GET', '/session');
+        // Try with workspace directory first (mimo serve often scopes by cwd)
+        const directory = encodeURIComponent(this.workspaceRoot || '.');
+        let sessions: any = null;
+        try {
+            sessions = await this.requestJson<any[]>('GET', `/session?directory=${directory}`);
+        } catch {
+            sessions = null;
+        }
+        if (!Array.isArray(sessions) || sessions.length === 0) {
+            try {
+                sessions = await this.requestJson<any[]>('GET', '/session');
+            } catch {
+                sessions = [];
+            }
+        }
         if (!Array.isArray(sessions)) {
             return [];
         }
         const mapped = sessions.map((session) => ({
             id: session.id,
             title: session.title || 'Untitled Session',
-            updated: session?.time?.updated ? new Date(session.time.updated).toLocaleString() : '',
+            updated: session?.time?.updated
+                ? new Date(session.time.updated).toLocaleString()
+                : (session?.time?.created ? new Date(session.time.created).toLocaleString() : ''),
             cwd: typeof session?.path?.cwd === 'string'
                 ? session.path.cwd
                 : (typeof session?.cwd === 'string' ? session.cwd : undefined),
             parentID: typeof session?.parentID === 'string' && session.parentID
                 ? session.parentID
-                : undefined,
-            updatedMs: typeof session?.time?.updated === 'number' ? session.time.updated : 0
+                : (typeof session?.parent_id === 'string' ? session.parent_id : undefined),
+            updatedMs: typeof session?.time?.updated === 'number'
+                ? session.time.updated
+                : (typeof session?.time?.created === 'number' ? session.time.created : 0)
         }));
         mapped.sort((a, b) => b.updatedMs - a.updatedMs);
         return mapped.map(({ updatedMs, ...rest }) => rest);

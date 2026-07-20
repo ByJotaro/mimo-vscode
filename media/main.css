@@ -79,15 +79,24 @@ body > .slash-palette {
 
 /* ---- Thinking: collapsible (default closed), muted, no neon box ---- */
 .mimo-thinking {
-    margin: 2px 0 8px; /* tighter top gap vs previous message */
+    margin: 0 0 6px; /* minimal gap after previous tools/text */
     border: none;
     background: transparent;
     box-shadow: none;
     color: var(--mimo-muted);
 }
-/* When thinking follows a user bubble / text, keep it close */
 .message.bot .mimo-thinking:first-child,
-.message.bot .message-content > .mimo-thinking:first-child {
+.message.bot .message-content > .mimo-thinking:first-child,
+.mimo-part + .mimo-thinking,
+.mimo-text-seg + .mimo-thinking {
+    margin-top: 0 !important;
+}
+/* Tighten gap between bot text and following tool/thinking */
+.message.bot .mimo-text-seg + .mimo-part,
+.message.bot .mimo-text-seg + .mimo-thinking {
+    margin-top: 2px;
+}
+.message.bot .mimo-part + .mimo-thinking {
     margin-top: 0;
 }
 .mimo-thinking > summary {
@@ -149,42 +158,46 @@ body > .slash-palette {
     flex: 0 0 auto;
 }
 
-/* ---- Tool / patch: always full message width (no shrink on open neighbor) ---- */
+/* ---- Tool / patch: ALWAYS 100% of message width (never shrink-to-content) ---- */
 .mimo-part {
-    display: block;
-    width: 100%;
-    max-width: 100%;
-    box-sizing: border-box;
-    margin: 6px 0;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 4px 0;
     border: none;
-    border-left: 2px solid #2a2a2a;
+    border-left: 2px solid var(--mimo-border-subtle, #3c3c3c);
     border-radius: 0;
     background: transparent;
     overflow: hidden;
     font-size: 0.9em;
     color: var(--mimo-fg);
-    /* prevent details open from reflowing sibling widths */
     flex: 0 0 auto;
-    align-self: stretch;
+    align-self: stretch !important;
 }
 .message-content .mimo-part,
 .mimo-text-seg + .mimo-part,
-.mimo-part + .mimo-part {
-    width: 100%;
+.mimo-part + .mimo-part,
+.message.bot .mimo-part {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
 }
 .mimo-part > summary {
     list-style: none;
     cursor: pointer;
-    display: flex;
+    display: flex !important;
     align-items: center;
     gap: 8px;
-    padding: 5px 8px;
+    padding: 6px 10px;
     user-select: none;
     color: var(--mimo-muted);
-    background: rgba(18, 18, 18, 0.55);
-    width: 100%;
-    box-sizing: border-box;
-    min-height: 28px;
+    background: var(--mimo-surface, #141414);
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    min-height: 30px;
 }
 .mimo-part > summary::-webkit-details-marker { display: none; }
 .mimo-part > summary::before {
@@ -235,17 +248,68 @@ body > .slash-palette {
     width: 100%;
     background: rgba(14, 14, 14, 0.35);
 }
-/* Diff / write content */
+/* Diff / write content — CLI mimocode.json colors */
 .mimo-io-v--diff {
-    color: #b8c0c8 !important;
+    color: var(--mimo-fg, #eeeeee) !important;
     font-size: 0.8em !important;
-    max-height: 320px !important;
+    max-height: 360px !important;
     white-space: pre !important;
     overflow: auto !important;
 }
-.mimo-diff-add { color: #6ee7a8; }
-.mimo-diff-del { color: #f87171; }
-.mimo-diff-hunk { color: #818CF8; }
+.mimo-diff-add { color: #4fd6be; } /* diffAdded */
+.mimo-diff-del { color: #c53b53; } /* diffRemoved */
+.mimo-diff-hunk { color: #828bb8; } /* diffHunkHeader */
+/* Side-by-side diff when wide enough */
+.mimo-diff-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    width: 100%;
+    max-width: 100%;
+    border: 1px solid var(--mimo-border-subtle, #3c3c3c);
+    border-radius: 4px;
+    overflow: hidden;
+    min-height: 0;
+}
+.mimo-diff-col {
+    margin: 0;
+    padding: 8px 10px;
+    font-family: "Cascadia Mono", Consolas, monospace;
+    font-size: 0.78em;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 360px;
+    overflow: auto;
+    min-width: 0;
+}
+.mimo-diff-col--del {
+    background: #37222c; /* diffRemovedBg */
+    border-right: 1px solid var(--mimo-border-subtle, #3c3c3c);
+    color: #e26a75;
+}
+.mimo-diff-col--add {
+    background: #20303b; /* diffAddedBg */
+    color: #b8db87;
+}
+.mimo-diff-col-label {
+    display: block;
+    font-size: 0.7em;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8f8f8f;
+    margin-bottom: 6px;
+    font-family: "Cascadia Mono", Consolas, monospace;
+}
+@media (max-width: 420px) {
+    .mimo-diff-split {
+        grid-template-columns: 1fr;
+    }
+    .mimo-diff-col--del {
+        border-right: none;
+        border-bottom: 1px solid var(--mimo-border-subtle, #3c3c3c);
+    }
+}
 
 /* Completely flat IN/OUT — no nested boxes, just labels + hairline */
 .mimo-io,
@@ -1498,7 +1562,8 @@ body > .slash-palette {
 }
 
 .message {
-    max-width: 85%;
+    max-width: 100%;
+    width: 100%;
     padding: 8px 12px;
     border-radius: 8px;
     line-height: 1.4;
@@ -1507,36 +1572,43 @@ body > .slash-palette {
     border: 1px solid transparent;
     box-shadow: none;
     position: relative;
+    box-sizing: border-box;
 }
 
 .message.user {
     align-self: flex-end;
-    background-color: #1a1a1a;
-    color: var(--mimo-fg, #d4d4d4);
-    border: 1px solid var(--mimo-border, #2a2a2a);
+    max-width: min(92%, 720px);
+    width: auto;
+    background-color: var(--mimo-surface, #141414);
+    color: var(--mimo-fg, #eeeeee);
+    border: 1px solid var(--mimo-border-subtle, #3c3c3c);
     box-shadow: none;
     overflow: visible;
     transition: transform 0.16s ease, max-width 0.16s ease;
 }
 
-/* Assistant: no bubble — only user messages get a subtle box (CLI-like). */
+/* Assistant: full chat width so tools never shrink-to-fit */
 .message.bot {
-    align-self: flex-start;
+    align-self: stretch;
+    width: 100% !important;
+    max-width: 100% !important;
     background-color: transparent;
     background: transparent;
-    color: var(--mimo-fg, #d4d4d4);
+    color: var(--mimo-fg, #eeeeee);
     border: none;
     box-shadow: none;
     padding-left: 2px;
     padding-right: 2px;
 }
-
-.message.bot .message-content strong,
-.message.bot .message-content b {
-    color: var(--mimo-fg, #e8e8e8);
-    filter: none;
-    font-weight: 600;
+.message.bot .message-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    display: block;
+    box-sizing: border-box;
+    overflow: visible;
 }
+
+/* Strong/em colors come from mimocode.json rules earlier — do not force plain gray */
 
 .message.system {
     align-self: center;
@@ -3889,3 +3961,30 @@ select#mode-select {
 .load-full-btn:hover {
     background: var(--vscode-button-hoverBackground);
 }
+
+/* HARD full-width tools — override any legacy 85% / fit-content */
+.message.bot,
+.message.bot.nested-message {
+    width: 100% !important;
+    max-width: 100% !important;
+    align-self: stretch !important;
+}
+.message-row.bot {
+    width: 100% !important;
+    max-width: 100% !important;
+    display: flex;
+    justify-content: stretch;
+}
+.message-row.bot > .message.bot {
+    flex: 1 1 auto;
+    width: 100% !important;
+}
+.message-content {
+    min-width: 0;
+    overflow: visible !important; /* was hidden — clipped tool full width */
+}
+.message.bot .message-content details.mimo-part {
+    display: block !important;
+    width: 100% !important;
+}
+
