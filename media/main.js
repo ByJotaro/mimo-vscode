@@ -10127,23 +10127,36 @@ function appendMessageImages(parentEl, message) {
         }
 
         // Build glyph cells: left=MiMo orange, right=Code gray
+        // Skip empty label rows so logo sits tight; gap between words = 1 col only
         function buildCells() {
-            const gap = 2;
+            const gap = 1;
             const cells = [];
-            const leftW = LOGO_LEFT[0].length;
+            // Find first non-empty row in either side (skip blank top labels)
+            let y0 = 0;
             for (let y = 0; y < LOGO_LEFT.length; y++) {
+                if (/[^\s]/.test(LOGO_LEFT[y] || '') || /[^\s]/.test(LOGO_RIGHT[y] || '')) {
+                    y0 = y;
+                    break;
+                }
+            }
+            // Trim trailing spaces from each line for width calc, but keep char indices aligned
+            const leftW = Math.max.apply(null, LOGO_LEFT.map(function (l) {
+                return (l || '').replace(/\s+$/, '').length || 0;
+            }));
+            for (let y = y0; y < LOGO_LEFT.length; y++) {
                 const L = LOGO_LEFT[y] || '';
                 const R = LOGO_RIGHT[y] || '';
-                for (let x = 0; x < L.length; x++) {
+                const gy = y - y0;
+                for (let x = 0; x < leftW; x++) {
                     const ch = L[x];
                     if (ch && ch !== ' ') {
-                        cells.push({ ch: ch, gx: x, gy: y, side: 'left', base: MIMO_ORANGE });
+                        cells.push({ ch: ch, gx: x, gy: gy, side: 'left', base: MIMO_ORANGE });
                     }
                 }
                 for (let x = 0; x < R.length; x++) {
                     const ch = R[x];
                     if (ch && ch !== ' ') {
-                        cells.push({ ch: ch, gx: leftW + gap + x, gy: y, side: 'right', base: MIMO_GRAY });
+                        cells.push({ ch: ch, gx: leftW + gap + x, gy: gy, side: 'right', base: MIMO_GRAY });
                     }
                 }
             }
@@ -10156,9 +10169,10 @@ function appendMessageImages(parentEl, message) {
             const grid = buildCells();
             const dpr = Math.min(window.devicePixelRatio || 1, 2);
             let cellW = 10;
-            let cellH = 16;
-            let padX = 8;
-            let padY = 8;
+            let cellH = 12;
+            let fontSize = 12;
+            let padX = 48;
+            let padY = 36;
             let W = 0, H = 0;
             let hold = null; // {x,y,at,cx,cy}
             let rings = [];  // {x,y,at,force,kick}
@@ -10170,12 +10184,33 @@ function appendMessageImages(parentEl, message) {
 
             function layout() {
                 const parent = canvas.parentElement;
-                const maxW = Math.max(200, (parent ? parent.clientWidth : 360) - 16);
-                // Fit logoThin (~38 cols) into max width
-                cellW = Math.max(7, Math.min(14, Math.floor(maxW / (grid.cols + 1))));
-                cellH = Math.round(cellW * 1.55);
-                padX = cellW;
-                padY = Math.round(cellH * 0.4);
+                // Use full available width; leave room for particle bloom (pad)
+                const avail = Math.max(220, (parent ? parent.clientWidth : 360));
+                // Target font so glyph columns pack edge-to-edge without square gutters
+                // Measure mono advance of █ and set cellW === advance (no empty pad per cell)
+                const probe = canvas.getContext('2d');
+                // Start from a size that fits cols into (avail - particle pad)
+                const bloom = 56; // horizontal room for particles on both sides
+                let fs = Math.floor((avail - bloom * 2) / Math.max(1, grid.cols));
+                fs = Math.max(9, Math.min(22, fs));
+                probe.font = '600 ' + fs + 'px "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
+                let advance = probe.measureText('█').width;
+                if (!advance || advance < 4) advance = fs * 0.6;
+                // If measured pitch * cols still too wide, shrink font until it fits
+                let guard = 0;
+                while (advance * grid.cols + bloom * 2 > avail && fs > 8 && guard++ < 20) {
+                    fs -= 1;
+                    probe.font = '600 ' + fs + 'px "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
+                    advance = probe.measureText('█').width || fs * 0.6;
+                }
+                fontSize = fs;
+                // CRITICAL: cell pitch = exact glyph advance → no per-char square gutters
+                cellW = advance;
+                // Vertical pitch slightly above font (block glyphs are square-ish)
+                cellH = Math.max(fontSize, Math.ceil(fontSize * 1.02));
+                // Generous pad so charge/burst particles & glow are NOT clipped on either word
+                padX = Math.max(bloom, Math.ceil(cellW * 3.5));
+                padY = Math.max(40, Math.ceil(cellH * 2.4));
                 W = Math.ceil(padX * 2 + grid.cols * cellW);
                 H = Math.ceil(padY * 2 + grid.rows * cellH);
                 canvas.width = Math.floor(W * dpr);
@@ -10184,10 +10219,10 @@ function appendMessageImages(parentEl, message) {
                 canvas.style.height = H + 'px';
                 const ctx = canvas.getContext('2d');
                 ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-                // map cell centers into pixel space
+                // map cell centers — tight mono grid, no extra gutter
                 grid.cells.forEach(function (c) {
                     c.px = padX + c.gx * cellW + cellW * 0.5;
-                    c.py = padY + c.gy * cellH + cellH * 0.55;
+                    c.py = padY + c.gy * cellH + cellH * 0.5;
                 });
             }
 
@@ -10203,51 +10238,68 @@ function appendMessageImages(parentEl, message) {
             }
 
             function spawnGather(cx, cy, rise, n) {
+                // Particles spawn far out and get sucked into the press point (CLI charge feel)
+                const reach = Math.min(W, H) * lerp(0.42, 0.72, rise);
                 for (let i = 0; i < n; i++) {
                     const ang = Math.random() * Math.PI * 2;
-                    const dist = lerp(cellW * 2, Math.max(W, H) * 0.55, Math.random());
-                    const side = Math.random() < 0.55 ? MIMO_ORANGE : MIMO_GRAY;
+                    const dist = lerp(cellW * 3, reach, 0.35 + Math.random() * 0.65);
+                    const side = Math.random() < 0.58 ? MIMO_ORANGE : MIMO_GRAY;
                     particles.push({
                         x: cx + Math.cos(ang) * dist,
                         y: cy + Math.sin(ang) * dist,
                         vx: 0, vy: 0,
                         life: 1,
                         mode: 'gather',
-                        color: tint(side, PEAK, rise * 0.35 + Math.random() * 0.2),
-                        size: lerp(1.2, 2.8, Math.random()),
+                        color: tint(side, PEAK, rise * 0.45 + Math.random() * 0.25),
+                        size: lerp(1.4, 3.4, Math.random() * (0.4 + rise)),
                     });
                 }
             }
 
             function spawnBurst(cx, cy, level) {
-                const count = Math.floor(lerp(40, 120, level));
+                const count = Math.floor(lerp(70, 200, level));
                 for (let i = 0; i < count; i++) {
                     const ang = Math.random() * Math.PI * 2;
-                    const spd = lerp(1.2, 7.5, level) * (0.5 + Math.random());
+                    const spd = lerp(2.2, 12, level) * (0.45 + Math.random());
                     const side = Math.random() < 0.55 ? MIMO_ORANGE : MIMO_GRAY;
                     particles.push({
-                        x: cx + (Math.random() - 0.5) * 6,
-                        y: cy + (Math.random() - 0.5) * 6,
+                        x: cx + (Math.random() - 0.5) * 8,
+                        y: cy + (Math.random() - 0.5) * 8,
                         vx: Math.cos(ang) * spd,
                         vy: Math.sin(ang) * spd,
                         life: 1,
                         mode: 'burst',
-                        color: tint(side, PEAK, 0.4 + level * 0.5),
-                        size: lerp(1.5, 3.5, Math.random() * level),
+                        color: tint(side, PEAK, 0.45 + level * 0.55),
+                        size: lerp(1.6, 4.2, Math.random() * level),
                     });
                 }
                 // expanding ring wave particles
-                const ringN = Math.floor(lerp(24, 64, level));
+                const ringN = Math.floor(lerp(36, 96, level));
                 for (let i = 0; i < ringN; i++) {
-                    const ang = (i / ringN) * Math.PI * 2;
+                    const ang = (i / ringN) * Math.PI * 2 + Math.random() * 0.05;
+                    const spd = lerp(3.5, 13, level);
                     particles.push({
                         x: cx, y: cy,
-                        vx: Math.cos(ang) * lerp(2.5, 9, level),
-                        vy: Math.sin(ang) * lerp(2.5, 9, level),
+                        vx: Math.cos(ang) * spd,
+                        vy: Math.sin(ang) * spd,
                         life: 1,
                         mode: 'ring',
-                        color: tint(MIMO_ORANGE, PEAK, 0.7),
-                        size: 2.2,
+                        color: tint(MIMO_ORANGE, PEAK, 0.75),
+                        size: 2.6,
+                    });
+                }
+                // secondary cooler ring (Code gray) for dual-word flash
+                const ringN2 = Math.floor(lerp(18, 48, level));
+                for (let i = 0; i < ringN2; i++) {
+                    const ang = (i / ringN2) * Math.PI * 2;
+                    particles.push({
+                        x: cx, y: cy,
+                        vx: Math.cos(ang) * lerp(2.2, 8, level),
+                        vy: Math.sin(ang) * lerp(2.2, 8, level),
+                        life: 1,
+                        mode: 'ring',
+                        color: tint(MIMO_GRAY, PEAK, 0.55),
+                        size: 1.8,
                     });
                 }
             }
@@ -10262,12 +10314,14 @@ function appendMessageImages(parentEl, message) {
                     const dx = c.px - hold.cx;
                     const dy = c.py - hold.cy;
                     const dist = Math.hypot(dx, dy) / cellW;
-                    const core = Math.exp(-(dist * dist) / Math.max(0.4, lerp(0.4, 8, rise)));
-                    const shell = Math.exp(-Math.pow((dist - lerp(0.5, 4, rise)) / 1.2, 2));
-                    boost += (core * 1.8 + shell * 0.9) * rise;
-                    peak += core * rise * 0.9;
+                    // Stronger suck: whole logo pulls bright toward press
+                    const core = Math.exp(-(dist * dist) / Math.max(0.35, lerp(0.5, 14, rise)));
+                    const shell = Math.exp(-Math.pow((dist - lerp(0.4, 6, rise)) / 1.4, 2));
+                    const global = rise * 0.35; // whole word charges up
+                    boost += (core * 2.4 + shell * 1.2) * rise + global;
+                    peak += core * rise * 1.15 + rise * 0.2;
                     // sparkle noise
-                    boost += Math.max(0, noise(c.gx, c.gy, t) - 0.72) * rise * 1.5;
+                    boost += Math.max(0, noise(c.gx, c.gy, t) - 0.68) * rise * 2.1;
                 }
                 for (let i = 0; i < rings.length; i++) {
                     const r = rings[i];
@@ -10277,23 +10331,24 @@ function appendMessageImages(parentEl, message) {
                     const dx = c.px - r.x;
                     const dy = c.py - r.y;
                     const dist = Math.hypot(dx, dy) / cellW;
-                    const radius = (Math.max(grid.cols, grid.rows) * 0.85) * (1 - Math.pow(1 - p, EXPAND));
-                    const fade = Math.pow(1 - p, 1.32);
-                    const edge = Math.exp(-Math.pow((dist - radius) / WIDTH, 2)) * GAIN * fade * r.force;
-                    const trail = dist < radius ? Math.exp(-(radius - dist) / 2.4) * 0.28 * fade * r.force : 0;
-                    const flash = Math.exp(-(dist * dist) / 3.2) * 2.15 * r.force * Math.max(0, 1 - age / 140);
+                    // Larger ring so BOTH words (MiMo + Code) light up, not one half only
+                    const radius = (Math.max(grid.cols, grid.rows) * 1.15) * (1 - Math.pow(1 - p, EXPAND));
+                    const fade = Math.pow(1 - p, 1.15);
+                    const edge = Math.exp(-Math.pow((dist - radius) / (WIDTH * 1.35), 2)) * GAIN * 1.35 * fade * r.force;
+                    const trail = dist < radius ? Math.exp(-(radius - dist) / 2.1) * 0.42 * fade * r.force : 0;
+                    const flash = Math.exp(-(dist * dist) / 4.5) * 2.6 * r.force * Math.max(0, 1 - age / 160);
                     boost += edge + trail + flash;
-                    peak += flash * 0.8 + edge * 0.4;
+                    peak += flash * 0.95 + edge * 0.55;
                 }
                 if (glow) {
                     const age = t - glow.at;
                     if (age < 1600) {
-                        const g = Math.exp(-age / 900) * glow.force;
-                        // mild whole-glyph glow
-                        boost += g * 0.15;
+                        const g = Math.exp(-age / 800) * glow.force;
+                        boost += g * 0.35;
+                        peak += g * 0.15;
                     }
                 }
-                return { boost: Math.min(3.2, boost), peak: Math.min(1.4, peak) };
+                return { boost: Math.min(4.0, boost), peak: Math.min(1.6, peak) };
             }
 
             function tick(t) {
@@ -10307,34 +10362,41 @@ function appendMessageImages(parentEl, message) {
                     doBurst(hold.cx, hold.cy, t);
                     hold = null;
                 }
-                // gather particles while holding
+                // gather particles while holding — denser as charge rises
                 if (hold) {
                     const age = t - hold.at;
                     const rise = ramp(age, HOLD_MS, CHARGE_MS);
-                    if (particles.filter(function (p) { return p.mode === 'gather'; }).length < 90) {
-                        spawnGather(hold.cx, hold.cy, rise, 3 + Math.floor(rise * 4));
+                    const gatherCount = particles.filter(function (p) { return p.mode === 'gather'; }).length;
+                    const cap = Math.floor(lerp(80, 180, rise));
+                    if (gatherCount < cap) {
+                        spawnGather(hold.cx, hold.cy, rise, 5 + Math.floor(rise * 8));
                     }
                 }
-                // integrate particles
+                // integrate particles (single step — was double-applied before)
                 for (let i = particles.length - 1; i >= 0; i--) {
                     const p = particles[i];
                     if (p.mode === 'gather' && hold) {
                         const dx = hold.cx - p.x;
                         const dy = hold.cy - p.y;
                         const dist = Math.hypot(dx, dy) || 1;
-                        const pull = 0.08 + ramp(t - hold.at, HOLD_MS, CHARGE_MS) * 0.22;
-                        p.vx = p.vx * 0.86 + (dx / dist) * pull * dist * 0.04;
-                        p.vy = p.vy * 0.86 + (dy / dist) * pull * dist * 0.04;
-                        // swirl
-                        p.vx += -dy / dist * 0.15;
-                        p.vy += dx / dist * 0.15;
-                        p.life -= 0.008;
+                        const rise = ramp(t - hold.at, HOLD_MS, CHARGE_MS);
+                        const pull = 0.12 + rise * 0.38;
+                        p.vx = p.vx * 0.82 + (dx / dist) * pull * Math.min(dist * 0.06, 4.5);
+                        p.vy = p.vy * 0.82 + (dy / dist) * pull * Math.min(dist * 0.06, 4.5);
+                        // swirl tighter near center
+                        const swirl = 0.22 + rise * 0.28;
+                        p.vx += -dy / dist * swirl;
+                        p.vy += dx / dist * swirl;
+                        p.life -= 0.005;
+                        // snap-absorb near core for "particles gathering" look
+                        if (dist < cellW * 0.55) {
+                            p.life -= 0.08;
+                            p.size *= 0.92;
+                        }
                     } else {
-                        p.x += p.vx;
-                        p.y += p.vy;
-                        p.vx *= 0.98;
-                        p.vy *= 0.98;
-                        p.life -= p.mode === 'ring' ? 0.018 : 0.014;
+                        p.vx *= 0.975;
+                        p.vy *= 0.975;
+                        p.life -= p.mode === 'ring' ? 0.014 : 0.011;
                     }
                     p.x += p.vx;
                     p.y += p.vy;
@@ -10364,29 +10426,31 @@ function appendMessageImages(parentEl, message) {
             function draw(t) {
                 const ctx = canvas.getContext('2d');
                 ctx.clearRect(0, 0, W, H);
-                ctx.font = 'bold ' + Math.round(cellH * 0.92) + 'px "Cascadia Mono", Consolas, "Courier New", monospace';
+                // Font size from measured mono advance — NOT inflated cellH (that caused square gutters)
+                ctx.font = '600 ' + fontSize + 'px "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
+                ctx.imageSmoothingEnabled = false;
 
-                // glyphs
+                // glyphs — both words always fully drawn (no half-clip)
                 for (let i = 0; i < grid.cells.length; i++) {
                     const c = grid.cells[i];
                     const f = fieldBoost(c, t);
                     let col = c.base;
                     if (f.boost > 0.02) {
-                        col = tint(c.base, MIMO_ORANGE, Math.min(0.55, f.boost * 0.25));
-                        col = tint(col, PEAK, Math.min(1, f.peak * 0.85 + f.boost * 0.12));
+                        col = tint(c.base, MIMO_ORANGE, Math.min(0.65, f.boost * 0.28));
+                        col = tint(col, PEAK, Math.min(1, f.peak * 0.9 + f.boost * 0.14));
                     }
                     // idle subtle shimmer
                     if (!hold && !rings.length) {
                         const sh = 0.5 + 0.5 * Math.sin(t * 0.0015 + c.gx * 0.4 + c.gy);
-                        col = tint(c.base, PEAK, sh * 0.04);
+                        col = tint(c.base, PEAK, sh * 0.05);
                     }
                     ctx.fillStyle = css(col, 1);
-                    // soft glow under bright cells
-                    if (f.boost > 0.35) {
-                        ctx.shadowColor = css(tint(c.base, PEAK, 0.5), 0.55);
-                        ctx.shadowBlur = 8 + f.boost * 10;
+                    // soft glow under bright cells (kept inside pad so not clipped)
+                    if (f.boost > 0.3) {
+                        ctx.shadowColor = css(tint(c.base, PEAK, 0.55), 0.65);
+                        ctx.shadowBlur = 6 + f.boost * 14;
                     } else {
                         ctx.shadowBlur = 0;
                     }
@@ -10399,8 +10463,8 @@ function appendMessageImages(parentEl, message) {
                     const p = particles[i];
                     const a = Math.max(0, Math.min(1, p.life));
                     ctx.beginPath();
-                    ctx.fillStyle = css(p.color, a);
-                    ctx.arc(p.x, p.y, p.size * (0.6 + a * 0.5), 0, Math.PI * 2);
+                    ctx.fillStyle = css(p.color, a * (p.mode === 'gather' ? 0.95 : 0.9));
+                    ctx.arc(p.x, p.y, p.size * (0.55 + a * 0.55), 0, Math.PI * 2);
                     ctx.fill();
                 }
             }
@@ -10408,29 +10472,30 @@ function appendMessageImages(parentEl, message) {
             function doBurst(cx, cy, t) {
                 const age = hold ? (t - hold.at) : CHARGE_MS;
                 const rise = ramp(age, HOLD_MS, CHARGE_MS);
-                const level = push(Math.max(0.25, rise));
+                const level = push(Math.max(0.3, rise));
                 hum = false;
-                // convert gather particles to outward burst
+                // convert gather particles to outward burst (scatter)
                 for (let i = 0; i < particles.length; i++) {
                     const p = particles[i];
                     if (p.mode !== 'gather') continue;
                     const dx = p.x - cx;
                     const dy = p.y - cy;
                     const dist = Math.hypot(dx, dy) || 1;
-                    const spd = lerp(2, 8, level);
-                    p.vx = (dx / dist) * spd * (0.6 + Math.random());
-                    p.vy = (dy / dist) * spd * (0.6 + Math.random());
+                    const spd = lerp(3.5, 14, level);
+                    p.vx = (dx / dist) * spd * (0.55 + Math.random() * 0.7);
+                    p.vy = (dy / dist) * spd * (0.55 + Math.random() * 0.7);
                     p.mode = 'burst';
-                    p.color = tint(p.color, PEAK, 0.5);
+                    p.color = tint(p.color, PEAK, 0.6);
                     p.life = 1;
+                    p.size *= 1.15;
                 }
                 spawnBurst(cx, cy, level);
                 rings.push({
                     x: cx, y: cy, at: t,
-                    force: lerp(0.82, 2.55, level),
-                    kick: lerp(0.32, 0.32 + 0.86, level),
+                    force: lerp(1.0, 3.1, level),
+                    kick: lerp(0.4, 0.4 + 1.1, level),
                 });
-                glow = { at: t, force: lerp(0.18, 1.5, rise * level) };
+                glow = { at: t, force: lerp(0.35, 2.0, rise * level) };
                 soundPulse(lerp(0.8, 1, level));
                 startLoop();
             }
