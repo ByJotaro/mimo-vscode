@@ -6097,14 +6097,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.stopPropagation();
                     if (btn.dataset.busy === '1') return;
                     btn.dataset.busy = '1';
-                    showSessionLoadingBar('Loading session…');
+                    // Keep Recent list visible until sessionData arrives — only show loading overlay
                     pendingExplicitSessionSelectionId = s.id;
-                    activeSessionId = s.id;
-                    // Don't play leaving animation that blocks clicks — clear immediately
-                    try {
-                        const st = document.getElementById('mimo-startup');
-                        if (st) st.remove();
-                    } catch (_) {}
+                    // Do NOT set activeSessionId yet — empty timeline would wipe chooser to greeting
+                    showSessionLoadingOverlay('Loading session…');
                     vscode.postMessage({ type: 'selectSession', sessionId: s.id });
                 });
                 list.appendChild(btn);
@@ -6150,8 +6146,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 (label || 'Loading session…') + '</span>';
         } catch (_) {}
     }
+
+    /** Full-viewport loading overlay — does NOT remove Recent list underneath */
+    function showSessionLoadingOverlay(label) {
+        try {
+            let ov = document.getElementById('session-load-overlay');
+            if (!ov) {
+                ov = document.createElement('div');
+                ov.id = 'session-load-overlay';
+                ov.className = 'session-load-overlay';
+                document.body.appendChild(ov);
+            }
+            ov.innerHTML =
+                '<div class="session-load-overlay-card">' +
+                '<span class="mimo-spin" aria-hidden="true"></span>' +
+                '<div class="session-load-overlay-text">' + (label || 'Loading session…') + '</div>' +
+                '<div class="session-load-overlay-sub">Fetching messages &amp; tools…</div>' +
+                '</div>';
+            ov.style.display = 'flex';
+        } catch (_) {
+            showSessionLoadingBar(label);
+        }
+    }
+    function hideSessionLoadingOverlay() {
+        try {
+            const ov = document.getElementById('session-load-overlay');
+            if (ov) ov.remove();
+            const bar = document.getElementById('session-load-bar');
+            if (bar) bar.remove();
+        } catch (_) {}
+    }
     window.__mimoShowStartupChooser = showStartupChooser;
     window.__mimoShowSessionLoadingBar = showSessionLoadingBar;
+    window.__mimoShowSessionLoadingOverlay = showSessionLoadingOverlay;
+    window.__mimoHideSessionLoadingOverlay = hideSessionLoadingOverlay;
 
     function updateUndoStatusDisplay(sessionId) {
         if (!undoStatusEl) return;
@@ -12498,20 +12526,17 @@ window.addEventListener('message', (event) => {
                 break;
             }
             case 'sessionData': {
-                // Hide session load indicator once history arrives
+                // Hide load UI only when we actually have messages to show
+                const incomingMsgCount = Array.isArray(message.messages) ? message.messages.length : 0;
                 try {
-                    const bar = document.getElementById('session-load-bar');
-                    if (bar) bar.remove();
-                    const welcome = document.getElementById('chat-welcome');
-                    if (welcome) welcome.remove();
-                    const startup = document.getElementById('mimo-startup');
-                    if (startup) startup.remove();
-                    // No enter animation on hydrate — it fights scroll-to-bottom (leaves user at top)
-                    try {
-                        if (chatContainer) {
-                            chatContainer.classList.remove('mimo-session-enter');
-                        }
-                    } catch (_) {}
+                    if (incomingMsgCount > 0) {
+                        hideSessionLoadingOverlay();
+                        const welcome = document.getElementById('chat-welcome');
+                        if (welcome) welcome.remove();
+                        const startup = document.getElementById('mimo-startup');
+                        if (startup) startup.remove();
+                    }
+                    if (chatContainer) chatContainer.classList.remove('mimo-session-enter');
                 } catch (_) {}
                 const route = resolveEventSessionId(message, 'sessionData');
                 const sessionId = route?.sessionId || null;

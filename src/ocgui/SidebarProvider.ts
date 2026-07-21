@@ -5032,96 +5032,100 @@ ${attachmentLines.join('\n')}`
                             );
                         }
 
-                        // Prefer FULL session export so history is not truncated mid-thread.
-                        // Fall back: recent limit → DB query (includes tool/reasoning parts API may drop).
+                        // FAST PATH: DB tail (tools/reasoning) — NEVER full export of 1500 msgs (20s + no tools).
                         let recentFailedReason = '';
                         const recentStart = Date.now();
                         try {
-                            rtLog(`SELECT_SESSION full id=${targetSessionId} snapMsgs=${baseMessages.length}`);
-                            let exportPayload: any = null;
-                            let source = 'full';
+                            rtLog(`SELECT_SESSION db-first id=${targetSessionId} snapMsgs=${baseMessages.length}`);
+                            const limit = this.recentSessionLoadLimit;
+                            let source = 'db';
+                            let messages: SessionMessage[] = [];
+                            let title = baseTitle;
+
+                            // 1) DB first — has tool/old_string/new_string/metadata.diff
                             try {
-                                exportPayload = await this.client.exportSession(targetSessionId);
-                            } catch (fullErr) {
+                                const dbExport = await this.client.querySessionFromDb(targetSessionId, limit);
+                                const dbMsgs = this.formatDbMessages(dbExport?.messages ?? []);
+                                if (dbMsgs.length) {
+                                    messages = dbMsgs;
+                                    title = dbExport?.session?.title || title;
+                                    source = 'db';
+                                }
+                            } catch (dbErr) {
                                 this.uiDebugChannel.appendLine(
-                                    `[EXT][SESSION_FULL_FAIL] sessionId=${targetSessionId} err=${String(fullErr).slice(0, 120)}`
+                                    `[EXT][SESSION_DB_FAIL] sessionId=${targetSessionId} err=${String(dbErr).slice(0, 100)}`
                                 );
-                            }
-                            if (!exportPayload || !Array.isArray(exportPayload.messages)) {
-                                source = 'recent';
-                                exportPayload = await this.client.exportSessionRecent(
-                                    targetSessionId,
-                                    Math.max(this.recentSessionLoadLimit, 1500)
-                                );
-                            }
-                            if (!isCurrentSelection()) {
-                                break;
                             }
 
-                            let formattedRaw = this.formatSession(exportPayload);
-                            // If still thin vs snapshot, try DB enrich for parts
-                            if (
-                                (!formattedRaw.messages || formattedRaw.messages.length < Math.max(3, baseMessages.length * 0.5)) &&
-                                typeof (this.client as any).querySessionFromDb === 'function'
-                            ) {
+                            // 2) API recent only if DB empty
+                            if (!messages.length) {
+                                source = 'recent';
                                 try {
-                                    const dbExport = await (this.client as any).querySessionFromDb(
-                                        targetSessionId,
-                                        Math.max(this.recentSessionLoadLimit, 500)
-                                    );
-                                    if (dbExport && Array.isArray(dbExport.messages) && dbExport.messages.length > 0) {
-                                        // DB shape differs — only use if formatSession handles it
-                                        const dbFormatted = this.formatSession(dbExport);
-                                        if (dbFormatted.messages.length >= (formattedRaw.messages?.length || 0)) {
-                                            formattedRaw = dbFormatted;
-                                            source = 'db';
-                                        }
-                                    }
-                                } catch (dbErr) {
+                                    const exportPayload = await this.client.exportSessionRecent(targetSessionId, limit);
+                                    const formattedRaw = this.formatSession(exportPayload);
+                                    messages = formattedRaw.messages || [];
+                                    if (formattedRaw.title) title = formattedRaw.title;
+                                } catch (apiErr) {
                                     this.uiDebugChannel.appendLine(
-                                        `[EXT][SESSION_DB_FAIL] sessionId=${targetSessionId} err=${String(dbErr).slice(0, 100)}`
+                                        `[EXT][SESSION_RECENT_FAIL] sessionId=${targetSessionId} err=${String(apiErr).slice(0, 100)}`
                                     );
                                 }
                             }
-                            const formatted = await this.injectChangeLists(targetSessionId, formattedRaw);
-                            if (!isCurrentSelection()) {
-                                break;
-                            }
 
-                            if (formatted.title) {
-                                baseTitle = formatted.title;
-                            }
+                            if (!isCurrentSelection()) break;
 
-                            // Full replace with API/DB history, then merge any snapshot-only extras
-                            const apiMessages = Array.isArray(formatted.messages) ? formatted.messages : [];
-                            const mergedMessages = this.mergeSessionMessagesById(apiMessages, baseMessages);
+                            // Merge snapshot-only extras (don't drop snapshot if DB thinner on non-tools)
+                            const mergedMessages = this.mergeSessionMessagesById(messages, baseMessages);
+                            const toolMsgs = mergedMessages.filter((m) =>
+                                typeof m?.text === 'string' && m.text.includes('%%MIMO_PART')
+                            ).length;
                             const timelineIds = mergedMessages
                                 .map((message) => (typeof message?.id === 'string' ? message.id : ''))
                                 .filter((id): id is string => Boolean(id));
+
+                            let finalMessages = mergedMessages;
+                            try {
+                                const injected = await this.injectChangeLists(targetSessionId, {
+                                    title,
+                                    messages: mergedMessages,
+                                });
+                                if (injected?.messages?.length) {
+                                    finalMessages = injected.messages;
+                                    if (injected.title) title = injected.title;
+                                }
+                            } catch { /* keep merged */ }
+
+                            if (!isCurrentSelection()) break;
+
                             const sessionPayload = {
                                 type: 'sessionData',
                                 sessionId: targetSessionId,
-                                title: baseTitle,
-                                messages: mergedMessages,
+                                title: title || baseTitle,
+                                messages: finalMessages,
                                 segments,
                                 meta: {
                                     source,
                                     timelineMessageIds: timelineIds,
-                                    fullLoad: true
+                                    fullLoad: false,
+                                    pinBottom: true,
+                                    hasToolCards: toolMsgs > 0,
+                                    toolMsgs,
+                                    limit,
+                                    loadMs: Date.now() - recentStart,
                                 }
                             };
                             const sent = postSessionData(sessionPayload, 'recent');
-                            if (sent && mergedMessages.length > 0) {
+                            if (sent && finalMessages.length > 0) {
                                 sessionDataSent = true;
-                                baseMessages = mergedMessages;
+                                baseMessages = finalMessages;
+                                this._loadedSessions.set(targetSessionId, finalMessages as any);
                             }
 
                             this.uiDebugChannel.appendLine(
-                                `[EXT][SESSION_LOAD_OK] sessionId=${targetSessionId} source=${source} msgs=${mergedMessages.length} costMs=${Date.now() - recentStart}`
+                                `[EXT][SESSION_LOAD_OK] sessionId=${targetSessionId} source=${source} msgs=${finalMessages.length} tools=${toolMsgs} costMs=${Date.now() - recentStart}`
                             );
-
-                            if (sent) {
-                                this.uiDebugChannel.appendLine(`[EXT][SNAP_SAVE_SKIP] sessionId=${targetSessionId} reason=selectSession:full`);
+                            if (sent && isCurrentSelection()) {
+                                this.startLiveFollow(targetSessionId, activeWebview);
                             }
                         } catch (err) {
                             recentFailedReason = this.extractLastLine(String(err));
@@ -5134,77 +5138,46 @@ ${attachmentLines.join('\n')}`
                             break;
                         }
 
-                        let normalized = { ok: false, data: null as any, stderrLastLine: '' };
-
-                        try {
-                            const exportResult = await this.client.exportSession(targetSessionId);
-                            if (exportResult && typeof exportResult.code === 'number') {
-                                normalized.ok = exportResult.code === 0;
-                                normalized.stderrLastLine = this.extractLastLine(exportResult.stderr);
-                                normalized.data = exportResult.data ?? exportResult;
-                            } else {
-                                normalized.ok = true;
-                                normalized.data = exportResult;
-                            }
-                        } catch (err) {
-                            normalized.ok = false;
-                            normalized.stderrLastLine = this.extractLastLine(String(err));
+                        // Last resort: snapshot-only or empty fail — DO NOT full-export entire history (20s+).
+                        if (baseMessages.length > 0) {
+                            const timelineIds = baseMessages
+                                .map((message) => (typeof message?.id === 'string' ? message.id : ''))
+                                .filter((id): id is string => Boolean(id));
+                            const sent = postSessionData({
+                                type: 'sessionData',
+                                sessionId: targetSessionId,
+                                title: baseTitle,
+                                messages: baseMessages,
+                                segments,
+                                meta: {
+                                    source: 'snapshot-only',
+                                    timelineMessageIds: timelineIds,
+                                    pinBottom: true,
+                                }
+                            }, 'snapshot');
+                            if (sent) sessionDataSent = true;
+                            this.uiDebugChannel.appendLine(
+                                `[EXT][SESSION_LOAD_OK] sessionId=${targetSessionId} source=snapshot-only msgs=${baseMessages.length}`
+                            );
+                            break;
                         }
 
-                        if (!normalized.ok) {
-                            this.uiDebugChannel.appendLine(`[EXT][EXPORT_FAIL] sessionId=${targetSessionId} stderrLastLine=${normalized.stderrLastLine || recentFailedReason || 'null'}`);
+                        if (!sessionDataSent) {
+                            this.uiDebugChannel.appendLine(
+                                `[EXT][EXPORT_FAIL] sessionId=${targetSessionId} stderrLastLine=${recentFailedReason || 'null'}`
+                            );
                             const liveWebview = this._view?.webview || activeWebview;
                             liveWebview.postMessage({
                                 type: 'sessionLoadFailed',
                                 payload: {
                                     sessionId: targetSessionId,
                                     reason: 'export_failed_no_snapshot',
-                                    stderrLastLine: normalized.stderrLastLine || recentFailedReason || ''
+                                    stderrLastLine: recentFailedReason || ''
                                 }
                             });
-                            return;
-                        }
-
-                        const exportData = normalized.data;
-                        const formattedRaw = this.formatSession(exportData);
-                        const formatted = await this.injectChangeLists(targetSessionId, formattedRaw);
-
-                        // this.uiDebugChannel.appendLine(
-                        //     `[EXT][SEG_HYDRATE_LOAD] sessionId=${data.sessionId} found=${segments.length} ` +
-                        //     `keys=[${(segMap ? Array.from(segMap.keys()) : []).join(', ')}]`
-                        // );
-                        // 
-                        // this.uiDebugChannel.appendLine(
-                        //     `[EXT][SEG_HYDRATE_SEND] sessionId=${data.sessionId} count=${segments.length} reason=selectSession`
-                        // );
-                        // 
-                        // const timelineMsgCount = formatted.messages.filter((m) => typeof m.id === 'string' && m.id.startsWith('msg_')).length;
-                        // this.uiDebugChannel.appendLine(
-                        //     `sessionData.send | sessionId | ${data.sessionId} | messagesCount | ${formatted.messages.length} | ` +
-                        //     `timelineMsgCount | ${timelineMsgCount} | segmentsCount | ${segments.length}`
-                        // );
-
-                        const sessionPayload = {
-                            type: 'sessionData',
-                            sessionId: targetSessionId,
-                            title: formatted.title,
-                            messages: formatted.messages,
-                            segments,
-                                meta: {
-                                    timelineMessageIds: this.collectVisibleSnapshotMessages(formatted.messages)
-                                        .map((message) => (typeof message?.id === 'string' ? message.id : ''))
-                                        .filter((id): id is string => Boolean(id))
-                                }
-                            };
-                        const sent = postSessionData(sessionPayload, 'full');
-                        if (sent && formatted.messages.length > 0) {
-                            sessionDataSent = true;
-                        }
-                        if (sent) {
-                            this.uiDebugChannel.appendLine(`[EXT][SNAP_SAVE_SKIP] sessionId=${targetSessionId} reason=selectSession:full disabled=incremental-only`);
                         }
                         // Mirror live CLI/other-client activity into this webview
-                        if (isCurrentSelection()) {
+                        if (isCurrentSelection() && sessionDataSent) {
                             this.startLiveFollow(targetSessionId, activeWebview);
                         }
                         } catch (error) {
@@ -9296,6 +9269,9 @@ ${attachmentLines.join('\n')}`
                 typeof m.text === 'string' && m.text.includes('%%MIMO_PART')
             );
             if (dbMsgs.length) {
+                const dbToolMsgs = dbMsgs.filter((m: any) =>
+                    typeof m.text === 'string' && m.text.includes('%%MIMO_PART')
+                ).length;
                 this._loadedSessions.set(sessionId, dbData?.messages ?? []);
                 liveWebview.postMessage({
                     type: 'sessionData',
@@ -9306,17 +9282,18 @@ ${attachmentLines.join('\n')}`
                         source: 'select-db',
                         time: Date.now(),
                         limit,
-                        hasToolCards,
+                        hasToolCards: dbToolMsgs > 0,
+                        toolMsgs: dbToolMsgs,
                         loadMs: dbMs,
                         pinBottom: true,
                     },
                 });
-                rtLog(`LOAD_SESSION db_ms=${dbMs} msgs=${dbMsgs.length} toolCards=${hasToolCards}`);
+                rtLog(`LOAD_SESSION db_ms=${dbMs} msgs=${dbMsgs.length} toolMsgs=${dbToolMsgs}`);
                 this.uiDebugChannel.appendLine(
-                    `[EXT][LOAD_SESSION] source=db ms=${dbMs} msgs=${dbMsgs.length} tools=${hasToolCards}`
+                    `[EXT][LOAD_SESSION] source=db ms=${dbMs} msgs=${dbMsgs.length} toolMsgs=${dbToolMsgs}`
                 );
-                // Background: if API has more structure, enrich (non-blocking)
-                void this.enrichFromApiIfRicher(sessionId, limit, dbMsgs.length);
+                // Only try API if DB had zero tool cards
+                void this.enrichFromApiIfRicher(sessionId, limit, dbMsgs.length, dbToolMsgs);
                 return;
             }
         } catch (e) {
@@ -9356,17 +9333,31 @@ ${attachmentLines.join('\n')}`
         }
     }
 
-    private async enrichFromApiIfRicher(sessionId: string, limit: number, dbMsgCount: number): Promise<void> {
+    private async enrichFromApiIfRicher(
+        sessionId: string,
+        limit: number,
+        dbMsgCount: number,
+        dbToolMsgs = 0
+    ): Promise<void> {
+        // NEVER replace a DB hydrate that already has tool cards with sparse API export.
+        // API often omits tool/reasoning parts → user saw "no tools after ~20s reload".
+        if (dbToolMsgs > 0) {
+            this.uiDebugChannel.appendLine(
+                `[EXT][API_ENRICH_SKIP] session=${sessionId} reason=db-has-tools dbTools=${dbToolMsgs}`
+            );
+            return;
+        }
         try {
             const exportData = await this.client.exportSessionRecent(sessionId, limit);
             const formatted = this.formatSession(exportData);
             if (!formatted.messages.length) return;
             if (this.currentSessionId !== sessionId) return;
-            const apiTools = formatted.messages.filter((m) =>
+            const apiToolMsgs = formatted.messages.filter((m) =>
                 typeof m.text === 'string' && m.text.includes('%%MIMO_PART')
             ).length;
-            // Only replace if API has clearly more tool cards
-            if (apiTools <= 0) return;
+            // Only replace empty/sparse DB with strictly richer API tool coverage
+            if (apiToolMsgs <= dbToolMsgs) return;
+            if (formatted.messages.length < dbMsgCount && apiToolMsgs <= dbToolMsgs) return;
             const liveWebview = this._view?.webview;
             if (!liveWebview) return;
             liveWebview.postMessage({
@@ -9381,6 +9372,7 @@ ${attachmentLines.join('\n')}`
                     hasToolCards: true,
                     pinBottom: true,
                     prevDbMsgs: dbMsgCount,
+                    apiToolMsgs,
                 },
             });
         } catch {

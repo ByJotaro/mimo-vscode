@@ -3497,6 +3497,44 @@ select#mode-select {
    Single source of truth
    ========================= */
 
+/* Full-screen session load — keeps Recent list underneath, no blank flash */
+.session-load-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 10, 0.72);
+  pointer-events: all;
+}
+.session-load-overlay-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 28px;
+  background: #141414;
+  border: 1px solid #3c3c3c;
+  border-radius: 8px;
+  color: #eeeeee;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+  min-width: 200px;
+}
+.session-load-overlay-text { color: #eeeeee; font-weight: 500; }
+.session-load-overlay-sub { color: #808080; font-size: 11px; }
+.session-load-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  margin: 4px 0;
+  color: #808080;
+  font-size: 12px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+}
+
 /* Chat layout density — match MiMo Code CLI terminal */
 .chat-area {
   gap: 0 !important;
