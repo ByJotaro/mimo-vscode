@@ -435,6 +435,16 @@ function formatMarkdownLite(text: string): string {
       blocks.push(`<h${lvl}>${inlineMd(hm[2])}</h${lvl}>`);
       continue;
     }
+    if (/^>\s?/.test(line)) {
+      flush();
+      blocks.push(`<blockquote>${inlineMd(line.replace(/^>\s?/, ''))}</blockquote>`);
+      continue;
+    }
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
+      flush();
+      blocks.push('<hr/>');
+      continue;
+    }
     if (/^[-*]\s+/.test(line)) {
       flush();
       blocks.push(`<li data-list="ul">${inlineMd(line.replace(/^[-*]\s+/, ''))}</li>`);
