@@ -134,6 +134,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case 'redoLast':
           vscode.window.showInformationMessage('Git redo: not yet wired — use CLI');
           break;
+        case 'openExternalUrl':
+          if (typeof msg.url === 'string' && /^https?:\/\//i.test(msg.url)) {
+            void vscode.env.openExternal(vscode.Uri.parse(msg.url));
+          }
+          break;
         case 'openFilePath':
           if (typeof msg.path === 'string' && msg.path.trim()) {
             try {

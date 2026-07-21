@@ -422,9 +422,12 @@ function inlineMd(s: string): string {
   t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   t = t.replace(
     /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
-    '<a href="$2" rel="noopener">$1</a>'
+    '<a href="$2" rel="noopener noreferrer" class="mimo-ext-link">$1</a>'
   );
-  t = t.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" rel="noopener">$1</a>');
+  t = t.replace(
+    /(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" rel="noopener noreferrer" class="mimo-ext-link">$1</a>'
+  );
   return t;
 }
 
@@ -941,6 +944,14 @@ function onScroll(): void {
 }
 
 chat.addEventListener('scroll', onScroll, { passive: true });
+chat.addEventListener('click', (e) => {
+  const t = e.target as HTMLElement | null;
+  const a = t?.closest?.('a') as HTMLAnchorElement | null;
+  if (!a || !a.href || !/^https?:/i.test(a.href)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  post({ type: 'openExternalUrl', url: a.href });
+});
 btnHome?.addEventListener('click', () => {
   // Home = logo + recent sessions, NOT a blank new session
   activeSessionId = '';

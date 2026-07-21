@@ -1343,3 +1343,13 @@ body.mimo-busy #btn-abort {
   border-top: 1px solid #2a2a2a !important;
   margin: 10px 0 !important;
 }
+
+a.mimo-ext-link {
+  color: #FF8A3C !important;
+  text-decoration: none !important;
+  border-bottom: 1px solid rgba(255,106,0,0.35) !important;
+}
+a.mimo-ext-link:hover {
+  color: #FFB080 !important;
+  border-bottom-color: #FF6A00 !important;
+}
