@@ -486,6 +486,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           messageId: this.liveAssistantId || ev.messageId,
           text: this.liveBuffer,
         });
+        // Track file tools for git undo map (best-effort)
+        void this.maybeCommitToolPart(sid, ev.part);
       }
       return;
     }
@@ -555,6 +557,37 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
     if (ev.type === 'questionCleared') {
       this.post({ type: 'questionCleared', callId: (ev as any).callId });
+    }
+  }
+
+  private async maybeCommitToolPart(sessionId: string, part: any): Promise<void> {
+    if (!this.gitUndo || !sessionId || !part) return;
+    try {
+      const tool = String(part.tool || part.name || part.type || '').toLowerCase();
+      if (
+        !/^(write|edit|patch|multiedit|strreplace|create)$/i.test(tool) &&
+        part.type !== 'patch'
+      ) {
+        return;
+      }
+      const filePath =
+        part.path ||
+        part.filePath ||
+        part.state?.input?.file_path ||
+        part.state?.input?.path ||
+        (Array.isArray(part.files) ? part.files[0] : '') ||
+        '';
+      if (!filePath || typeof filePath !== 'string') return;
+      const owner = this.liveAssistantId || 'live';
+      await this.gitUndo.commitFileChanges(
+        sessionId,
+        owner,
+        owner,
+        owner,
+        [{ type: 'modify', path: filePath.replace(/\\/g, '/') }] as any
+      );
+    } catch (e) {
+      this.log.appendLine('[undo] commit tool ' + String(e).slice(0, 100));
     }
   }
 
