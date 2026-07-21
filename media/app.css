@@ -477,3 +477,6 @@ body.vscode-dark, body.vscode-light {
 }
 .permission-actions button.danger { border-color: #c53b53; color: #c53b53; }
 .permission-actions button:hover { border-color: #FF6A00; }
+
+.mimo-welcome-hint { margin-top: 4px; color: #606060; font-size: 10px; }
+

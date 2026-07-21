@@ -1,4 +1,4 @@
-/** CLI logoThin — square mono cells, #FF6A00 / #a0a0a0 */
+/** CLI logoThin — square mono cells, hold-to-charge + SFX */
 
 const LOGO_LEFT = [
   '                  ',
@@ -17,8 +17,16 @@ const LOGO_RIGHT = [
 
 const ORANGE = { r: 255, g: 106, b: 0 };
 const GRAY = { r: 160, g: 160, b: 160 };
+const PEAK = { r: 255, g: 255, b: 255 };
 
-type Cell = { ch: string; gx: number; gy: number; base: typeof ORANGE; px?: number; py?: number };
+type Cell = {
+  ch: string;
+  gx: number;
+  gy: number;
+  base: typeof ORANGE;
+  px?: number;
+  py?: number;
+};
 
 function buildCells(): { cells: Cell[]; cols: number; rows: number } {
   const gap = 1;
@@ -49,6 +57,32 @@ function buildCells(): { cells: Cell[]; cols: number; rows: number } {
   return { cells, cols: maxX + 1, rows: maxY + 1 };
 }
 
+function playUrl(url: string | undefined, volume: number): HTMLAudioElement | null {
+  if (!url) return null;
+  try {
+    const a = new Audio(url);
+    a.volume = Math.max(0, Math.min(1, volume));
+    const p = a.play();
+    if (p && typeof p.catch === 'function') p.catch(() => undefined);
+    return a;
+  } catch {
+    return null;
+  }
+}
+
+function tint(
+  a: { r: number; g: number; b: number },
+  b: { r: number; g: number; b: number },
+  t: number
+) {
+  const k = Math.max(0, Math.min(1, t));
+  return {
+    r: Math.round(a.r + (b.r - a.r) * k),
+    g: Math.round(a.g + (b.g - a.g) * k),
+    b: Math.round(a.b + (b.b - a.b) * k),
+  };
+}
+
 export function paintLogo(host: HTMLElement): void {
   host.innerHTML = '';
   const wrap = document.createElement('div');
@@ -57,18 +91,34 @@ export function paintLogo(host: HTMLElement): void {
   logoBox.className = 'mimo-welcome-logo';
   const canvas = document.createElement('canvas');
   canvas.className = 'mimo-logo-canvas';
+  canvas.style.cursor = 'pointer';
+  canvas.setAttribute('role', 'button');
+  canvas.setAttribute('aria-label', 'MiMo Code logo — hold to charge');
   logoBox.appendChild(canvas);
   wrap.appendChild(logoBox);
   const sub = document.createElement('div');
   sub.className = 'mimo-welcome-sub';
   sub.textContent = 'Where models and agents co-evolve';
   wrap.appendChild(sub);
+  const hint = document.createElement('div');
+  hint.className = 'mimo-welcome-hint';
+  hint.textContent = 'Hold the logo to charge · release to burst · / commands';
+  wrap.appendChild(hint);
   host.appendChild(wrap);
 
   const grid = buildCells();
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
+
+  let cell = 12;
+  let W = 0;
+  let H = 0;
+  let holdAt: number | null = null;
+  let chargeAudio: HTMLAudioElement | null = null;
+  let pulseShot = 0;
+  const sfx = (window as any).__mimoSfx || {};
+  const pulses = [sfx.pulseA, sfx.pulseB, sfx.pulseC].filter(Boolean);
 
   function layout(): void {
     const avail = Math.max(220, (host.clientWidth || 360) - 8);
@@ -85,9 +135,9 @@ export function paintLogo(host: HTMLElement): void {
       if (advance * grid.cols <= avail || fs <= 12) break;
       fs -= 1;
     }
-    const cell = advance;
-    const W = grid.cols * cell;
-    const H = grid.rows * cell;
+    cell = advance;
+    W = grid.cols * cell;
+    H = grid.rows * cell;
     canvas.width = Math.floor(W * dpr);
     canvas.height = Math.floor(H * dpr);
     canvas.style.width = W + 'px';
@@ -97,16 +147,85 @@ export function paintLogo(host: HTMLElement): void {
       c.px = c.gx * cell + cell * 0.5;
       c.py = c.gy * cell + cell * 0.5;
     }
+  }
+
+  function draw(t: number): void {
+    const charge =
+      holdAt != null ? Math.min(1, (t - holdAt) / 3000) : 0;
     ctx!.clearRect(0, 0, W, H);
     ctx!.font = `600 ${cell}px "Cascadia Mono", Consolas, monospace`;
     ctx!.textAlign = 'center';
     ctx!.textBaseline = 'middle';
     ctx!.imageSmoothingEnabled = false;
     for (const c of grid.cells) {
-      ctx!.fillStyle = `rgb(${c.base.r},${c.base.g},${c.base.b})`;
+      let col = c.base;
+      if (charge > 0.02) {
+        col = tint(c.base, ORANGE, Math.min(0.55, charge * 0.4));
+        col = tint(col, PEAK, charge * 0.35);
+      } else {
+        const sh = 0.5 + 0.5 * Math.sin(t * 0.0015 + c.gx * 0.4 + c.gy);
+        col = tint(c.base, PEAK, sh * 0.04);
+      }
+      ctx!.fillStyle = `rgb(${col.r},${col.g},${col.b})`;
+      if (charge > 0.3) {
+        ctx!.shadowColor = `rgba(255,106,0,${0.35 + charge * 0.4})`;
+        ctx!.shadowBlur = 4 + charge * 14;
+      } else {
+        ctx!.shadowBlur = 0;
+      }
       ctx!.fillText(c.ch, c.px!, c.py!);
     }
+    ctx!.shadowBlur = 0;
   }
+
+  function loop(t: number): void {
+    draw(t);
+    requestAnimationFrame(loop);
+  }
+
+  function press(): void {
+    holdAt = performance.now();
+    try {
+      if (chargeAudio) {
+        chargeAudio.pause();
+        chargeAudio = null;
+      }
+    } catch {
+      /* */
+    }
+    chargeAudio = playUrl(sfx.charge, 0.24);
+  }
+
+  function release(): void {
+    if (holdAt == null) return;
+    const scale = Math.min(1, (performance.now() - holdAt) / 3000);
+    holdAt = null;
+    try {
+      if (chargeAudio) {
+        chargeAudio.pause();
+        chargeAudio.currentTime = 0;
+        chargeAudio = null;
+      }
+    } catch {
+      /* */
+    }
+    if (pulses.length) {
+      const url = pulses[pulseShot++ % pulses.length];
+      setTimeout(() => playUrl(url, 0.26 + 0.14 * scale), 30);
+    }
+  }
+
   layout();
-  window.addEventListener('resize', layout);
+  requestAnimationFrame(loop);
+  window.addEventListener('resize', () => {
+    layout();
+  });
+  canvas.addEventListener('mousedown', press);
+  canvas.addEventListener('mouseup', release);
+  canvas.addEventListener('mouseleave', release);
+  canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    press();
+  }, { passive: false });
+  canvas.addEventListener('touchend', release);
 }
