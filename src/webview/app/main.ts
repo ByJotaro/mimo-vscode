@@ -128,6 +128,7 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
   const isEditTool =
     kind === 'patch' || /^(write|edit|multiedit|apply_patch|str_replace)$/i.test(titleRaw);
   const isReadTool = /^(read|grep|glob|search|webfetch|websearch|codesearch)$/i.test(titleRaw);
+  const isSkillTool = /^(skill|workflow|actor|task|memory|history)$/i.test(titleRaw);
   det.className =
     'mimo-part mimo-part--flat' +
     (isBashTool
@@ -136,7 +137,9 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
         ? ' mimo-part--edit'
         : isReadTool
           ? ' mimo-part--read'
-          : '');
+          : isSkillTool
+            ? ' mimo-part--skill'
+            : '');
   det.open = Boolean((seg as any).open);
   const title = escHtml(titleRaw);
   const body = String((seg as any).body || '');

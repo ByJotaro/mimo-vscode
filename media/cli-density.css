@@ -2342,3 +2342,16 @@ a.mimo-ext-link:hover {
 #chat {
   padding-bottom: 12px !important;
 }
+
+.mimo-part--skill {
+  border-left-color: #6a5a8a !important;
+}
+.mimo-part--skill[open] {
+  border-left-color: #b39ddb !important;
+}
+.mimo-part--skill > summary .mimo-part-title {
+  color: #c5b3e8 !important;
+}
+.mimo-part--skill[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
