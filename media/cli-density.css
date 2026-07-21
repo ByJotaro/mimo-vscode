@@ -1788,3 +1788,16 @@ a.mimo-ext-link:hover {
 .mimo-session-card:hover {
   border-left-color: #FF6A00 !important;
 }
+
+/* Tool strip hover — slightly lift without breaking left bar */
+.mimo-part > summary:hover {
+  background: #1a1a1a !important;
+}
+.mimo-part[open] > summary:hover {
+  background: #161616 !important;
+}
+/* Keep title strip edge flush with left bar */
+.mimo-part > summary {
+  border-left: none !important;
+  margin: 0 !important;
+}
