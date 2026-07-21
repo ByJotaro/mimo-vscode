@@ -4162,3 +4162,56 @@ canvas#starfield {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.197 denser reconnect + busy rail + FINAL strip */
+.mimo-reconnect,
+#reconnect-banner {
+  border-left: 2px solid #FF6A00 !important;
+  background: #1a1208 !important;
+  color: #e8c89a !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  padding: 6px 10px !important;
+  letter-spacing: 0.02em !important;
+}
+.mimo-busy-rail,
+#busy-rail {
+  height: 2px !important;
+  background: linear-gradient(90deg, transparent, #FF6A00, transparent) !important;
+  background-size: 200% 100% !important;
+  animation: mimo-rail 1.2s linear infinite !important;
+  opacity: 0 !important;
+  transition: opacity 0.15s ease !important;
+}
+body.is-busy .mimo-busy-rail,
+body.is-busy #busy-rail,
+.input-area.is-busy .mimo-busy-rail {
+  opacity: 1 !important;
+}
+@keyframes mimo-rail {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+/* denser abort btn pulse already; soft tool meta ellipsis */
+.mimo-part-meta {
+  max-width: 42% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  color: #707070 !important;
+  font-size: 11px !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
