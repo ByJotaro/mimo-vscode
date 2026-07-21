@@ -2674,3 +2674,34 @@ textarea::placeholder {
 .mimo-part:not([open]) > .mimo-part-body {
   display: none !important;
 }
+
+/* beta.155 load-older denser strip */
+.mimo-load-older {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 8 !important;
+  padding: 6px 8px !important;
+  background: linear-gradient(180deg, rgba(10,10,10,0.95), rgba(10,10,10,0.75)) !important;
+  backdrop-filter: blur(4px);
+}
+.mimo-load-older-btn {
+  width: 100% !important;
+  text-align: left !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  color: #c0c0c0 !important;
+  background: #141414 !important;
+  border: 1px solid #2a2a2a !important;
+  border-left: 2px solid #FF6A00 !important;
+  border-radius: 0 4px 4px 0 !important;
+  padding: 5px 10px !important;
+  cursor: pointer !important;
+}
+.mimo-load-older-btn:hover {
+  color: #eeeeee !important;
+  border-left-color: #FF8A33 !important;
+}
+/* Tool title dblclick hint */
+.mimo-part > summary .mimo-part-title {
+  cursor: copy !important;
+}

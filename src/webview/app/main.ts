@@ -217,21 +217,22 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
     const ch = det.querySelector('.mimo-chev');
     if (ch) ch.textContent = det.open ? '▾' : '▸';
   });
-  const metaEl = det.querySelector('.mimo-part-meta');
-  metaEl?.addEventListener('dblclick', (e) => {
+  const copyTool = (e: Event) => {
     e.preventDefault();
     e.stopPropagation();
-    const t = inn || metaText || '';
+    const t = inn || metaText || titleRaw || '';
     if (t && navigator.clipboard?.writeText) {
       void navigator.clipboard.writeText(t);
+      showToast('copied');
       if (statusLabel) {
-        showToast('copied');
         statusLabel.textContent = 'copied';
         statusLabel.classList.add('is-flash');
         setTimeout(() => statusLabel?.classList.remove('is-flash'), 500);
       }
     }
-  });
+  };
+  det.querySelector('.mimo-part-title')?.addEventListener('dblclick', copyTool);
+  det.querySelector('.mimo-part-meta')?.addEventListener('dblclick', copyTool);
   return det;
 }
 
@@ -1115,12 +1116,15 @@ function ensureLoadOlderButton(olderCount: number): void {
     btn.type = 'button';
     btn.id = 'mimo-load-older-btn';
     btn.className = 'mimo-load-older-btn';
-    btn.addEventListener('click', () => requestLoadMore(true));
+    btn.addEventListener('click', () => {
+      showToast('loading older…');
+      requestLoadMore(true);
+    });
     bar.appendChild(btn);
     chat.insertBefore(bar, chat.firstChild);
   }
   const btn = document.getElementById('mimo-load-older-btn');
-  if (btn) btn.textContent = `↑ Load older (${olderCount})`;
+  if (btn) btn.textContent = `↑ Load older · ${olderCount}`;
 }
 
 function onScroll(): void {
