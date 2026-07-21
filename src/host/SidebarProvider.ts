@@ -183,6 +183,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case 'redoLast':
           await this.runGitRedo();
           break;
+        case 'focusPrompt':
+          this.post({ type: 'focusPrompt' });
+          break;
         case 'openSettings':
           void vscode.commands.executeCommand('workbench.action.openSettings', 'mimo');
           break;

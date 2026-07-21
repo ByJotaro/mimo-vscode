@@ -42,7 +42,10 @@ export function activate(context: vscode.ExtensionContext): void {
   };
   context.subscriptions.push(
     vscode.commands.registerCommand('mimo.openSidebar', openSidebar),
-    vscode.commands.registerCommand('mimo.focusChat', openSidebar),
+    vscode.commands.registerCommand('mimo.focusChat', async () => {
+      await openSidebar();
+      await provider.runCommand('focusPrompt');
+    }),
     vscode.commands.registerCommand('mimo.newSession', () =>
       runHost(() => provider.runCommand('newSession'))
     ),

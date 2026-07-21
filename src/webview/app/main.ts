@@ -1906,6 +1906,9 @@ if (Array.isArray(message.modes) && message.modes.length) {
         showToast('selection inserted');
       }
       break;
+    case 'focusPrompt':
+      promptEl?.focus();
+      break;
     case 'toast':
       if (message.text) showToast(String(message.text));
       break;
