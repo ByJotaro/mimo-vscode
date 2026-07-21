@@ -862,6 +862,8 @@ function setBusy(on: boolean): void {
     if (on) {
       const n = document.querySelectorAll('.message.is-streaming .mimo-part').length;
       statusLabel.textContent = n > 0 ? `running · ${n} tools` : 'running…';
+    } else if (statusLabel.dataset.usage) {
+      statusLabel.textContent = statusLabel.dataset.usage;
     } else if (statusLabel.dataset.server) {
       statusLabel.textContent = statusLabel.dataset.server;
     } else {
@@ -1805,7 +1807,7 @@ if (Array.isArray(message.modes) && message.modes.length) {
         else if (used) t = (used >= 1000 ? (used / 1000).toFixed(1) + 'k' : String(used)) + ' tok';
         if (message.amount) t += (t ? ' · ' : '') + '$'+Number(message.amount).toFixed(2);
         if (t) {
-          statusLabel.dataset.server = t;
+          statusLabel.dataset.usage = t;
           statusLabel.textContent = t;
           showToast(t, 1600);
         }
