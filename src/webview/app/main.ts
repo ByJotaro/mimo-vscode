@@ -1699,6 +1699,7 @@ if (Array.isArray(message.modes) && message.modes.length) {
         setTimeout(() => {
           if (activeSessionId && !busy) {
             post({ type: 'selectSession', sessionId: activeSessionId, soft: true });
+            post({ type: 'refreshUsage', sessionId: activeSessionId });
           }
         }, 400);
       }
