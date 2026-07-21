@@ -367,6 +367,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   }
 
   private async selectSession(sessionId: string): Promise<void> {
+    if (this.lastUndoSnap && this.lastUndoSnap.sessionId !== sessionId) this.lastUndoSnap = null; // clear redo snap on session switch
     const gen = ++this.selectionGen;
     this.currentSessionId = sessionId;
     this.post({ type: 'sessionLoadStatus', sessionId, loading: true });
