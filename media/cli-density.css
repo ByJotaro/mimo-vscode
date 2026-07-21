@@ -3633,3 +3633,42 @@ pre:hover .mimo-pre-copy {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.183 denser permission body + pats */
+.permission-body {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+  color: #c0c0c0 !important;
+  padding: 8px 10px !important;
+  line-height: 1.35 !important;
+}
+.permission-pats {
+  margin-top: 6px !important;
+  color: #808080 !important;
+  font-size: 11px !important;
+  border-left: 2px solid #3c3c3c !important;
+  padding-left: 8px !important;
+}
+.permission-title {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+}
+/* denser sequential tools under same bot message */
+.message.bot .mimo-part + .mimo-part {
+  margin-top: 1px !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
