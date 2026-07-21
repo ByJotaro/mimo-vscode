@@ -1446,3 +1446,20 @@ a.mimo-ext-link:hover {
   color: #0a0a0a;
   font-weight: 600;
 }
+
+.mimo-welcome {
+  text-align: center !important;
+  padding: 4px 8px 8px !important;
+}
+.mimo-welcome-sub {
+  margin-top: 12px !important;
+  letter-spacing: 0.02em;
+}
+.mimo-welcome-hint {
+  margin-top: 6px !important;
+  opacity: 0.85;
+}
+/* Running tools pulse in summary title */
+.message.is-streaming .mimo-part[open] > summary .mimo-part-title {
+  animation: mimo-busy-pulse 1.2s ease-in-out infinite;
+}
