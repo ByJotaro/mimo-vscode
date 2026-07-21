@@ -1522,3 +1522,23 @@ a.mimo-ext-link:hover {
 .mimo-history-search:focus-visible {
   outline: none !important;
 }
+
+.mimo-history-empty {
+  color: #606060 !important;
+  font-size: 12px !important;
+  text-align: center !important;
+  padding: 16px 12px !important;
+  font-style: italic;
+}
+/* Italic markdown */
+.message-content em {
+  color: #c8c8c8 !important;
+  font-style: italic !important;
+}
+.message-content s {
+  color: #808080 !important;
+}
+/* Export-friendly selection */
+.message {
+  user-select: text;
+}

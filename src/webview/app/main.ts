@@ -1014,6 +1014,8 @@ function doSend(): void {
   if (handleLocalSlash(text)) { promptEl.value = ''; hideSlash(); return; }
   lastUserPrompt = text;
   promptEl.value = '';
+  autoResizePrompt();
+  if (statusLabel) statusLabel.textContent = 'sending…';
   post({
     type: 'sendPrompt',
     text,
