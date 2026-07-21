@@ -118,18 +118,33 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
   det.open = Boolean((seg as any).open);
   const titleRaw = String((seg as any).title || seg.kind);
   const title = escHtml(titleRaw);
-  const meta = escHtml((seg as any).meta || '');
   const body = String((seg as any).body || '');
   const { inn, out } = parseInOut(body);
   const isDiff =
     looksLikeDiff(out) ||
     seg.kind === 'patch' ||
     /^(write|edit)$/i.test(titleRaw);
+  // Closed-row preview like CLI: bash · first line of command
+  const previewSrc = (inn || out || (seg as any).meta || '').replace(/\s+/g, ' ').trim();
+  const preview =
+    previewSrc.length > 72 ? previewSrc.slice(0, 70) + '…' : previewSrc;
+  const metaText = preview || String((seg as any).meta || '');
+  const dur = String((seg as any).duration || '').trim();
+
   let bodyHtml = '';
   if (inn) {
-    // label "in"/"file" + bare pre — no box
     const inLab = isDiff || seg.kind === 'patch' ? 'file' : 'in';
-    bodyHtml += `<div class="mimo-io-line mimo-io-line--in"><span class="mimo-io-k">${inLab}</span><pre class="mimo-io-v mimo-io-v--cmd">${escHtml(inn)}</pre></div>`;
+    const isBash = /^(bash|shell|cmd|powershell|pwsh)$/i.test(titleRaw);
+    const maxL = isBash ? 5 : 8;
+    const maxC = isBash ? 600 : 1200;
+    const lines = inn.split('\n');
+    let shown = lines.slice(0, maxL).join('\n');
+    if (shown.length > maxC) shown = shown.slice(0, maxC) + '…';
+    else if (lines.length > maxL) shown += '\n…';
+    const trunc = lines.length > maxL || inn.length > maxC;
+    bodyHtml += `<div class="mimo-io-line mimo-io-line--in"><span class="mimo-io-k">${inLab}</span><pre class="mimo-io-v mimo-io-v--cmd${
+      trunc ? ' is-clamped' : ''
+    }" data-full="${escHtml(inn)}" data-shown="${escHtml(shown)}">${escHtml(shown)}</pre></div>`;
   }
   if (inn && out) bodyHtml += `<div class="mimo-io-hr" role="separator"></div>`;
   if (out) {
@@ -139,8 +154,26 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
     }</div>`;
   }
   det.innerHTML = `<summary><span class="mimo-chev" aria-hidden="true">▸</span><span class="mimo-part-title">${title}</span>${
-    meta ? `<span class="mimo-part-meta">${meta}</span>` : ''
+    metaText ? `<span class="mimo-part-meta">${escHtml(metaText)}</span>` : ''
+  }${
+    dur ? `<span class="mimo-dur">${escHtml(dur)}</span>` : ''
   }</summary><div class="mimo-part-body"><div class="mimo-io mimo-io--flat">${bodyHtml}</div></div>`;
+
+  // Click clamped command to expand/collapse (v1)
+  det.querySelectorAll('pre.mimo-io-v--cmd.is-clamped').forEach((pre) => {
+    pre.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const el = pre as HTMLElement;
+      if (el.classList.contains('is-expanded')) {
+        el.textContent = el.dataset.shown || '';
+        el.classList.remove('is-expanded');
+      } else {
+        el.textContent = el.dataset.full || el.textContent || '';
+        el.classList.add('is-expanded');
+      }
+    });
+  });
   return det;
 }
 
