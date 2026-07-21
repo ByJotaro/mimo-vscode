@@ -905,6 +905,11 @@ function handleLocalSlash(full: string): boolean {
     post({ type: 'newSession' });
     return true;
   }
+  if (cmd === 'exit') {
+    showToast('Home');
+    post({ type: 'goHome' });
+    return true;
+  }
   if (cmd === 'home') {
     showToast('Home');
     post({ type: 'goHome' });
