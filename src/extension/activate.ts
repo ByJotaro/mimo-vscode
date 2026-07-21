@@ -26,9 +26,28 @@ export function activate(context: vscode.ExtensionContext): void {
       /* ignore */
     }
   };
+  const runHost = async (fn: () => void | Promise<void>) => {
+    await openSidebar();
+    await fn();
+  };
   context.subscriptions.push(
     vscode.commands.registerCommand('mimo.openSidebar', openSidebar),
-    vscode.commands.registerCommand('mimo.focusChat', openSidebar)
+    vscode.commands.registerCommand('mimo.focusChat', openSidebar),
+    vscode.commands.registerCommand('mimo.newSession', () =>
+      runHost(() => provider.runCommand('newSession'))
+    ),
+    vscode.commands.registerCommand('mimo.goHome', () =>
+      runHost(() => provider.runCommand('goHome'))
+    ),
+    vscode.commands.registerCommand('mimo.openHistory', () =>
+      runHost(() => provider.runCommand('openHistory'))
+    ),
+    vscode.commands.registerCommand('mimo.insertSelection', () =>
+      runHost(() => provider.runCommand('insertEditorSelection'))
+    ),
+    vscode.commands.registerCommand('mimo.abort', () =>
+      runHost(() => provider.runCommand('abort'))
+    )
   );
 }
 

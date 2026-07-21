@@ -3,7 +3,7 @@
   "displayName": "MiMo Code",
   "publisher": "mimo",
   "description": "MiMo Code VS Code sidebar — modular rewrite (v2). Fast DB-first history, CLI-faithful tools & theme.",
-  "version": "1.0.0-beta.243",
+  "version": "1.0.0-beta.244",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -17,6 +17,11 @@
   "activationEvents": [
     "onView:mimo.sidebar",
     "onCommand:mimo.checkVersion",
+    "onCommand:mimo.newSession",
+    "onCommand:mimo.goHome",
+    "onCommand:mimo.openHistory",
+    "onCommand:mimo.insertSelection",
+    "onCommand:mimo.abort",
     "onStartupFinished"
   ],
   "main": "./out/extension/activate.js",
@@ -55,6 +60,26 @@
       {
         "command": "mimo.focusChat",
         "title": "MiMo Code: Focus Chat"
+      },
+      {
+        "command": "mimo.newSession",
+        "title": "MiMo Code: New Session"
+      },
+      {
+        "command": "mimo.goHome",
+        "title": "MiMo Code: Home"
+      },
+      {
+        "command": "mimo.openHistory",
+        "title": "MiMo Code: History"
+      },
+      {
+        "command": "mimo.insertSelection",
+        "title": "MiMo Code: Insert Editor Selection"
+      },
+      {
+        "command": "mimo.abort",
+        "title": "MiMo Code: Stop Turn"
       }
     ],
     "menus": {
@@ -63,6 +88,22 @@
           "command": "mimo.checkVersion",
           "when": "view == mimo.sidebar",
           "group": "navigation"
+        },
+        {
+          "command": "mimo.newSession",
+          "when": "view == mimo.sidebar",
+          "group": "navigation"
+        },
+        {
+          "command": "mimo.goHome",
+          "when": "view == mimo.sidebar",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "mimo.insertSelection",
+          "group": "mimo@1"
         }
       ]
     }

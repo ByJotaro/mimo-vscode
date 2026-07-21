@@ -75,6 +75,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     void this.view?.webview.postMessage(msg);
   }
 
+  /** Command palette / external entry */
+  async runCommand(type: string, extra?: Record<string, unknown>): Promise<void> {
+    await this.onMessage({ type, ...(extra || {}) });
+  }
+
   private async onMessage(msg: any): Promise<void> {
     if (!msg || typeof msg.type !== 'string') return;
     try {
@@ -143,6 +148,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             }
           })();
           break;
+        case 'openHistory':
+          this.post({ type: 'toast', text: 'history' });
+          await this.sendSessionsList(true);
+          break;
         case 'goHome':
           this.post({ type: 'toast', text: 'Home' });
           this.currentSessionId = '';
@@ -193,8 +202,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           const file = ed.document.uri.fsPath;
           const start = ed.selection.start.line + 1;
           const end = ed.selection.end.line + 1;
-          const header = '' + file + ':' + start + (end !== start ? '-' + end : '') + '';
-          this.post({ type: 'insertPromptText', text: header + '\n`\n' + sel + '\n`\n' });
+          const header =
+            '`' + file + ':' + start + (end !== start ? '-' + end : '') + '`';
+          this.post({ type: 'insertPromptText', text: header + '\n```\n' + sel + '\n```\n' });
           break;
         }
                 case 'openFolder': {
