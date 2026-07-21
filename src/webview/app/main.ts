@@ -1010,7 +1010,7 @@ function handleLocalSlash(full: string): boolean {
         '- `/home` `/new` `/fork` `/clear` `/sessions` `/history` `/stop`\n' +
         '- `/plan` `/build` `/compose` `/agent <mode>` `/model` `/models`\n' +
         '- `/undo` `/retry` `/details` `/cost` `/status` `/usage` `/help`\n' +
-        '- Hotkeys: `Ctrl+Shift+H` history · `Ctrl+Shift+N` new · `Ctrl+Shift+U` home · `Ctrl+.` abort\n\n' +
+        '- Hotkeys: `Ctrl+Shift+H` history · `Ctrl+Shift+N` new · `Ctrl+Shift+L` clear · `Ctrl+Shift+U` home · `Ctrl+.` abort\n\n' +
         '**Agent skills:** type `/` for full catalog (arxiv, deep-research, …).',
     });
     return true;
@@ -1171,6 +1171,11 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   // Ctrl/Cmd+Shift+U → home
+  if (e.shiftKey && k === 'l') {
+    e.preventDefault();
+    handleLocalSlash('/clear');
+    return;
+  }
   if (e.shiftKey && k === 'u') {
     e.preventDefault();
     activeSessionId = '';
