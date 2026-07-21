@@ -1736,3 +1736,12 @@ a.mimo-ext-link:hover {
   max-height: 360px !important;
   overflow: auto !important;
 }
+
+.mimo-part + .mimo-part {
+  margin-top: 2px !important;
+}
+/* Closed tool strip compact height */
+.mimo-part:not([open]) > summary {
+  min-height: 22px !important;
+  padding: 3px 8px !important;
+}
