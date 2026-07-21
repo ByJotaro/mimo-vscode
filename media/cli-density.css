@@ -3223,3 +3223,63 @@ select#model {
 .mimo-jump-bottom {
   bottom: 88px !important;
 }
+
+/* beta.171 denser composer input-row */
+.input-row {
+  display: flex !important;
+  align-items: flex-end !important;
+  gap: 6px !important;
+}
+.input-row #prompt {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+.input-row #btn-send {
+  flex: 0 0 auto !important;
+  align-self: stretch !important;
+  min-width: 36px !important;
+  border-left: 2px solid #FF6A00 !important;
+  background: #141414 !important;
+  color: #FF6A00 !important;
+  border-radius: 0 4px 4px 0 !important;
+  font-size: 16px !important;
+  cursor: pointer !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+}
+.input-row #btn-send:hover {
+  background: #1a1a1a !important;
+}
+.input-row #btn-send:disabled,
+.input-row #btn-send.is-busy {
+  opacity: 0.55 !important;
+  cursor: default !important;
+}
+.input-meta {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding-top: 2px !important;
+}
+.input-meta select {
+  border-left: 2px solid #3c3c3c !important;
+  background: #141414 !important;
+  color: #c0c0c0 !important;
+  border-radius: 0 3px 3px 0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  max-width: 140px !important;
+}
+.input-meta select:focus {
+  border-left-color: #FF6A00 !important;
+  outline: none !important;
+}
+/* FINAL tool strip after composer denser */
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
