@@ -1938,3 +1938,32 @@ a.mimo-ext-link:hover {
   font-family: "Cascadia Mono", Consolas, monospace !important;
   font-size: 12px !important;
 }
+
+.status-bar,
+#statusBar,
+.mimo-status {
+  border-top: 1px solid #2a2a2a !important;
+  background: #0e0e0e !important;
+}
+.status-label,
+#statusLabel {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+}
+/* Tool strip focus-within orange left bar pulse soft */
+.mimo-part:focus-within {
+  outline: none !important;
+}
+.mimo-part[open]:focus-within {
+  border-left-color: #FF6A00 !important;
+}
+
+.mimo-thinking > summary {
+  background: #141414 !important;
+  border-bottom: 1px solid #1e1e1e !important;
+  padding: 3px 8px !important;
+  border-radius: 0 !important;
+}
+.mimo-thinking[open] > summary {
+  background: #121212 !important;
+}
