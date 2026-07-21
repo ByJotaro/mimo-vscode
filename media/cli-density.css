@@ -1051,3 +1051,63 @@ body.mimo-busy #btn-send {
   min-width: 64px;
   text-align: right;
 }
+
+/* Session header — CLI chrome */
+.session-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  min-height: 36px !important;
+  background: #0c0c0c !important;
+}
+.session-title {
+  flex: 1 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #e8e8e8 !important;
+  letter-spacing: 0.01em;
+}
+.header-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  flex-shrink: 0 !important;
+}
+.header-actions button {
+  border: 1px solid #333 !important;
+  background: #141414 !important;
+  color: #c8c8c8 !important;
+  border-radius: 4px !important;
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  cursor: pointer;
+  line-height: 1.2 !important;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.header-actions button:hover {
+  border-color: #FF6A00 !important;
+  color: #fff !important;
+  background: #1a140f !important;
+}
+#btn-abort:not([hidden]) {
+  border-color: #5a2020 !important;
+  color: #f0a0a0 !important;
+}
+body.mimo-busy #btn-abort {
+  display: inline-flex !important;
+}
+.input-meta {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+.input-row {
+  display: flex !important;
+  gap: 8px !important;
+  align-items: flex-end !important;
+}

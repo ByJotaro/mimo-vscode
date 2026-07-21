@@ -675,8 +675,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     <div class="header-actions">
       <button type="button" id="btn-history-top" title="Session history">History</button>
       <button type="button" id="btn-undo" title="Undo last file changes">Undo</button>
-      <button type="button" id="btn-home" title="Home">⌂</button>
-      <button type="button" id="btn-abort" title="Abort" hidden>■</button>
+      <button type="button" id="btn-home" title="Home — logo & recent">Home</button>
+      <button type="button" id="btn-abort" title="Abort current turn" hidden>Stop</button>
     </div>
   </header>
   <main class="chat-area" id="chat"></main>
