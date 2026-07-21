@@ -556,7 +556,13 @@ function setBusy(on: boolean): void {
   busy = on;
   setInputEnabled(true);
   if (btnAbort) btnAbort.hidden = !on;
-  if (statusLabel) statusLabel.textContent = on ? 'running…' : 'v2';
+  document.body.classList.toggle('mimo-busy', on);
+  if (btnSend) btnSend.classList.toggle('is-busy', on);
+  // Keep server status if present; only override when running
+  if (statusLabel) {
+    if (on) statusLabel.textContent = 'running…';
+    else if (!statusLabel.dataset.server) statusLabel.textContent = 'v2';
+  }
 }
 
 function fillSelect(
@@ -765,9 +771,15 @@ if (Array.isArray(message.modes) && message.modes.length) {
         role: 'assistant',
         text: message.text || '',
       });
+      document
+        .querySelector(`.message[data-id="${CSS.escape(String(message.messageId || 'live'))}"]`)
+        ?.classList.add('is-streaming');
       break;
     case 'streamDone':
       setBusy(false);
+      document.querySelectorAll('.message.is-streaming').forEach((el) => {
+        el.classList.remove('is-streaming');
+      });
       if (message.text) {
         appendOrUpdateMessage({
           id: message.messageId || 'live',
@@ -828,11 +840,11 @@ if (Array.isArray(message.modes) && message.modes.length) {
       document.getElementById('question-overlay')?.remove();
       break;
     case 'serverStatus':
-      if (statusLabel)
-        statusLabel.textContent = `${message.status || ''}${message.detail ? ' ' + message.detail : ''}`.slice(
-          0,
-          48
-        );
+      if (statusLabel) {
+        const t = `${message.status || ''}${message.detail ? ' ' + message.detail : ''}`.slice(0, 48);
+        statusLabel.dataset.server = t;
+        if (!busy) statusLabel.textContent = t || 'v2';
+      }
       break;
   }
 });

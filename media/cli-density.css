@@ -605,3 +605,43 @@ details[open] > summary .mimo-chev {
   from { opacity: 0; transform: translateY(-3px); }
   to { opacity: 1; transform: none; }
 }
+
+/* Live stream caret */
+.message.is-streaming .message-content::after {
+  content: "▍";
+  display: inline-block;
+  margin-left: 2px;
+  color: #FF6A00;
+  animation: mimo-blink 0.9s step-end infinite;
+  font-weight: 400;
+  vertical-align: baseline;
+}
+#btn-send.is-busy {
+  animation: mimo-pulse-btn 1.1s ease-in-out infinite;
+  pointer-events: none;
+  opacity: 0.85;
+}
+body.mimo-busy #status-label {
+  color: #FF6A00;
+}
+@keyframes mimo-blink {
+  50% { opacity: 0; }
+}
+@keyframes mimo-pulse-btn {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.18); }
+}
+
+/* Stagger session cards on home */
+.mimo-startup-list .mimo-session-card {
+  animation: mimo-rise 0.2s ease both;
+}
+.mimo-startup-list .mimo-session-card:nth-child(1) { animation-delay: 0.03s; }
+.mimo-startup-list .mimo-session-card:nth-child(2) { animation-delay: 0.06s; }
+.mimo-startup-list .mimo-session-card:nth-child(3) { animation-delay: 0.09s; }
+.mimo-startup-list .mimo-session-card:nth-child(4) { animation-delay: 0.12s; }
+.mimo-startup-list .mimo-session-card:nth-child(5) { animation-delay: 0.15s; }
+.mimo-startup-list .mimo-session-card:nth-child(6) { animation-delay: 0.18s; }
+.mimo-welcome {
+  animation: mimo-rise 0.25s ease both;
+}
