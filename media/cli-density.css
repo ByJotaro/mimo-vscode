@@ -2140,3 +2140,36 @@ a.mimo-ext-link:hover {
   border-left-color: #FF6A00 !important;
   background: #1a1a1a !important;
 }
+
+.mode-select,
+#modeSelect,
+.agent-select {
+  border-left: 2px solid #3c3c3c !important;
+  background: #141414 !important;
+  color: #eeeeee !important;
+  border-radius: 0 3px 3px 0 !important;
+}
+.mode-select:focus,
+#modeSelect:focus {
+  border-left-color: #FF6A00 !important;
+  outline: none !important;
+}
+/* Footer usage mono denser */
+.usage-label,
+#usageLabel {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 10px !important;
+  color: #808080 !important;
+}
+
+.mimo-part > summary,
+.mimo-part--flat > summary {
+  border-radius: 0 !important;
+}
+/* FINAL reassert title strip bg */
+.mimo-part > summary {
+  background: #141414 !important;
+}
+.mimo-part[open] > summary {
+  background: #121212 !important;
+}
