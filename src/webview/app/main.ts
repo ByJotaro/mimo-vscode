@@ -96,8 +96,9 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
     summary.appendChild(title);
     if (dur) {
       const d = document.createElement('span');
-      d.className = 'mimo-dur';
-      d.textContent = dur;
+      d.className = 'mimo-dur mimo-dur--circle';
+      d.textContent = dur.replace(/^~/, '');
+      d.title = words ? words + ' words' : 'thinking time';
       summary.appendChild(d);
     }
     if (words) {
@@ -106,6 +107,9 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
       w.textContent = words + ' words';
       summary.appendChild(w);
     }
+    det.addEventListener('toggle', () => {
+      chev.textContent = det.open ? '▾' : '▸';
+    });
     det.appendChild(summary);
     const body = document.createElement('div');
     body.className = 'mimo-thinking-body';

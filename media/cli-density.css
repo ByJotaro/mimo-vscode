@@ -757,3 +757,27 @@ body.mimo-busy #status-label {
   display: block !important;
   opacity: 0.7;
 }
+
+/* Thought duration pill (CLI-like circle badge) */
+.mimo-dur--circle {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 28px !important;
+  height: 18px !important;
+  padding: 0 7px !important;
+  border-radius: 999px !important;
+  border: 1px solid #3a3a3a !important;
+  background: #141414 !important;
+  color: #b0b0b0 !important;
+  font-variant-numeric: tabular-nums !important;
+  letter-spacing: 0.02em !important;
+}
+.mimo-thinking[open] > summary .mimo-chev {
+  color: var(--mimo-primary) !important;
+}
+.mimo-thinking > summary .mimo-chev {
+  transition: transform 0.12s ease;
+  display: inline-block;
+  width: 10px;
+}
