@@ -87,7 +87,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           break;
         case 'selectSession':
           if (typeof msg.sessionId === 'string' && msg.sessionId) {
-            await this.selectSession(msg.sessionId);
+            await this.selectSession(msg.sessionId, { soft: msg.soft === true });
           }
           break;
         case 'loadMoreSession':
@@ -367,11 +367,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async selectSession(sessionId: string): Promise<void> {
+  private async selectSession(sessionId: string, opts?: { soft?: boolean }): Promise<void> {
     if (this.lastUndoSnap && this.lastUndoSnap.sessionId !== sessionId) this.lastUndoSnap = null; // clear redo snap on session switch
     const gen = ++this.selectionGen;
     this.currentSessionId = sessionId;
-    this.post({ type: 'sessionLoadStatus', sessionId, loading: true });
+    if (!opts?.soft) this.post({ type: 'sessionLoadStatus', sessionId, loading: true });
 
     try {
       if (!dbAvailable()) {
@@ -394,8 +394,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         title: dbData.session.title || sessionId,
         messages,
         meta: {
-          source: 'db',
-          pinBottom: true,
+          source: opts?.soft ? 'db-soft' : 'db',
+          pinBottom: !opts?.soft,
           hasToolCards: toolMsgs > 0,
           toolMsgs,
           limit: FIRST_LOAD_LIMIT,
