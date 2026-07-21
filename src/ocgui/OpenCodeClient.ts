@@ -8995,49 +8995,129 @@ export class OpenCodeClient {
     }
 
     public async listSessions(): Promise<SessionInfo[]> {
-        await this.ensureServer();
-        // Prefer full /session (fast). Only merge directory list if global is empty/sparse.
-        let globalList: any[] = [];
+        // 1) Fast path: direct sqlite3 (no server cold-start). Titles in <100ms typically.
         try {
-            const g = await this.requestJson<any[]>('GET', '/session');
-            if (Array.isArray(g)) globalList = g;
-        } catch { /* ignore */ }
-        let dirList: any[] = [];
-        if (globalList.length < 3) {
+            const fromDb = this.listSessionsFromSqlite(40);
+            if (fromDb.length) {
+                rtLog(`LIST_SESSIONS sqlite n=${fromDb.length}`);
+                // Warm server in background for later API calls — don't block Recent
+                void this.ensureServer().catch(() => undefined);
+                return fromDb;
+            }
+        } catch (e) {
+            rtLog(`LIST_SESSIONS_SQLITE_ERR ${String(e).slice(0, 80)}`);
+        }
+        // 2) API path (may wait for serve)
+        try {
+            await this.ensureServer();
+            let globalList: any[] = [];
             try {
-                const directory = encodeURIComponent(this.workspaceRoot || '.');
-                const d = await this.requestJson<any[]>('GET', `/session?directory=${directory}`);
-                if (Array.isArray(d)) dirList = d;
+                const g = await this.requestJson<any[]>('GET', '/session');
+                if (Array.isArray(g)) globalList = g;
             } catch { /* ignore */ }
-        }
-        const byId = new Map<string, any>();
-        for (const s of [...globalList, ...dirList]) {
-            if (s && typeof s.id === 'string' && s.id) byId.set(s.id, s);
-        }
-        const sessions = Array.from(byId.values());
-        if (!sessions.length) {
+            const byId = new Map<string, any>();
+            for (const s of globalList) {
+                if (s && typeof s.id === 'string' && s.id) byId.set(s.id, s);
+            }
+            const sessions = Array.from(byId.values());
+            if (!sessions.length) return [];
+            const mapped = sessions.map((session) => ({
+                id: session.id,
+                title: session.title || 'Untitled Session',
+                updated: session?.time?.updated
+                    ? new Date(session.time.updated).toLocaleString()
+                    : (session?.time?.created ? new Date(session.time.created).toLocaleString() : ''),
+                cwd: typeof session?.path?.cwd === 'string'
+                    ? session.path.cwd
+                    : (typeof session?.cwd === 'string' ? session.cwd : undefined),
+                parentID: typeof session?.parentID === 'string' && session.parentID
+                    ? session.parentID
+                    : (typeof session?.parent_id === 'string' && session.parent_id
+                        ? session.parent_id
+                        : undefined),
+                updatedMs: typeof session?.time?.updated === 'number'
+                    ? session.time.updated
+                    : (typeof session?.time?.created === 'number' ? session.time.created : 0)
+            }));
+            mapped.sort((a, b) => b.updatedMs - a.updatedMs);
+            return mapped.map(({ updatedMs, ...rest }) => rest);
+        } catch (e) {
+            rtLog(`LIST_SESSIONS_API_ERR ${String(e).slice(0, 80)}`);
             return [];
         }
-        const mapped = sessions.map((session) => ({
-            id: session.id,
-            title: session.title || 'Untitled Session',
-            updated: session?.time?.updated
-                ? new Date(session.time.updated).toLocaleString()
-                : (session?.time?.created ? new Date(session.time.created).toLocaleString() : ''),
-            cwd: typeof session?.path?.cwd === 'string'
-                ? session.path.cwd
-                : (typeof session?.cwd === 'string' ? session.cwd : undefined),
-            parentID: typeof session?.parentID === 'string' && session.parentID
-                ? session.parentID
-                : (typeof session?.parent_id === 'string' && session.parent_id
-                    ? session.parent_id
-                    : undefined),
-            updatedMs: typeof session?.time?.updated === 'number'
-                ? session.time.updated
-                : (typeof session?.time?.created === 'number' ? session.time.created : 0)
-        }));
-        mapped.sort((a, b) => b.updatedMs - a.updatedMs);
-        return mapped.map(({ updatedMs, ...rest }) => rest);
+    }
+
+    /** Direct sqlite3 read of session titles — avoids slow `mimo db` / cold serve. */
+    private listSessionsFromSqlite(limit = 40): SessionInfo[] {
+        const dbPath = this.getMimoDbPath();
+        if (!dbPath || !fs.existsSync(dbPath)) return [];
+        const sqliteBin = this.findSqlite3Bin();
+        if (!sqliteBin) return [];
+        const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
+        // parent_id empty/null = main sessions only
+        const sql =
+            `SELECT id, COALESCE(title,''), COALESCE(time_updated,0), COALESCE(time_created,0) ` +
+            `FROM session WHERE (parent_id IS NULL OR parent_id = '') ` +
+            `ORDER BY COALESCE(time_updated, time_created, 0) DESC LIMIT ${safeLimit};`;
+        try {
+            const out = cp.execFileSync(sqliteBin, ['-separator', '\t', dbPath, sql], {
+                encoding: 'utf8',
+                maxBuffer: 4 * 1024 * 1024,
+                windowsHide: true,
+                timeout: 5000,
+            });
+            const lines = String(out || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+            const result: SessionInfo[] = [];
+            for (const line of lines) {
+                const cols = line.split('\t');
+                if (cols.length < 1 || !cols[0]) continue;
+                const id = cols[0];
+                const title = cols[1] || 'Untitled Session';
+                const updatedMs = Number(cols[2] || cols[3] || 0) || 0;
+                result.push({
+                    id,
+                    title,
+                    updated: updatedMs ? new Date(updatedMs < 1e12 ? updatedMs * 1000 : updatedMs).toLocaleString() : '',
+                    parentID: undefined,
+                } as SessionInfo);
+            }
+            return result;
+        } catch (e) {
+            rtLog(`SQLITE3_LIST_ERR ${String(e).slice(0, 100)}`);
+            return [];
+        }
+    }
+
+    private getMimoDbPath(): string {
+        const home = process.env.USERPROFILE || process.env.HOME || '';
+        const candidates = [
+            path.join(home, '.local', 'share', 'mimocode', 'mimocode.db'),
+            path.join(home, 'AppData', 'Roaming', 'mimocode', 'mimocode.db'),
+        ];
+        for (const c of candidates) {
+            try { if (fs.existsSync(c)) return c; } catch { /* next */ }
+        }
+        return candidates[0] || '';
+    }
+
+    private findSqlite3Bin(): string | null {
+        const candidates = [
+            'C:\\Program Files\\platform-tools\\sqlite3.exe',
+            'C:\\msys64\\ucrt64\\bin\\sqlite3.exe',
+            'sqlite3',
+            'sqlite3.exe',
+        ];
+        for (const c of candidates) {
+            try {
+                if (c.includes('\\') || c.includes('/')) {
+                    if (fs.existsSync(c)) return c;
+                } else {
+                    cp.execFileSync(c, ['-version'], { encoding: 'utf8', windowsHide: true, timeout: 2000 });
+                    return c;
+                }
+            } catch { /* next */ }
+        }
+        return null;
     }
 
     public async createSession(): Promise<{ id: string }> {
@@ -9283,17 +9363,21 @@ export class OpenCodeClient {
         try {
             const safeLimit = Math.max(1, Math.floor(Number.isFinite(limit) ? limit : 60));
             const esc = (s: string) => s.replace(/'/g, "''");
+            // Cap large text fields (8–12k) so format stays fast; full content not needed in sidebar.
             const sql =
                 "SELECT json_group_array(json_object(" +
-                "'mid', p.message_id, 'role', json_extract(m.data,'$.role'), 'type', json_extract(p.data,'$.type'), 'text', json_extract(p.data,'$.text'), " +
-                "'tool', json_extract(p.data,'$.tool'), 'cmd', json_extract(p.data,'$.state.input.command'), " +
+                "'mid', p.message_id, 'role', json_extract(m.data,'$.role'), 'type', json_extract(p.data,'$.type'), " +
+                "'text', substr(COALESCE(json_extract(p.data,'$.text'),''),1,12000), " +
+                "'tool', json_extract(p.data,'$.tool'), " +
+                "'cmd', substr(COALESCE(json_extract(p.data,'$.state.input.command'),''),1,6000), " +
                 "'path', json_extract(p.data,'$.state.input.file_path'), " +
-                "'old_string', json_extract(p.data,'$.state.input.old_string'), " +
-                "'new_string', json_extract(p.data,'$.state.input.new_string'), " +
-                "'content', json_extract(p.data,'$.state.input.content'), " +
-                "'meta_diff', json_extract(p.data,'$.state.metadata.diff'), " +
-                "'meta_patch', json_extract(p.data,'$.state.metadata.filediff.patch'), " +
-                "'result', json_extract(p.data,'$.state.output'), 'callID', json_extract(p.data,'$.callID'), " +
+                "'old_string', substr(COALESCE(json_extract(p.data,'$.state.input.old_string'),''),1,8000), " +
+                "'new_string', substr(COALESCE(json_extract(p.data,'$.state.input.new_string'),''),1,8000), " +
+                "'content', substr(COALESCE(json_extract(p.data,'$.state.input.content'),''),1,8000), " +
+                "'meta_diff', substr(COALESCE(json_extract(p.data,'$.state.metadata.diff'),''),1,12000), " +
+                "'meta_patch', substr(COALESCE(json_extract(p.data,'$.state.metadata.filediff.patch'),''),1,12000), " +
+                "'result', substr(COALESCE(json_extract(p.data,'$.state.output'),''),1,8000), " +
+                "'callID', json_extract(p.data,'$.callID'), " +
                 "'hash', json_extract(p.data,'$.hash'), 'files', json_extract(p.data,'$.files'), " +
                 "'time', p.time_created)) " +
                 "FROM part p JOIN (SELECT message_id, MAX(time_created) as mt FROM part WHERE session_id = '" + esc(sessionId) + "' GROUP BY message_id ORDER BY mt DESC LIMIT " + safeLimit + ") sm ON p.message_id = sm.message_id " +
@@ -9332,8 +9416,14 @@ export class OpenCodeClient {
     }
 
     private runMimoDb(sql: string): string {
+        // Prefer native PE binary (fast). npm `mimo` shim can be multi-second per call.
         const bin = this.getMimoBin();
-        const res = cp.execFileSync(bin, ['db', sql], { encoding: 'utf8', maxBuffer: 50 * 1024 * 1024 });
+        const res = cp.execFileSync(bin, ['db', sql], {
+            encoding: 'utf8',
+            maxBuffer: 50 * 1024 * 1024,
+            windowsHide: true,
+            timeout: 60000,
+        });
         // `mimo db` echoes the query line, then the result; take the JSON array portion.
         const idx = res.indexOf('[');
         const end = res.lastIndexOf(']');
@@ -9342,17 +9432,20 @@ export class OpenCodeClient {
     }
 
     private getMimoBin(): string {
-        // reuse the same binary resolution as the server launcher
         const cfg: any = (this as any).config;
         if (cfg && typeof cfg.mimoBinaryPath === 'string' && cfg.mimoBinaryPath) return cfg.mimoBinaryPath;
         const envBin = process.env.MIMO_BIN;
         if (envBin) return envBin;
-        const platform = process.platform;
-        if (platform === 'win32') {
+        const home = process.env.USERPROFILE || process.env.HOME || '';
+        if (process.platform === 'win32') {
             const candidates = [
-                'C:\\Users\\jotaro\\AppData\\Roaming\\npm\\node_modules\\@mimo-ai\\cli\\node_modules\\@mimo-ai\\mimocode-windows-x64\\bin\\mimo.exe',
+                path.join(home, 'AppData', 'Roaming', 'npm', 'node_modules', '@mimo-ai', 'cli', 'node_modules', '@mimo-ai', 'mimocode-windows-x64', 'bin', 'mimo.exe'),
+                path.join(home, 'AppData', 'Roaming', 'npm', 'node_modules', '@mimo-ai', 'mimocode-windows-x64', 'bin', 'mimo.exe'),
+                path.join(home, 'AppData', 'Roaming', 'npm', 'mimo.cmd'),
             ];
-            for (const c of candidates) { try { fs.accessSync(c); return c; } catch { /* next */ } }
+            for (const c of candidates) {
+                try { if (fs.existsSync(c)) return c; } catch { /* next */ }
+            }
         }
         return 'mimo';
     }

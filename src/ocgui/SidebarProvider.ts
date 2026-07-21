@@ -691,8 +691,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     private currentWorkspaceKey = '';
     private initPosted = false;
     private sessionSelectionEpoch = 0;
-    /** Higher default so session open shows full recent history without extra clicks. */
-    private readonly recentSessionLoadLimit = 800;
+    /**
+     * Tail load on open. 800 was killing UX (slow + heavy format of tools).
+     * Older history loads via loadMoreSession on scroll-up.
+     */
+    private readonly recentSessionLoadLimit = 80;
     private readonly webviewLivenessPingTimeoutMs = 3000;
     private readonly webviewAutoRescueCooldownMs = 60000;
     private readonly webviewAutoRescueNotificationTtlMs = 60000;
@@ -9282,14 +9285,48 @@ ${attachmentLines.join('\n')}`
         this.currentSessionId = sessionId;
         this.client.setSessionId(sessionId);
         const limit = this.recentSessionLoadLimit;
+        // Prefer DB first: tools/reasoning/old_string survive; API is slower and may omit fields.
+        // Tail only (limit) so open is fast; scroll-up loadMore fetches more.
         try {
             const t0 = Date.now();
-            // Prefer API export (real part shapes with state.input for edit/write).
+            const dbData = await this.client.querySessionFromDb(sessionId, limit);
+            const dbMsgs = this.formatDbMessages(dbData?.messages ?? []);
+            const dbMs = Date.now() - t0;
+            const hasToolCards = dbMsgs.some((m: any) =>
+                typeof m.text === 'string' && m.text.includes('%%MIMO_PART')
+            );
+            if (dbMsgs.length) {
+                this._loadedSessions.set(sessionId, dbData?.messages ?? []);
+                liveWebview.postMessage({
+                    type: 'sessionData',
+                    sessionId,
+                    title: dbData?.session?.title || sessionId,
+                    messages: dbMsgs,
+                    meta: {
+                        source: 'select-db',
+                        time: Date.now(),
+                        limit,
+                        hasToolCards,
+                        loadMs: dbMs,
+                        pinBottom: true,
+                    },
+                });
+                rtLog(`LOAD_SESSION db_ms=${dbMs} msgs=${dbMsgs.length} toolCards=${hasToolCards}`);
+                this.uiDebugChannel.appendLine(
+                    `[EXT][LOAD_SESSION] source=db ms=${dbMs} msgs=${dbMsgs.length} tools=${hasToolCards}`
+                );
+                // Background: if API has more structure, enrich (non-blocking)
+                void this.enrichFromApiIfRicher(sessionId, limit, dbMsgs.length);
+                return;
+            }
+        } catch (e) {
+            rtLog(`LOAD_SESSION_DB_ERR ${String(e).slice(0, 120)}`);
+        }
+        try {
+            const t0 = Date.now();
             const exportData = await this.client.exportSessionRecent(sessionId, limit);
-            rtLog(`LOAD_SESSION api_ms=${Date.now() - t0}`);
             const formatted = this.formatSession(exportData);
             this._loadedSessions.set(sessionId, exportData?.messages ?? []);
-            // Count how many assistant texts already have edit diffs / tool markers
             const hasToolCards = formatted.messages.some((m) =>
                 typeof m.text === 'string' && m.text.includes('%%MIMO_PART')
             );
@@ -9298,27 +9335,56 @@ ${attachmentLines.join('\n')}`
                 sessionId,
                 title: formatted.title || exportData?.session?.title || sessionId,
                 messages: formatted.messages,
-                meta: { source: 'select', time: Date.now(), limit, hasToolCards },
+                meta: {
+                    source: 'select',
+                    time: Date.now(),
+                    limit,
+                    hasToolCards,
+                    loadMs: Date.now() - t0,
+                    pinBottom: true,
+                },
             });
-            rtLog(`LOAD_SESSION done msgs=${formatted.messages.length} toolCards=${hasToolCards}`);
-            // Always run DB enrich so edit/write mini-diffs fill if API was sparse
+            rtLog(`LOAD_SESSION api_ms=${Date.now() - t0} msgs=${formatted.messages.length} toolCards=${hasToolCards}`);
             void this.enrichSessionFromDb(sessionId, limit);
         } catch (e) {
             rtLog(`LOAD_SESSION_ERR ${String(e).slice(0, 120)}`);
-            try {
-                const exportData = await this.client.querySessionFromDb(sessionId, limit);
-                const messages = this.formatDbMessages(exportData?.messages ?? []);
-                this._loadedSessions.set(sessionId, exportData?.messages ?? []);
-                liveWebview.postMessage({
-                    type: 'sessionData',
-                    sessionId,
-                    title: exportData?.session?.title || sessionId,
-                    messages,
-                    meta: { source: 'select-db', time: Date.now() },
-                });
-            } catch (e2) {
-                rtLog(`LOAD_SESSION_FALLBACK_ERR ${String(e2).slice(0, 120)}`);
-            }
+            liveWebview.postMessage({
+                type: 'sessionLoadFailed',
+                sessionId,
+                payload: { sessionId, reason: String(e).slice(0, 200) },
+            });
+        }
+    }
+
+    private async enrichFromApiIfRicher(sessionId: string, limit: number, dbMsgCount: number): Promise<void> {
+        try {
+            const exportData = await this.client.exportSessionRecent(sessionId, limit);
+            const formatted = this.formatSession(exportData);
+            if (!formatted.messages.length) return;
+            if (this.currentSessionId !== sessionId) return;
+            const apiTools = formatted.messages.filter((m) =>
+                typeof m.text === 'string' && m.text.includes('%%MIMO_PART')
+            ).length;
+            // Only replace if API has clearly more tool cards
+            if (apiTools <= 0) return;
+            const liveWebview = this._view?.webview;
+            if (!liveWebview) return;
+            liveWebview.postMessage({
+                type: 'sessionData',
+                sessionId,
+                title: formatted.title || sessionId,
+                messages: formatted.messages,
+                meta: {
+                    source: 'select-api-enrich',
+                    time: Date.now(),
+                    limit,
+                    hasToolCards: true,
+                    pinBottom: true,
+                    prevDbMsgs: dbMsgCount,
+                },
+            });
+        } catch {
+            /* optional */
         }
     }
 

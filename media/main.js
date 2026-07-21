@@ -12927,29 +12927,48 @@ window.addEventListener('message', (event) => {
                             }, 200);
                         });
                     } else if (!isLoadMore && shouldActivateSession) {
-                        // P0: settle pin after full paint until near-bottom
-                        postPaintScrollPending = true;
-                        postPaintScrollForce = true;
-                        pinBottomUntilSettled(`sessionData:${message?.meta?.source || 'select'}`);
-                        // Extra hard pin after layout (no enter-anim)
-                        setTimeout(function () { scrollToBottom(true); }, 50);
-                        setTimeout(function () { scrollToBottom(true); }, 200);
-                        setTimeout(function () {
-                            scrollToBottom(true);
-                            try {
-                                const el = document.getElementById('chat');
-                                if (el) {
-                                    vscode.postMessage({
-                                        type: 'ui-debug',
-                                        payload: ['[WV][SCROLL_FINAL]',
-                                            `top=${Math.round(el.scrollTop)}`,
-                                            `h=${el.scrollHeight}`,
-                                            `ch=${el.clientHeight}`,
-                                            `kids=${el.childElementCount}`]
-                                    });
-                                }
-                            } catch (_) {}
-                        }, 500);
+                        // Always pin bottom on session open / enrich (meta.pinBottom or any select*)
+                        const src = String(message?.meta?.source || '');
+                        const shouldPin = message?.meta?.pinBottom === true
+                            || src === 'select' || src === 'select-db' || src === 'select-api-enrich'
+                            || src === 'select-db-enrich' || src === 'snapshot' || !src;
+                        if (shouldPin) {
+                            postPaintScrollPending = true;
+                            postPaintScrollForce = true;
+                            autoScrollPinnedToBottom = true;
+                            hydratingSession = true;
+                            hydratePinUntil = Date.now() + 5000;
+                            pinBottomUntilSettled(`sessionData:${src || 'select'}`);
+                            // Hard pins across layout frames (messages flex-shrink was fixed; still reflow)
+                            [0, 16, 50, 120, 250, 500, 900, 1500].forEach(function (ms) {
+                                setTimeout(function () {
+                                    scrollToBottom(true);
+                                    if (ms >= 900) {
+                                        try {
+                                            const el = document.getElementById('chat');
+                                            if (el) {
+                                                const near = (el.scrollHeight - el.scrollTop - el.clientHeight) <= 80;
+                                                vscode.postMessage({
+                                                    type: 'ui-debug',
+                                                    payload: ['[WV][SCROLL_FINAL]',
+                                                        `ms=${ms}`,
+                                                        `top=${Math.round(el.scrollTop)}`,
+                                                        `h=${el.scrollHeight}`,
+                                                        `ch=${el.clientHeight}`,
+                                                        `near=${near ? 1 : 0}`,
+                                                        `kids=${el.childElementCount}`,
+                                                        `tools=${(el.querySelectorAll('.mimo-part') || []).length}`]
+                                                });
+                                                if (near) {
+                                                    hydratingSession = false;
+                                                    hydratePinUntil = 0;
+                                                }
+                                            }
+                                        } catch (_) {}
+                                    }
+                                }, ms);
+                            });
+                        }
                     }
                     // Hide load bar after primary select (enrich may follow without bar)
                     try {
