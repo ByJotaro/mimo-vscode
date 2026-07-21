@@ -3,7 +3,7 @@
   "displayName": "MiMo Code",
   "publisher": "mimo",
   "description": "MiMo Code VS Code sidebar — modular rewrite (v2). Fast DB-first history, CLI-faithful tools & theme.",
-  "version": "1.0.0-beta.238",
+  "version": "1.0.0-beta.239",
   "license": "MIT",
   "repository": {
     "type": "git",

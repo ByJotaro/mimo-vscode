@@ -1144,6 +1144,13 @@ function handleLocalSlash(full: string): boolean {
     post({ type: 'insertEditorSelection' });
     return true;
   }
+  if (cmd === 'folder' || cmd === 'explore' || cmd === 'reveal') {
+    const p = rest || workspaceRoot;
+    if (!p) { showToast('no workspace'); return true; }
+    showToast('reveal…');
+    post({ type: 'openFolder', path: p });
+    return true;
+  }
   if (cmd === 'cwd' || cmd === 'pwd' || cmd === 'workspace') {
     const root = workspaceRoot || '(unknown)';
     showToast('cwd');

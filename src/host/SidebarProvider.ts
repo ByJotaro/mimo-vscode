@@ -197,6 +197,19 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           this.post({ type: 'insertPromptText', text: header + '\n`\n' + sel + '\n`\n' });
           break;
         }
+                case 'openFolder': {
+          try {
+            const p = typeof msg.path === 'string' && msg.path.trim()
+              ? msg.path.trim()
+              : getWorkspaceRoot();
+            await vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(p));
+            this.post({ type: 'toast', text: 'revealed' });
+          } catch (e) {
+            this.post({ type: 'toast', text: 'reveal failed' });
+            this.log.appendLine('[openFolder] ' + String(e).slice(0, 120));
+          }
+          break;
+        }
         case 'openFilePath':
           if (typeof msg.path === 'string' && msg.path.trim()) {
             try {
