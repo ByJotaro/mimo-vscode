@@ -1327,7 +1327,8 @@ function handleLocalSlash(full: string): boolean {
 }
 function doSend(): void {
   const text = (promptEl?.value || '').trim();
-  if (!text || busy) return;
+  if (!text) return;
+  if (busy) { showToast('wait — still running'); return; }
   if (handleLocalSlash(text)) { promptEl.value = ''; hideSlash(); return; }
   lastUserPrompt = text;
   promptEl.value = '';
@@ -1448,6 +1449,15 @@ btnHistoryTop?.addEventListener('click', () => {
   post({ type: 'fetchSessions', history: true });
 });
 btnSend?.addEventListener('click', doSend);
+chat.addEventListener('dblclick', (e) => {
+  const msg = (e.target as HTMLElement)?.closest?.('.message.user') as HTMLElement | null;
+  if (!msg) return;
+  const t = (msg.querySelector('.message-content') as HTMLElement)?.innerText || msg.innerText || '';
+  if (t && navigator.clipboard?.writeText) {
+    void navigator.clipboard.writeText(t.trim());
+    showToast('message copied');
+  }
+});
 // Drag-drop file paths into prompt (functional port of CLI path paste)
 promptEl?.addEventListener('dragover', (e) => {
   e.preventDefault();
