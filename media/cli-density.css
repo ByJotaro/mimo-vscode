@@ -5052,3 +5052,56 @@ body.is-streaming .header {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.213 denser MD lists + FINAL strip */
+.message.bot ul,
+.message.bot ol {
+  margin: 4px 0 6px !important;
+  padding-left: 18px !important;
+  border-left: 2px solid #2a2a2a !important;
+}
+.message.bot li {
+  margin: 2px 0 !important;
+  color: #c0c0c0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+}
+.message.bot li::marker {
+  color: #FF6A00 !important;
+}
+.message.bot code:not(pre code) {
+  background: #1a1a1a !important;
+  border: 1px solid #2a2a2a !important;
+  border-left: 2px solid #3c3c3c !important;
+  padding: 0 4px !important;
+  border-radius: 0 2px 2px 0 !important;
+  color: #e8c89a !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 0.92em !important;
+}
+.message.bot pre {
+  position: relative !important;
+  border-left: 2px solid #3c3c3c !important;
+  background: #0e0e0e !important;
+  padding: 8px 10px !important;
+  border-radius: 0 4px 4px 0 !important;
+  overflow: auto !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  color: #d0d0d0 !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
