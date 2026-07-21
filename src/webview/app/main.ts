@@ -1654,9 +1654,11 @@ function showPermission(req: {
     });
     ov.remove();
     window.removeEventListener('keydown', onPermKey);
+    const msg =
+      r === 'reject' ? 'rejected' : r === 'always' ? 'allowed always' : 'allowed once';
+    showToast(msg);
     if (statusLabel) {
-      statusLabel.textContent =
-        r === 'reject' ? 'rejected' : r === 'always' ? 'allowed always' : 'allowed once';
+      statusLabel.textContent = msg;
       statusLabel.classList.add('is-flash');
       setTimeout(() => statusLabel?.classList.remove('is-flash'), 800);
     }
@@ -1768,6 +1770,7 @@ function showQuestion(req: {
       requestId: req.requestId,
       answers: flat,
     });
+    showToast('answered');
     ov.remove();
     if (statusLabel) {
       statusLabel.textContent = 'answered';
