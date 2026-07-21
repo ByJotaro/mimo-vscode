@@ -244,6 +244,14 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
   };
   det.querySelector('.mimo-part-title')?.addEventListener('dblclick', copyTool);
   det.querySelector('.mimo-part-meta')?.addEventListener('dblclick', copyTool);
+  det.querySelector('.mimo-part-meta')?.addEventListener('click', (ev) => {
+    if ((ev as MouseEvent).detail !== 1) return;
+    const t = (metaText || '').trim();
+    if (/^[A-Za-z]:\\|^\//.test(t) && t.length < 400) {
+      post({ type: 'openFilePath', path: t.split(/\s+/)[0] });
+      showToast('open file');
+    }
+  });
   return det;
 }
 
@@ -1104,6 +1112,16 @@ function handleLocalSlash(full: string): boolean {
     }
     showToast('opening…');
     post({ type: 'selectSession', sessionId: rest, soft: false });
+    return true;
+  }
+  if (cmd === 'open') {
+    if (!rest) {
+      showToast('usage: /open <path>');
+      return true;
+    }
+    const p = rest.replace(/^["']|["']$/g, '').trim();
+    showToast('open…');
+    post({ type: 'openFilePath', path: p });
     return true;
   }
   if (cmd === 'rename') {
