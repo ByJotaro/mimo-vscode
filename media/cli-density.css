@@ -4866,3 +4866,50 @@ pre:hover > .mimo-pre-copy,
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.209 denser session title live + mode badge + FINAL strip */
+.session-title.is-live,
+#session-title.is-live {
+  color: #FF6A00 !important;
+  border-left: 2px solid #FF6A00 !important;
+  padding-left: 6px !important;
+  animation: mimo-title-live 1.6s ease-in-out infinite !important;
+}
+@keyframes mimo-title-live {
+  50% { opacity: 0.75; }
+}
+.mode-badge,
+#mode-badge {
+  border-left: 2px solid #3c3c3c !important;
+  background: #141414 !important;
+  color: #a0a0a0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 10px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  padding: 2px 6px !important;
+  border-radius: 0 3px 3px 0 !important;
+}
+body.is-busy .mode-badge,
+body.is-busy #mode-badge {
+  border-left-color: #FF6A00 !important;
+  color: #eeeeee !important;
+}
+/* denser selection highlight chat */
+.message ::selection {
+  background: rgba(255, 106, 0, 0.3) !important;
+  color: #fff !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
