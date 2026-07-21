@@ -1030,3 +1030,24 @@ body.mimo-busy #status-label {
   margin: 4px 0 8px !important;
   padding: 7px 9px !important;
 }
+
+/* Busy / running status pulse */
+@keyframes mimo-busy-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+body.mimo-busy #status-label {
+  color: #FF6A00 !important;
+  animation: mimo-busy-pulse 1.1s ease-in-out infinite !important;
+  font-weight: 600 !important;
+}
+body.mimo-busy #btn-send {
+  box-shadow: 0 0 0 1px rgba(255,106,0,0.4) !important;
+}
+#status-label {
+  font-size: 11px !important;
+  color: #808080 !important;
+  font-variant-numeric: tabular-nums;
+  min-width: 64px;
+  text-align: right;
+}
