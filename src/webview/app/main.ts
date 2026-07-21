@@ -945,6 +945,20 @@ function handleLocalSlash(full: string): boolean {
   }
   if (cmd === 'cost' || cmd === 'status' || cmd === 'usage') {
     if (activeSessionId) post({ type: 'refreshUsage', sessionId: activeSessionId });
+    const tools = document.querySelectorAll('.mimo-part').length;
+    const msgs = document.querySelectorAll('.message').length;
+    const lines = [
+      `**Status**`,
+      `- session: \`${activeSessionId || '(home)'}\``,
+      `- mode: \`${selectedMode || '—'}\` · model: \`${selectedModel || '—'}\``,
+      `- messages: ${msgs} · tools: ${tools} · busy: ${busy ? 'yes' : 'no'}`,
+      `- version: \`${statusLabel?.dataset.server || 'v2'}\``,
+    ];
+    appendOrUpdateMessage({
+      id: 'sys_status_' + Date.now(),
+      role: 'assistant',
+      text: lines.join('\n'),
+    });
     if (statusLabel) statusLabel.textContent = 'usage…';
     return true;
   }
