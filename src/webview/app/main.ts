@@ -1296,9 +1296,17 @@ if (Array.isArray(message.modes) && message.modes.length) {
     }
     case 'serverStatus':
       if (statusLabel) {
-        const t = `${message.status || ''}${message.detail ? ' ' + message.detail : ''}`.slice(0, 48);
+        const st = String(message.status || '');
+        let t = st;
+        if (st === 'reconnecting') t = 'reconnecting…';
+        else if (st === 'connected') t = message.detail ? String(message.detail).slice(0, 28) : 'connected';
+        else t = `${st}${message.detail ? ' ' + message.detail : ''}`.slice(0, 48);
         statusLabel.dataset.server = t;
-        if (!busy) statusLabel.textContent = t || 'v2';
+        if (!busy) {
+          statusLabel.textContent = t || 'v2';
+          if (st === 'reconnecting') statusLabel.classList.add('is-flash');
+          else statusLabel.classList.remove('is-flash');
+        }
       }
       break;
   }

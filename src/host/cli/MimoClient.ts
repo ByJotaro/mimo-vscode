@@ -471,10 +471,15 @@ export class MimoClient {
       } catch (e) {
         if ((e as Error).name === 'AbortError') return;
         this.log(`[cli] event err ${String(e).slice(0, 100)}`);
+        this.emit({ type: 'status', status: 'reconnecting', detail: String(e).slice(0, 40) });
       } finally {
         this.eventActive = false;
         if (!signal.aborted) {
-          setTimeout(() => this.connectEvents(), 1500);
+          this.emit({ type: 'status', status: 'reconnecting', detail: 'sse' });
+          setTimeout(() => {
+            this.connectEvents();
+            this.emit({ type: 'status', status: 'connected', detail: 'sse' });
+          }, 1500);
         }
       }
     };
