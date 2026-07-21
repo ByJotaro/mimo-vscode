@@ -1795,6 +1795,7 @@ if (Array.isArray(message.modes) && message.modes.length) {
       hideLoading();
       loadMoreInFlight = false;
       const err = String(message.error || 'unknown');
+      showToast('load failed');
       const sid = String(message.sessionId || activeSessionId || '');
       chat.innerHTML =
         `<div class="mimo-error-card">` +
