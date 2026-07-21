@@ -1463,3 +1463,27 @@ a.mimo-ext-link:hover {
 .message.is-streaming .mimo-part[open] > summary .mimo-part-title {
   animation: mimo-busy-pulse 1.2s ease-in-out infinite;
 }
+
+.input-area {
+  position: sticky !important;
+  bottom: 0 !important;
+  z-index: 25 !important;
+  box-shadow: 0 -8px 20px rgba(0,0,0,0.35) !important;
+}
+/* Slash name accent */
+.slash-name {
+  color: #FF6A00 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-weight: 600 !important;
+  min-width: 120px !important;
+  display: inline-block !important;
+}
+.slash-desc {
+  color: #808080 !important;
+  font-size: 11px !important;
+}
+/* History panel denser head */
+.mimo-history-panel {
+  backdrop-filter: blur(6px);
+  background: rgba(10,10,10,0.92) !important;
+}
