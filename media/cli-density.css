@@ -4994,3 +4994,61 @@ body.is-busy #mode-badge {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.212 denser load overlay + stream rail + FINAL strip */
+.mimo-load-overlay,
+#load-overlay {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 30 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(10,10,10,0.72) !important;
+  backdrop-filter: blur(2px) !important;
+  pointer-events: none !important;
+}
+.mimo-load-overlay-inner {
+  border-left: 2px solid #FF6A00 !important;
+  background: #141414 !important;
+  color: #eeeeee !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+  padding: 10px 14px !important;
+  border-radius: 0 4px 4px 0 !important;
+  letter-spacing: 0.04em !important;
+}
+.mimo-stream-rail,
+#stream-rail {
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 2px !important;
+  background: #FF6A00 !important;
+  opacity: 0 !important;
+  transition: opacity 0.15s ease !important;
+  pointer-events: none !important;
+}
+body.is-streaming .mimo-stream-rail,
+.message.bot.is-streaming .mimo-stream-rail,
+#chat.is-streaming {
+  /* stream accent via body class handled in JS if present */
+}
+body.is-busy .header,
+body.is-streaming .header {
+  box-shadow: inset 2px 0 0 #FF6A00 !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
