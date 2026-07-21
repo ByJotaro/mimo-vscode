@@ -127,9 +127,16 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
   const isBashTool = /^(bash|shell|cmd|powershell|pwsh)$/i.test(titleRaw);
   const isEditTool =
     kind === 'patch' || /^(write|edit|multiedit|apply_patch|str_replace)$/i.test(titleRaw);
+  const isReadTool = /^(read|grep|glob|search|webfetch|websearch|codesearch)$/i.test(titleRaw);
   det.className =
     'mimo-part mimo-part--flat' +
-    (isBashTool ? ' mimo-part--bash' : isEditTool ? ' mimo-part--edit' : '');
+    (isBashTool
+      ? ' mimo-part--bash'
+      : isEditTool
+        ? ' mimo-part--edit'
+        : isReadTool
+          ? ' mimo-part--read'
+          : '');
   det.open = Boolean((seg as any).open);
   const title = escHtml(titleRaw);
   const body = String((seg as any).body || '');

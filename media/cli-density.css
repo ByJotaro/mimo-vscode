@@ -1768,3 +1768,16 @@ a.mimo-ext-link:hover {
 .mimo-empty-title {
   color: #a0a0a0 !important;
 }
+
+.mimo-part--read {
+  border-left-color: #4a6a8a !important;
+}
+.mimo-part--read[open] {
+  border-left-color: #7aa2f7 !important;
+}
+.mimo-part--read > summary .mimo-part-title {
+  color: #a8c4e8 !important;
+}
+.mimo-part--read[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
