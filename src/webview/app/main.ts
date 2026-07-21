@@ -1172,6 +1172,7 @@ if (Array.isArray(message.modes) && message.modes.length) {
       });
       loadMoreInFlight = false;
       setInputEnabled(true);
+      setTimeout(() => promptEl?.focus(), 40);
       break;
     }
     case 'appendMessage':
@@ -1392,13 +1393,20 @@ function showPermission(req: {
   document.body.appendChild(ov);
   ov.querySelectorAll('button[data-r]').forEach((b) => {
     b.addEventListener('click', () => {
+      const r = (b as HTMLElement).dataset.r || 'once';
       post({
         type: 'permissionReply',
         sessionId: req.sessionId || activeSessionId,
         permissionId: req.permissionId,
-        response: (b as HTMLElement).dataset.r,
+        response: r,
       });
       ov.remove();
+      if (statusLabel) {
+        statusLabel.textContent =
+          r === 'reject' ? 'rejected' : r === 'always' ? 'allowed always' : 'allowed once';
+        statusLabel.classList.add('is-flash');
+        setTimeout(() => statusLabel?.classList.remove('is-flash'), 800);
+      }
     });
   });
 }
