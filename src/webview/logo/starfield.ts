@@ -3,12 +3,18 @@
  * capped star count, one RAF, pause when tab hidden, destroyable.
  */
 
-const STAR_CHARS = ['✦', '✧', '·', '✧', '✦'];
-const HOT_CHAR = '✶';
+// CLI 1:1 — braille dots only (no decorative ✦/✧/✶). Base = U+2800 + bit mask.
+function brailleChar(mask: number): string {
+  return String.fromCharCode(0x2800 + (mask & 0xff));
+}
+/** Single-dot braille patterns (quiet field) */
+const STAR_MASKS = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80];
+/** Multi-dot “hot” twinkles */
+const HOT_MASKS = [0x15, 0x2a, 0x3f, 0x55, 0xaa, 0x5a];
 const HOT_THRESHOLD = 0.88;
-const MAX_STARS = 120;
-const TWINKLE_MS = 280;
-const METEOR_INTERVAL = 10000;
+const MAX_STARS = 160;
+const TWINKLE_MS = 240;
+const METEOR_INTERVAL = 8000;
 const METEOR_DURATION = 2800;
 const METEOR_ANGLE = 0.36;
 const METEOR_TAIL = 20;
@@ -19,7 +25,7 @@ const WHITE = { r: 255, g: 255, b: 255 };
 const BEAM_CORE = { r: 255, g: 255, b: 255 };
 const BEAM_GLOW = { r: 180, g: 215, b: 255 };
 
-type Star = { x: number; y: number; ch: string; b: number; phase: number };
+type Star = { x: number; y: number; mask: number; b: number; phase: number };
 type Meteor = { at: number; startX: number; startY: number; speed: number };
 
 type StarfieldHandle = { destroy: () => void };
@@ -90,21 +96,22 @@ export function startStarfield(canvas: HTMLCanvasElement | null): StarfieldHandl
     cell = Math.max(12, Math.min(16, Math.floor(W / 42)));
     cols = Math.max(8, Math.floor(W / cell));
     rows = Math.max(8, Math.floor(H / (cell * 1.2)));
-    const target = Math.min(MAX_STARS, Math.floor(cols * rows * 0.018));
+    // denser field than before but still OOM-capped
+    const target = Math.min(MAX_STARS, Math.floor(cols * rows * 0.028));
     stars = [];
     for (let i = 0; i < target; i++) {
       stars.push({
         x: Math.random() * cols,
         y: Math.random() * rows,
-        ch: STAR_CHARS[Math.floor(Math.random() * STAR_CHARS.length)],
-        b: 0.2 + Math.random() * 0.45,
+        mask: STAR_MASKS[Math.floor(Math.random() * STAR_MASKS.length)],
+        b: 0.22 + Math.random() * 0.48,
         phase: Math.random() * Math.PI * 2,
       });
     }
   }
 
   function twinkle(): void {
-    const count = Math.min(8, Math.floor(stars.length * 0.08));
+    const count = Math.min(12, Math.floor(stars.length * 0.1));
     for (let i = 0; i < count; i++) {
       const s = stars[Math.floor(Math.random() * stars.length)];
       if (!s) continue;
@@ -115,10 +122,10 @@ export function startStarfield(canvas: HTMLCanvasElement | null): StarfieldHandl
           : r < 0.8
             ? 0.65 + Math.random() * 0.25
             : 0.08 + Math.random() * 0.2;
-      s.ch =
+      s.mask =
         s.b >= HOT_THRESHOLD
-          ? HOT_CHAR
-          : STAR_CHARS[Math.floor(Math.random() * STAR_CHARS.length)];
+          ? HOT_MASKS[Math.floor(Math.random() * HOT_MASKS.length)]
+          : STAR_MASKS[Math.floor(Math.random() * STAR_MASKS.length)];
     }
   }
 
@@ -228,7 +235,7 @@ export function startStarfield(canvas: HTMLCanvasElement | null): StarfieldHandl
       if (peak > 0) col = tint(col, WHITE, peak * 0.65);
       const alpha = Math.max(0.15, Math.min(1, b * 1.05));
       ctx!.fillStyle = `rgba(${col.r},${col.g},${col.b},${alpha})`;
-      ctx!.fillText(isHot ? HOT_CHAR : s.ch, (s.x + 0.5) * cw, (s.y + 0.5) * ch);
+      ctx!.fillText(brailleChar(s.mask), (s.x + 0.5) * cw, (s.y + 0.5) * ch);
     }
     drawMeteor(now);
     raf = requestAnimationFrame(tick);

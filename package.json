@@ -3,7 +3,7 @@
   "displayName": "MiMo Code",
   "publisher": "mimo",
   "description": "MiMo Code VS Code sidebar — modular rewrite (v2). Fast DB-first history, CLI-faithful tools & theme.",
-  "version": "1.0.0-beta.35",
+  "version": "1.0.0-beta.36",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -43,8 +43,29 @@
       {
         "command": "mimo.checkVersion",
         "title": "MiMo Code: Check Version"
+      },
+      {
+        "command": "mimo.openSidebar",
+        "title": "MiMo Code: Open Chat",
+        "icon": {
+          "light": "media/icon.svg",
+          "dark": "media/icon.svg"
+        }
+      },
+      {
+        "command": "mimo.focusChat",
+        "title": "MiMo Code: Focus Chat"
       }
-    ]
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "mimo.checkVersion",
+          "when": "view == mimo.sidebar",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "compile": "tsc -p ./ && node scripts/build-webview.mjs",
