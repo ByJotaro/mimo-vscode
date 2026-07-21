@@ -2107,3 +2107,36 @@ a.mimo-ext-link:hover {
 .message.user .message-content:hover {
   border-left-color: #FF6A00 !important;
 }
+
+/* v1: empty tool body hidden; open body fill under strip */
+.mimo-part-body:empty {
+  display: none !important;
+}
+.mimo-part[open] > .mimo-part-body:not(:empty) {
+  display: block !important;
+}
+/* Tool meta max-width denser when title long */
+.mimo-part > summary .mimo-part-title {
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  max-width: 48% !important;
+}
+
+.question-overlay,
+.mimo-question,
+.question-card {
+  border-left: 3px solid #FF6A00 !important;
+  background: #141414 !important;
+}
+.question-opt {
+  border-left: 2px solid transparent !important;
+  padding-left: 8px !important;
+}
+.question-opt:hover,
+.question-opt.selected {
+  border-left-color: #FF6A00 !important;
+  background: #1a1a1a !important;
+}
