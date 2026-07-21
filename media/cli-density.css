@@ -4102,3 +4102,63 @@ canvas#starfield {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.196 denser running spinner + question actions + FINAL strip */
+.mimo-part.mimo-part--flat.is-running > summary .mimo-part-title::before,
+.mimo-part.mimo-part--flat[open].is-running > summary::after {
+  content: none !important;
+}
+.mimo-part-spin,
+.mimo-part.mimo-part--flat.is-running > summary .mimo-spin {
+  display: inline-block !important;
+  width: 10px !important;
+  height: 10px !important;
+  border: 1.5px solid #3c3c3c !important;
+  border-top-color: #FF6A00 !important;
+  border-radius: 50% !important;
+  animation: mimo-spin 0.7s linear infinite !important;
+  flex-shrink: 0 !important;
+}
+@keyframes mimo-spin {
+  to { transform: rotate(360deg); }
+}
+.permission-actions,
+.question-actions {
+  display: flex !important;
+  gap: 6px !important;
+  padding: 6px 8px 8px !important;
+  border-top: 1px solid #242424 !important;
+  background: #121212 !important;
+}
+.permission-actions button,
+.question-actions button {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  border-left: 2px solid #3c3c3c !important;
+  background: #1a1a1a !important;
+  color: #c0c0c0 !important;
+  border-radius: 0 3px 3px 0 !important;
+  padding: 4px 10px !important;
+  cursor: pointer !important;
+}
+.permission-actions button:hover,
+.question-actions button:hover,
+.permission-actions button:focus,
+.question-actions button:focus {
+  border-left-color: #FF6A00 !important;
+  color: #eeeeee !important;
+  outline: none !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
