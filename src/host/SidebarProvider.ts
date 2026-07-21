@@ -493,12 +493,17 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const starUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'media', 'starfield.css')
     );
+    const sfx = (name: string) =>
+      webview
+        .asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'sfx', name))
+        .toString();
     const csp = [
       `default-src 'none'`,
       `style-src ${webview.cspSource} 'unsafe-inline'`,
       `script-src ${webview.cspSource}`,
       `font-src ${webview.cspSource}`,
       `img-src ${webview.cspSource} data:`,
+      `media-src ${webview.cspSource}`,
     ].join('; ');
 
     return `<!DOCTYPE html>
@@ -533,6 +538,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       <span class="muted" id="status-label">v2</span>
     </div>
   </footer>
+  <script>
+    window.__mimoSfx = {
+      charge: ${JSON.stringify(sfx('charge.wav'))},
+      pulseA: ${JSON.stringify(sfx('pulse-a.wav'))},
+      pulseB: ${JSON.stringify(sfx('pulse-b.wav'))},
+      pulseC: ${JSON.stringify(sfx('pulse-c.wav'))}
+    };
+  </script>
   <script src="${scriptUri}"></script>
 </body>
 </html>`;
