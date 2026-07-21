@@ -3283,3 +3283,20 @@ select#model {
 .mimo-part.mimo-part--flat[open] {
   border-left-color: #FF6A00 !important;
 }
+
+/* beta.172 stop button denser when streaming */
+#btn-abort:not([hidden]) {
+  border-left: 2px solid #FF6A00 !important;
+  color: #FF6A00 !important;
+  background: #141414 !important;
+  animation: mimo-busy-pulse 1.2s ease-in-out infinite !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+}
+/* Tool strip: denser chevron mono */
+.mimo-part > summary .mimo-chev {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  color: #808080 !important;
+}
+.mimo-part[open] > summary .mimo-chev {
+  color: #FF6A00 !important;
+}

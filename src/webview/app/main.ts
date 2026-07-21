@@ -950,6 +950,7 @@ function handleLocalSlash(full: string): boolean {
     return true;
   }
   if (cmd === 'stop' || cmd === 'abort') {
+    showToast('stopping…');
     post({ type: 'abort' });
     return true;
   }
