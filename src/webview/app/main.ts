@@ -1190,6 +1190,11 @@ function handleLocalSlash(full: string): boolean {
     });
     return true;
   }
+  if (cmd === 'config') {
+    showToast('settings…');
+    post({ type: 'openSettings' });
+    return true;
+  }
   if (
     cmd === 'compact' ||
     cmd === 'rebuild' ||
@@ -1203,7 +1208,6 @@ function handleLocalSlash(full: string): boolean {
     cmd === 'never-ask' ||
     cmd === 'skip-permissions' ||
     cmd === 'permissions' ||
-    cmd === 'config' ||
     cmd === 'connect' ||
     cmd === 'login' ||
     cmd === 'voice' ||

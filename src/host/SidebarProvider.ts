@@ -183,6 +183,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case 'redoLast':
           await this.runGitRedo();
           break;
+        case 'openSettings':
+          void vscode.commands.executeCommand('workbench.action.openSettings', 'mimo');
+          break;
         case 'openExternalUrl':
           if (typeof msg.url === 'string' && /^https?:\/\//i.test(msg.url)) {
             void vscode.env.openExternal(vscode.Uri.parse(msg.url));
