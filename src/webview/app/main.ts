@@ -443,11 +443,12 @@ function showHistoryPanel(sessions: Array<{ id: string; title: string; updated?:
 
   const list = document.createElement('div');
   list.className = 'mimo-startup-list mimo-history-list';
-  const items = sessions.slice(0, 40);
+  const items = sessions.filter((s) => s.id !== '_loading').slice(0, 80);
   if (!items.length) {
     const empty = document.createElement('div');
     empty.className = 'mimo-history-empty';
-    empty.textContent = 'No sessions found';
+    empty.textContent =
+      sessions.some((s) => s.id === '_loading') ? 'Loading sessions…' : 'No sessions found';
     list.appendChild(empty);
   }
   for (const s of items) {
@@ -527,7 +528,10 @@ function showStartup(sessions: Array<{ id: string; title: string; updated?: stri
     post({ type: 'fetchSessions' })
   );
   listWrap.querySelector('#btn-new')?.addEventListener('click', () => post({ type: 'newSession' }));
-  listWrap.querySelector('#btn-history')?.addEventListener('click', () => post({ type: 'fetchSessions', history: true }));
+  listWrap.querySelector('#btn-history')?.addEventListener('click', () => {
+    showHistoryPanel([{ id: '_loading', title: 'Loading…' }]);
+    post({ type: 'fetchSessions', history: true });
+  });
 }
 
 function showLoading(title: string): void {
@@ -668,7 +672,13 @@ btnHome?.addEventListener('click', () => {
   document.getElementById('mimo-history-panel')?.remove();
   post({ type: 'goHome' });
 });
-btnHistoryTop?.addEventListener('click', () => post({ type: 'fetchSessions', history: true }));
+btnHistoryTop?.addEventListener('click', () => {
+  // Instant feedback so History never feels "dead"
+  showHistoryPanel([{ id: '_loading', title: 'Loading…' }]);
+  const empty = document.querySelector('#mimo-history-panel .mimo-session-id');
+  if (empty) (empty as HTMLElement).textContent = '…';
+  post({ type: 'fetchSessions', history: true });
+});
 btnSend?.addEventListener('click', doSend);
 btnAbort?.addEventListener('click', () => post({ type: 'abort' }));
 promptEl?.addEventListener('input', onPromptInput);
