@@ -480,3 +480,28 @@ body.vscode-dark, body.vscode-light {
 
 .mimo-welcome-hint { margin-top: 4px; color: #606060; font-size: 10px; }
 
+
+/* Full-viewport logo particle layer (above starfield, below UI) */
+.mimo-logo-fx {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none !important;
+  z-index: 1 !important;
+  display: block !important;
+}
+.session-header, .chat-area, .input-area {
+  z-index: 2;
+}
+.mimo-welcome-hint {
+  margin-top: 6px;
+  color: #606060;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+.mimo-logo-canvas {
+  image-rendering: pixelated;
+  user-select: none;
+  -webkit-user-select: none;
+}
