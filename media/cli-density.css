@@ -781,3 +781,60 @@ body.mimo-busy #status-label {
   display: inline-block;
   width: 10px;
 }
+
+/* Load older messages (scroll-up / button) */
+.mimo-load-older {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 6px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: linear-gradient(180deg, #0a0a0a 60%, transparent);
+}
+.mimo-load-older-btn {
+  border: 1px solid #333 !important;
+  background: #141414 !important;
+  color: #c8c8c8 !important;
+  border-radius: 999px !important;
+  padding: 5px 14px !important;
+  font-size: 11px !important;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.mimo-load-older-btn:hover {
+  border-color: var(--mimo-primary) !important;
+  color: #fff !important;
+}
+
+/* Markdown tables — denser CLI-readable */
+.mimo-md-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  margin: 8px 0 !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  display: block;
+  overflow-x: auto;
+  max-width: 100%;
+}
+.mimo-md-table th,
+.mimo-md-table td {
+  border: 1px solid #2e2e2e !important;
+  padding: 5px 10px !important;
+  text-align: left !important;
+  vertical-align: top !important;
+  white-space: pre-wrap;
+}
+.mimo-md-table th {
+  background: #161616 !important;
+  color: #e8e8e8 !important;
+  font-weight: 600 !important;
+  border-bottom: 1px solid #FF6A00 !important;
+}
+.mimo-md-table tr:nth-child(even) td {
+  background: #101010 !important;
+}
+.mimo-md-table tr:hover td {
+  background: #181818 !important;
+}

@@ -440,6 +440,7 @@ function renderMessages(
 
   loadedCount = messages.length;
   const tools = chat.querySelectorAll('.mimo-part').length;
+  ensureLoadOlderButton(opts.olderCount || 0);
   post({
     type: 'ui-debug',
     payload: [
@@ -770,27 +771,53 @@ function doSend(): void {
   });
 }
 
+function requestLoadMore(force = false): void {
+  if (!activeSessionId || loadMoreInFlight) return;
+  const older = Number((window as any).__mimoOlderCount || 0);
+  const exhausted = (window as any).__mimoLoadMoreExhausted === true;
+  if (exhausted && !force) return;
+  if (older <= 0 && !force && loadedCount < 12) return;
+  const now = Date.now();
+  if (!force && now - loadMoreCooldown < 350) return;
+  loadMoreCooldown = now;
+  loadMoreInFlight = true;
+  updateHistoryTopSpacer(chat, Math.max(older, 1), true);
+  const btn = document.getElementById('mimo-load-older-btn');
+  if (btn) btn.textContent = 'Loading older…';
+  post({
+    type: 'loadMoreSession',
+    sessionId: activeSessionId,
+    count: Math.max(loadedCount, 36) + 48,
+  });
+}
+
+function ensureLoadOlderButton(olderCount: number): void {
+  let bar = document.getElementById('mimo-load-older');
+  if (olderCount <= 0) {
+    bar?.remove();
+    return;
+  }
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'mimo-load-older';
+    bar.className = 'mimo-load-older';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'mimo-load-older-btn';
+    btn.className = 'mimo-load-older-btn';
+    btn.addEventListener('click', () => requestLoadMore(true));
+    bar.appendChild(btn);
+    chat.insertBefore(bar, chat.firstChild);
+  }
+  const btn = document.getElementById('mimo-load-older-btn');
+  if (btn) btn.textContent = `↑ Load older (${olderCount})`;
+}
+
 function onScroll(): void {
   autoScroll = isNearBottom(chat);
   if (!activeSessionId) return;
-  const older = Number((window as any).__mimoOlderCount || 0);
-  const exhausted = (window as any).__mimoLoadMoreExhausted === true;
-  // Trigger near top — allow even when olderCount was 0 once (host may still have more)
-  const nearTop = chat.scrollTop < 280;
-  if (nearTop && !loadMoreInFlight && !exhausted) {
-    // Always try if we have a session and aren't exhausted; host returns olderCount
-    if (older <= 0 && loadedCount < 20) return;
-    const now = Date.now();
-    if (now - loadMoreCooldown < 500) return;
-    loadMoreCooldown = now;
-    loadMoreInFlight = true;
-    updateHistoryTopSpacer(chat, Math.max(older, 1), true);
-    post({
-      type: 'loadMoreSession',
-      sessionId: activeSessionId,
-      count: Math.max(loadedCount, 24) + 40,
-    });
-  }
+  // Near top of chat → fetch older messages (CLI-style history)
+  if (chat.scrollTop < 360) requestLoadMore(false);
 }
 
 chat.addEventListener('scroll', onScroll, { passive: true });
@@ -937,10 +964,13 @@ if (Array.isArray(message.modes) && message.modes.length) {
         (window as any).__mimoOlderCount = message.olderCount;
         (window as any).__mimoLoadMoreExhausted = message.olderCount <= 0;
         updateHistoryTopSpacer(chat, message.olderCount, message.loading === true);
+        if (message.loading === false) ensureLoadOlderButton(message.olderCount);
       }
       if (message.loading === false && message.error) {
         loadMoreInFlight = false;
         (window as any).__mimoLoadMoreExhausted = true;
+        const btn = document.getElementById('mimo-load-older-btn');
+        if (btn) btn.textContent = 'Load failed — tap to retry';
       }
       break;
     case 'sessionLoadFailed':
