@@ -723,14 +723,17 @@ function handleLocalSlash(full: string): boolean {
     return true;
   }
   if (cmd === 'undo' || cmd === 'redo') {
-    // Full git undo engine still to port; route slash to agent so CLI-compatible intent works
-    post({
-      type: 'sendPrompt',
-      text: '/' + cmd + (rest ? ' ' + rest : ''),
-      sessionId: activeSessionId || undefined,
-      mode: selectedMode,
-      model: selectedModel || undefined,
-    });
+    post({ type: cmd === 'undo' ? 'undoLast' : 'redoLast' });
+    // Also inform agent for session-aware undo when git engine incomplete
+    if (activeSessionId) {
+      post({
+        type: 'sendPrompt',
+        text: '/' + cmd + (rest ? ' ' + rest : ''),
+        sessionId: activeSessionId,
+        mode: selectedMode,
+        model: selectedModel || undefined,
+      });
+    }
     return true;
   }
   if (cmd === 'help') {

@@ -149,6 +149,10 @@ export function listSessionsFromSqlite(
     `AND COALESCE(title,'') NOT LIKE '%Previous checkpoint%' ` +
     `AND COALESCE(title,'') NOT LIKE 'Untitled%' ` +
     `AND COALESCE(title,'') NOT LIKE 'New session%' ` +
+    `AND COALESCE(title,'') NOT LIKE '%one-word greeting%' ` +
+    `AND COALESCE(title,'') NOT LIKE '%Math question%' ` +
+    `AND COALESCE(title,'') NOT LIKE 'Приветствие' ` +
+    `AND COALESCE(title,'') NOT LIKE 'Приветствие пользователя' ` +
     `ORDER BY COALESCE(time_updated, time_created, 0) DESC LIMIT ${fetchN};`;
   const out = runSqliteTsv(sql);
   const lines = String(out || '')

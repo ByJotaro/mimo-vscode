@@ -243,7 +243,7 @@ function listSessionsFromSqlite(limit = 12, opts) {
   const want = Math.max(1, Math.min(80, Math.floor(limit)));
   const fetchN = Math.min(400, Math.max(want * 8, 40));
   const where = opts?.includeForks ? `WHERE 1=1 ` : `WHERE (parent_id IS NULL OR parent_id = '') `;
-  const sql = `SELECT id, COALESCE(title,''), COALESCE(time_updated,0), COALESCE(time_created,0) FROM session ${where}AND COALESCE(title,'') NOT LIKE '%checkpoint-writer%' AND COALESCE(title,'') NOT LIKE '%Previous checkpoint%' AND COALESCE(title,'') NOT LIKE 'Untitled%' AND COALESCE(title,'') NOT LIKE 'New session%' ORDER BY COALESCE(time_updated, time_created, 0) DESC LIMIT ${fetchN};`;
+  const sql = `SELECT id, COALESCE(title,''), COALESCE(time_updated,0), COALESCE(time_created,0) FROM session ${where}AND COALESCE(title,'') NOT LIKE '%checkpoint-writer%' AND COALESCE(title,'') NOT LIKE '%Previous checkpoint%' AND COALESCE(title,'') NOT LIKE 'Untitled%' AND COALESCE(title,'') NOT LIKE 'New session%' AND COALESCE(title,'') NOT LIKE '%one-word greeting%' AND COALESCE(title,'') NOT LIKE '%Math question%' AND COALESCE(title,'') NOT LIKE '\u041F\u0440\u0438\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435' AND COALESCE(title,'') NOT LIKE '\u041F\u0440\u0438\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u0435 \u043F\u043E\u043B\u044C\u0437\u043E\u0432\u0430\u0442\u0435\u043B\u044F' ORDER BY COALESCE(time_updated, time_created, 0) DESC LIMIT ${fetchN};`;
   const out = runSqliteTsv(sql);
   const lines = String(out || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const result = [];

@@ -111,6 +111,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             void this.context.globalState.update('mimo.model', msg.model);
           }
           break;
+        case 'undoLast':
+          vscode.window.showInformationMessage('Git undo: full engine still porting from 0.6.13');
+          break;
+        case 'redoLast':
+          vscode.window.showInformationMessage('Git redo: full engine still porting from 0.6.13');
+          break;
         case 'abort':
           if (this.currentSessionId) void this.client.abort(this.currentSessionId);
           this.sendInFlight = false;
