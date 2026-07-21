@@ -420,17 +420,24 @@ details[open] > summary .mimo-chev {
   color: var(--mimo-primary);
 }
 
-/* Home / logo */
+/* Home / logo — room for tall half-block logoThin */
 .mimo-startup {
-  padding: 20px 12px 28px !important;
-  gap: 16px !important;
+  padding: 28px 12px 32px !important;
+  gap: 20px !important;
   align-items: center !important;
 }
 .mimo-startup-logo,
 .mimo-welcome-logo {
   overflow: visible !important;
-  margin: 4px 0 8px !important;
-  min-height: 0 !important;
+  margin: 18px 0 16px !important;
+  min-height: 120px !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+.mimo-logo-canvas {
+  image-rendering: pixelated !important;
+  image-rendering: crisp-edges !important;
 }
 .mimo-welcome-sub {
   margin-top: 8px !important;
