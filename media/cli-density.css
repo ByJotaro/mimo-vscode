@@ -3348,3 +3348,37 @@ select#model {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.174 toast near composer denser */
+#mimo-toast,
+.mimo-toast {
+  position: fixed !important;
+  left: 12px !important;
+  bottom: 96px !important;
+  z-index: 90 !important;
+  border-left: 2px solid #FF6A00 !important;
+  background: #141414 !important;
+  color: #eeeeee !important;
+  border: 1px solid #2a2a2a !important;
+  border-left-width: 2px !important;
+  border-left-color: #FF6A00 !important;
+  border-radius: 0 4px 4px 0 !important;
+  padding: 6px 12px !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.45) !important;
+  animation: mimo-rise 0.14s ease both !important;
+}
+/* FINAL tool chrome */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
