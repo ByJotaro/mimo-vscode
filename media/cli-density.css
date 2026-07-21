@@ -2001,3 +2001,14 @@ a.mimo-ext-link:hover {
   border-left: 2px solid #3c3c3c !important;
   padding-left: 6px !important;
 }
+
+/* Selection orange like CLI accent */
+::selection {
+  background: rgba(255, 106, 0, 0.35) !important;
+  color: #fff !important;
+}
+/* Denser tool strip when nested under bot content lists */
+.message.bot .mimo-part + .mimo-thinking,
+.message.bot .mimo-thinking + .mimo-part {
+  margin-top: 6px !important;
+}
