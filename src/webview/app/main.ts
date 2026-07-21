@@ -925,7 +925,11 @@ function handleLocalSlash(full: string): boolean {
       id: 'sys_help_' + Date.now(),
       role: 'assistant',
       text:
-        '**Local:** `/new` `/home` `/clear` `/sessions` `/history` `/stop` `/plan` `/build` `/compose` `/model <id>` `/help`\n\n' +
+        '**Local commands**\n' +
+        '- `/home` `/new` `/fork` `/clear` `/sessions` `/history` `/stop`\n' +
+        '- `/plan` `/build` `/compose` `/agent <mode>` `/model` `/models`\n' +
+        '- `/undo` `/details` `/cost` `/status` `/usage` `/help`\n' +
+        '- Hotkeys: `Ctrl+Shift+H` history · `Ctrl+Shift+N` new · `Ctrl+Shift+U` home · `Ctrl+.` abort\n\n' +
         '**Agent skills:** type `/` for full catalog (arxiv, deep-research, …).',
     });
     return true;
