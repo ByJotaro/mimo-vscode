@@ -957,6 +957,7 @@ function doSend(): void {
   const text = (promptEl?.value || '').trim();
   if (!text || busy) return;
   if (handleLocalSlash(text)) { promptEl.value = ''; hideSlash(); return; }
+  lastUserPrompt = text;
   promptEl.value = '';
   post({
     type: 'sendPrompt',
