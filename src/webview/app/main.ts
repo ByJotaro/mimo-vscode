@@ -120,11 +120,17 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
     det.appendChild(body);
     return det;
   }
-  // Flat CLI tool card (v1 main.js) — NO nested rounded windows
+  // Flat CLI tool card (v1): left bar + title strip — no nested rounded windows
   const det = document.createElement('details');
-  det.className = 'mimo-part mimo-part--flat';
-  det.open = Boolean((seg as any).open);
   const titleRaw = String((seg as any).title || seg.kind);
+  const kind = String(seg.kind || 'tool').toLowerCase();
+  const isBashTool = /^(bash|shell|cmd|powershell|pwsh)$/i.test(titleRaw);
+  const isEditTool =
+    kind === 'patch' || /^(write|edit|multiedit|apply_patch|str_replace)$/i.test(titleRaw);
+  det.className =
+    'mimo-part mimo-part--flat' +
+    (isBashTool ? ' mimo-part--bash' : isEditTool ? ' mimo-part--edit' : '');
+  det.open = Boolean((seg as any).open);
   const title = escHtml(titleRaw);
   const body = String((seg as any).body || '');
   const { inn, out } = parseInOut(body);

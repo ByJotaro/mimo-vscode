@@ -1638,3 +1638,27 @@ a.mimo-ext-link:hover {
   background: #121212 !important;
   border-bottom-color: #2a2a2a !important;
 }
+
+/* Tool kind accent on left bar (title strip stays) */
+.mimo-part--bash {
+  border-left-color: #5a8a6a !important;
+}
+.mimo-part--bash[open] {
+  border-left-color: #7dcea0 !important;
+}
+.mimo-part--edit {
+  border-left-color: #8a6a3c !important;
+}
+.mimo-part--edit[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part--bash > summary .mimo-part-title {
+  color: #a8d4b8 !important;
+}
+.mimo-part--edit > summary .mimo-part-title {
+  color: #e8c89a !important;
+}
+.mimo-part--bash[open] > summary .mimo-part-title,
+.mimo-part--edit[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
