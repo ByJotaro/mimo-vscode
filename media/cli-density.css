@@ -4731,3 +4731,79 @@ body.is-busy #busy-rail,
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.207 denser composer send + pre-copy + FINAL strip */
+.input-row {
+  display: flex !important;
+  align-items: stretch !important;
+  gap: 0 !important;
+  border-top: 1px solid #242424 !important;
+  background: #0e0e0e !important;
+}
+#prompt {
+  flex: 1 !important;
+  border-left: 2px solid #3c3c3c !important;
+  background: #0e0e0e !important;
+  color: #eeeeee !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 13px !important;
+  padding: 8px 10px !important;
+  resize: none !important;
+  outline: none !important;
+}
+#prompt:focus {
+  border-left-color: #FF6A00 !important;
+}
+#send-btn,
+.send-btn {
+  border-left: 2px solid #FF6A00 !important;
+  background: #141414 !important;
+  color: #eeeeee !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase !important;
+  padding: 0 14px !important;
+  cursor: pointer !important;
+  min-width: 56px !important;
+}
+#send-btn:hover,
+.send-btn:hover {
+  background: #1a1a1a !important;
+  color: #FF6A00 !important;
+}
+.mimo-pre-copy {
+  position: absolute !important;
+  top: 4px !important;
+  right: 6px !important;
+  border-left: 2px solid #3c3c3c !important;
+  background: #141414 !important;
+  color: #a0a0a0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+  cursor: pointer !important;
+  opacity: 0 !important;
+  transition: opacity 0.12s ease !important;
+}
+pre:hover > .mimo-pre-copy,
+.mimo-pre-wrap:hover .mimo-pre-copy {
+  opacity: 1 !important;
+}
+.mimo-pre-copy:hover {
+  border-left-color: #FF6A00 !important;
+  color: #eeeeee !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
