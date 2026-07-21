@@ -823,6 +823,11 @@ function handleLocalSlash(full: string): boolean {
     }
     return true;
   }
+  if (cmd === 'models' || (cmd === 'model' && !rest)) {
+    post({ type: 'refreshModels' });
+    if (statusLabel) statusLabel.textContent = 'models…';
+    return true;
+  }
   if (cmd === 'model' && rest) {
     selectedModel = rest;
     if (modelSelect) {

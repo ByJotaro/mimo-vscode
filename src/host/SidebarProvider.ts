@@ -104,6 +104,38 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             });
           }
           break;
+        case 'refreshModels':
+          void (async () => {
+            try {
+              await this.client.ensureServer();
+              const [models, agents] = await Promise.all([
+                this.client.listModels(),
+                this.client.listAgents(),
+              ]);
+              if (models.length) {
+                this.models = models;
+                if (!this.selectedModel) this.selectedModel = models[0].fullId;
+              }
+              const modeIds = agents.filter((a) => a.id && !a.hidden).map((a) => a.id);
+              if (modeIds.length) {
+                this.modes = ['plan', 'build', ...modeIds].filter((v, i, a) => a.indexOf(v) === i);
+              }
+              this.post({
+                type: 'init',
+                sessions: [],
+                models: this.models,
+                modes: this.modes,
+                selectedModel: this.selectedModel,
+                selectedMode: this.selectedMode,
+                metadataOnly: true,
+                showStartupChooser: false,
+                slashCommands: getSlashCommandCatalog(),
+              });
+            } catch (e) {
+              this.log.appendLine('[refreshModels] ' + String(e).slice(0, 120));
+            }
+          })();
+          break;
         case 'goHome':
           this.currentSessionId = '';
           await this.sendInit();
