@@ -5378,25 +5378,34 @@ document.addEventListener('DOMContentLoaded', () => {
         autoScrollPinnedToBottom = isNearBottom(chatContainer);
         let loadMoreCooldown = 0;
         chatContainer.addEventListener('scroll', () => {
-            // During hydrate pins, ignore scroll events (they fire at top during DOM rebuild)
+            // During initial hydrate pin only — do NOT block scroll-up loadMore forever
             if (hydratingSession || Date.now() < hydratePinUntil) {
                 hideQuoteSelectionButton();
-                return;
+                // still allow loadMore if user intentionally scrolled near top after content exists
+                if (!(chatContainer.scrollTop < 120 && activeSessionId && chatContainer.childElementCount > 3)) {
+                    return;
+                }
             }
             autoScrollPinnedToBottom = isNearBottom(chatContainer);
             hideQuoteSelectionButton();
-            // Near top → request older history (host loadMoreSession)
-            if (chatContainer.scrollTop < 80 && activeSessionId) {
+            // Near top → request older history (non-blocking; host posts loadMore status)
+            if (chatContainer.scrollTop < 120 && activeSessionId) {
                 const now = Date.now();
-                if (now - loadMoreCooldown > 1200) {
+                if (now - loadMoreCooldown > 800 && !window.__mimoLoadMoreInFlight) {
                     loadMoreCooldown = now;
+                    window.__mimoLoadMoreInFlight = true;
+                    showTopLoadMoreHint(true);
                     try {
+                        const have = window.__mimoLoadedMsgCount || chatContainer.querySelectorAll('.message').length || 24;
                         vscode.postMessage({
                             type: 'loadMoreSession',
                             sessionId: activeSessionId,
-                            count: Math.max(200, (window.__mimoLoadedMsgCount || 0) + 200)
+                            count: have + 40
                         });
-                    } catch (_) {}
+                    } catch (_) {
+                        window.__mimoLoadMoreInFlight = false;
+                        showTopLoadMoreHint(false);
+                    }
                 }
             }
         }, { passive: true });
@@ -6174,6 +6183,23 @@ document.addEventListener('DOMContentLoaded', () => {
             if (ov) ov.remove();
             const bar = document.getElementById('session-load-bar');
             if (bar) bar.remove();
+        } catch (_) {}
+    }
+
+    function showTopLoadMoreHint(on) {
+        try {
+            let el = document.getElementById('mimo-load-more-hint');
+            if (!on) {
+                if (el) el.remove();
+                return;
+            }
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'mimo-load-more-hint';
+                el.className = 'mimo-load-more-hint';
+                el.innerHTML = '<span class="mimo-spin"></span><span>Loading older messages…</span>';
+                if (chatContainer) chatContainer.insertBefore(el, chatContainer.firstChild);
+            }
         } catch (_) {}
     }
     window.__mimoShowStartupChooser = showStartupChooser;
@@ -8226,12 +8252,17 @@ function shouldHideDcpUiMessage(message) {
                 renderStats.hidden += 1;
                 continue;
             }
-            if (isAppendChildTopLevelUser(session, msg, id, appendChildPresentationIndex)) {
+            // Append-chain hiding is for live multi-prompt nesting only.
+            // For history hydrate it incorrectly drops intermediate assistants → no tools.
+            // Only apply when live turn is in flight.
+            const liveNesting = session.backendTurnInFlight === true
+                || session.pendingAssistantUpgrade != null;
+            if (liveNesting && isAppendChildTopLevelUser(session, msg, id, appendChildPresentationIndex)) {
                 renderStats.appendChildHidden += 1;
                 trackSkipped(id, msg?.role, 'append-child-top-level');
                 continue;
             }
-            if (isAppendChainTopLevelAssistantHidden(session, msg, id, appendChildPresentationIndex)) {
+            if (liveNesting && isAppendChainTopLevelAssistantHidden(session, msg, id, appendChildPresentationIndex)) {
                 renderStats.appendAssistantHidden += 1;
                 trackSkipped(id, msg?.role, 'append-chain-assistant-top-level');
                 continue;
@@ -12982,6 +13013,15 @@ window.addEventListener('message', (event) => {
                             }
                         }
                     } catch (_) {}
+                }
+                break;
+            }
+            case 'sessionLoadMoreStatus': {
+                const loading = message.loading === true;
+                window.__mimoLoadMoreInFlight = loading;
+                showTopLoadMoreHint(loading);
+                if (!loading && typeof message.count === 'number') {
+                    window.__mimoLoadedMsgCount = message.count;
                 }
                 break;
             }

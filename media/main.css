@@ -3534,6 +3534,25 @@ select#mode-select {
   font-size: 12px;
   font-family: "Cascadia Mono", Consolas, monospace;
 }
+.mimo-load-more-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  margin: 4px 0 8px;
+  color: #808080;
+  font-size: 11px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  background: #141414;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.mimo-startup-list {
+  max-height: none !important;
+  overflow: visible !important;
+}
 
 /* Chat layout density — match MiMo Code CLI terminal */
 .chat-area {

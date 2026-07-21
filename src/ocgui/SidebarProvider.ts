@@ -692,10 +692,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     private initPosted = false;
     private sessionSelectionEpoch = 0;
     /**
-     * Tail load on open. 800 was killing UX (slow + heavy format of tools).
-     * Older history loads via loadMoreSession on scroll-up.
+     * First paint: last N messages only (newest first UX).
+     * Older history loads via loadMoreSession on scroll-up without blocking scroll.
      */
-    private readonly recentSessionLoadLimit = 80;
+    private readonly recentSessionLoadLimit = 24;
+    private readonly sessionLoadMoreStep = 40;
     private readonly webviewLivenessPingTimeoutMs = 3000;
     private readonly webviewAutoRescueCooldownMs = 60000;
     private readonly webviewAutoRescueNotificationTtlMs = 60000;
@@ -4022,27 +4023,70 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                         : this.currentSessionId;
                     if (!msId) break;
                     const cur = this._loadedSessions.get(msId) ?? [];
-                    const moreCt = typeof data.count === 'number'
+                    const want = typeof data.count === 'number'
                         ? Math.max(this.recentSessionLoadLimit, data.count)
-                        : this.recentSessionLoadLimit * 2;
-                    rtLog(`LOAD_MORE id=${msId} have=${cur.length} want=${moreCt}`);
-                    if (cur.length >= moreCt) break;
+                        : (Array.isArray(cur) ? cur.length : 0) + this.sessionLoadMoreStep;
+                    const moreCt = Math.min(Math.max(want, this.recentSessionLoadLimit + this.sessionLoadMoreStep), 400);
+                    rtLog(`LOAD_MORE id=${msId} have=${Array.isArray(cur) ? cur.length : 0} want=${moreCt}`);
+                    const wv = this._view?.webview;
+                    if (wv) {
+                        wv.postMessage({
+                            type: 'sessionLoadMoreStatus',
+                            sessionId: msId,
+                            loading: true,
+                            limit: moreCt,
+                        });
+                    }
                     try {
-                        const moreData = await this.client.exportSessionRecent(msId, moreCt);
-                        const formatted = this.formatSession(moreData);
-                        this._loadedSessions.set(msId, moreData?.messages ?? []);
-                        const wv = this._view?.webview;
+                        // DB first — keeps tools when expanding history
+                        let messages: any[] = [];
+                        let title = msId;
+                        try {
+                            const dbData = await this.client.querySessionFromDb(msId, moreCt);
+                            messages = this.formatDbMessages(dbData?.messages ?? []);
+                            title = dbData?.session?.title || title;
+                        } catch {
+                            const moreData = await this.client.exportSessionRecent(msId, moreCt);
+                            const formatted = this.formatSession(moreData);
+                            messages = formatted.messages;
+                            title = formatted.title || title;
+                        }
+                        this._loadedSessions.set(msId, messages as any);
                         if (wv) {
                             wv.postMessage({
                                 type: 'sessionData',
                                 sessionId: msId,
-                                title: formatted.title || moreData?.session?.title || msId,
-                                messages: formatted.messages,
-                                meta: { source: 'loadMore', time: Date.now(), loadMore: true, limit: moreCt },
+                                title,
+                                messages,
+                                meta: {
+                                    source: 'loadMore',
+                                    time: Date.now(),
+                                    loadMore: true,
+                                    limit: moreCt,
+                                    pinBottom: false,
+                                    hasToolCards: messages.some((m: any) =>
+                                        typeof m?.text === 'string' && m.text.includes('%%MIMO_PART')
+                                    ),
+                                },
+                            });
+                            wv.postMessage({
+                                type: 'sessionLoadMoreStatus',
+                                sessionId: msId,
+                                loading: false,
+                                limit: moreCt,
+                                count: messages.length,
                             });
                         }
                     } catch (e) {
                         rtLog(`LOAD_MORE_ERR ${String(e).slice(0, 80)}`);
+                        if (wv) {
+                            wv.postMessage({
+                                type: 'sessionLoadMoreStatus',
+                                sessionId: msId,
+                                loading: false,
+                                error: String(e).slice(0, 120),
+                            });
+                        }
                     }
                     break;
                 }
@@ -6212,8 +6256,8 @@ ${attachmentLines.join('\n')}`
         this.uiDebugChannel.appendLine(`[EXT][SENDINIT_START] initPosted=${this.initPosted}`);
         rtLog(`SENDINIT_START clientReady=${!!this.client}`);
 
-        // CRITICAL: fetch sessions FIRST and fire init immediately so home renders.
-        // Model resolution can happen after; blocking on it delays the entire UI.
+        // CRITICAL: sessions → paint chooser IMMEDIATELY (sqlite list ~20–50ms).
+        // Models/agents/slash must NEVER block the Recent list (was ~30s wait).
         const initWorkspaceRoot = this.client.getWorkspaceRoot() || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         let allMainSessions: SessionInfo[] = [];
         try {
@@ -6229,94 +6273,50 @@ ${attachmentLines.join('\n')}`
         } catch (error) {
             rtLog(`SENDINIT sessions FAIL: ${String(error)}`);
         }
-        const sessions = allMainSessions.slice(0, 80);
+        // Cap visible recent to a short list (no scroll needed on home)
+        const sessions = allMainSessions.slice(0, 12);
 
-        // Models + agents: fetch in parallel, don't block init on failure
-        let models: ModelInfo[] = [];
-        let agents: AgentInfo[] = [];
-        const [modelResult, agentResult] = await Promise.allSettled([
-            this.client.listModels(),
-            this.client.listAgents()
-        ]);
-        if (modelResult.status === 'fulfilled') {
-            models = modelResult.value;
-            if (models.length) this.lastKnownModels = models;
-        } else {
-            rtLog(`SENDINIT models FAIL: ${String(modelResult.reason)}`);
-            models = this.lastKnownModels;
-        }
-        if (agentResult.status === 'fulfilled') {
-            agents = agentResult.value;
-        } else {
-            rtLog(`SENDINIT agents FAIL: ${String(agentResult.reason)}`);
-        }
-        rtLog(`SENDINIT models=${models.length} agents=${agents.length} sessions=${sessions.length}`);
         const storedModel = this._context.globalState.get<string>('mimo.model');
         const storedVariant = this._context.globalState.get<string>('mimo.variant');
         const storedMode = this._context.globalState.get<string>('mimo.mode');
 
-        const allModes = agents
-            // Keep primary agents visible in the mode picker; only hidden agents stay excluded.
-            .filter((agent) => !agent.hidden && (agent.mode === 'all' || agent.mode === 'primary'))
-            .map((agent) => agent.id)
-            .filter((value, index, arr) => arr.indexOf(value) === index);
-        const mergedModes = ['plan', 'build', ...allModes]
-            .filter((value, index, arr) => arr.indexOf(value) === index);
-        this.availableModes = mergedModes.length ? mergedModes : ['plan', 'build'];
+        // Use cached models immediately; refresh models/agents in background after chooser paints
+        let models: ModelInfo[] = this.lastKnownModels?.length ? [...this.lastKnownModels] : [];
+        let agents: AgentInfo[] = [];
+
+        // Modes: defaults first so chooser can paint without agents API
+        this.availableModes = this.availableModes?.length
+            ? this.availableModes
+            : ['plan', 'build'];
+        if (!this.availableModes.includes('plan')) this.availableModes = ['plan', 'build', ...this.availableModes];
         const resolvedMode = (storedMode && this.availableModes.includes(storedMode))
             ? storedMode
             : (this.availableModes.includes('plan') ? 'plan' : this.availableModes[0]);
 
         this.selectedMode = resolvedMode;
-
-        if (!models.length) {
-            const refreshed = await this.refreshModels(webview);
-            if (refreshed.length) {
-                models = refreshed;
-            } else if (this.lastKnownModels.length) {
-                models = this.lastKnownModels;
-            }
-        }
-
-        const modelMap = new Map(models.map((model) => [model.fullId, model]));
-        let resolvedModel = storedModel;
-        if (!resolvedModel || !modelMap.has(resolvedModel)) {
+        // Resolve model from cache only — never await refreshModels on first paint
+        let resolvedModel = storedModel || models[0]?.fullId;
+        if (resolvedModel && models.length && !models.some((m) => m.fullId === resolvedModel)) {
             resolvedModel = models[0]?.fullId;
         }
-
         let resolvedVariant = storedVariant || undefined;
-        const resolvedModelInfo = resolvedModel ? modelMap.get(resolvedModel) : undefined;
-        const variants = resolvedModelInfo?.variants || [];
-        if (resolvedVariant && !variants.includes(resolvedVariant)) {
-            resolvedVariant = undefined;
-        }
-
         this.selectedModel = resolvedModel;
         this.selectedVariant = resolvedVariant;
 
-        if (resolvedModel && resolvedModel !== storedModel) {
-            await this._context.globalState.update('mimo.model', resolvedModel);
-        }
-        if ((resolvedVariant || '') !== (storedVariant || '')) {
-            await this._context.globalState.update('mimo.variant', resolvedVariant);
-        }
+        // Persist mode only (cheap). Model persist after bg refresh if needed.
         if ((resolvedMode || '') !== (storedMode || '')) {
-            await this._context.globalState.update('mimo.mode', resolvedMode);
+            void this._context.globalState.update('mimo.mode', resolvedMode);
         }
         this.uiDebugChannel.appendLine(
-            `[EXT][INIT_MODEL_RESOLVE] models=${models.length} storedModel=${storedModel || 'null'} selectedModel=${resolvedModel || 'null'} storedVariant=${storedVariant || 'null'} selectedVariant=${resolvedVariant || 'null'}`
-        );
-        this.uiDebugChannel.appendLine(
-            `EXT: mode.init | stored=${storedMode || 'null'} | selected=${resolvedMode || 'null'} | available=${this.availableModes.join(',') || 'none'}`
+            `[EXT][INIT_MODEL_RESOLVE] models=${models.length} storedModel=${storedModel || 'null'} selectedModel=${resolvedModel || 'null'} cachedOnly=true`
         );
 
         const workspaceRoot = initWorkspaceRoot;
-        const workspaceCount = vscode.workspace.workspaceFolders?.length || 0;
         if (workspaceRoot) {
             this.currentWorkspaceKey = this.getWorkspaceKeyForRoot(workspaceRoot);
         }
         this.uiDebugChannel.appendLine(
-            `EXT: workspace.root.select | mode=first-folder | root=${workspaceRoot || 'null'} | count=${workspaceCount}`
+            `EXT: workspace.root.select | mode=first-folder | root=${workspaceRoot || 'null'}`
         );
 
         const workspaceFolder = workspaceRoot;
@@ -6324,19 +6324,7 @@ ${attachmentLines.join('\n')}`
         if (workspaceFolder) {
             const workspaceKey = this.getWorkspaceKeyForRoot(workspaceFolder);
             recentSessionId = this._context.globalState.get<string>(`recentSession.${workspaceKey}`);
-        }
-        if (workspaceFolder && recentSessionId) {
-            const recentMatch = await this.getSessionWorkspaceMatch(recentSessionId, workspaceFolder);
-            if (recentMatch === 'mismatch') {
-                this.uiDebugChannel.appendLine(
-                    `[EXT][RECENT_SESSION_SKIP] sessionId=${recentSessionId} reason=workspace-mismatch workspace=${workspaceFolder}`
-                );
-                recentSessionId = undefined;
-            } else if (recentMatch === 'unknown') {
-                this.uiDebugChannel.appendLine(
-                    `[EXT][RECENT_SESSION_ACCEPT] sessionId=${recentSessionId} reason=trusted-recent-missing-cwd workspace=${workspaceFolder}`
-                );
-            }
+            // Do NOT await getSessionWorkspaceMatch — blocks chooser for seconds
         }
 
         // Startup policy: do NOT silently dump into last session.
@@ -6354,15 +6342,7 @@ ${attachmentLines.join('\n')}`
                 `currentSessionId=null showStartupChooser=true selectedModel=${this.selectedModel || 'NULL'} selectedMode=${resolvedMode || 'null'} modeCount=${this.availableModes.length}`
             );
 
-            let slashCommands: Array<{ name: string; description: string }> = [];
-            try {
-                slashCommands = await this.client.fetchSlashCommands();
-                rtLog(`SENDINIT slashCommands=${slashCommands.length}`);
-            } catch (error) {
-                rtLog(`SENDINIT slashCommands FAIL: ${String(error)}`);
-            }
-
-            // Rank sessions for chooser: remembered recent first, then workspace-most-recent
+            // Rank sessions for chooser: remembered recent first
             const rankedSessions = Array.isArray(sessions) ? [...sessions] : [];
             if (recentSessionId) {
                 const idx = rankedSessions.findIndex((s: any) => s?.id === recentSessionId);
@@ -6372,6 +6352,7 @@ ${attachmentLines.join('\n')}`
                 }
             }
 
+            // FIRST PAINT: sessions + chooser only (no slash/models wait)
             liveWebview.postMessage({
                 type: 'init',
                 models,
@@ -6386,24 +6367,79 @@ ${attachmentLines.join('\n')}`
                 recentSessionId: recentSessionId || '',
                 panelId: this.getWebviewLivenessPanelId(),
                 webviewInstanceId: this._webviewInstanceId,
-                slashCommands
+                slashCommands: []
             });
-
-            await this.postModelQuota(liveWebview, 'init');
+            this.initPosted = true;
+            this.uiDebugChannel.appendLine(
+                `[EXT][INIT_CHOOSER_FAST] sessions=${rankedSessions.length} modelsCached=${models.length}`
+            );
 
             liveWebview.postMessage({
                 type: 'gitUndoAvailability',
                 enabled: this.gitUndoEnabled,
                 reason: this.gitUndoReason
             });
-
             this.sendServerStatus(this.serverStatus, 'init');
 
-            this.initPosted = true;
-            // Skip silent recent-session hydrate — user picks from chooser
-            this.uiDebugChannel.appendLine(
-                `[EXT][INIT_CHOOSER] skipAutoHydrate recentRemembered=${recentSessionId || 'null'} sessions=${rankedSessions.length}`
-            );
+            // Background: models/agents/slash — does not block Recent
+            void (async () => {
+                try {
+                    const [modelResult, agentResult, slashResult] = await Promise.allSettled([
+                        this.client.listModels(),
+                        this.client.listAgents(),
+                        this.client.fetchSlashCommands(),
+                    ]);
+                    let nextModels = models;
+                    if (modelResult.status === 'fulfilled' && modelResult.value?.length) {
+                        nextModels = modelResult.value;
+                        this.lastKnownModels = nextModels;
+                    }
+                    if (agentResult.status === 'fulfilled' && Array.isArray(agentResult.value)) {
+                        agents = agentResult.value;
+                        const allModes = agents
+                            .filter((agent) => !agent.hidden && (agent.mode === 'all' || agent.mode === 'primary'))
+                            .map((agent) => agent.id)
+                            .filter((value, index, arr) => arr.indexOf(value) === index);
+                        this.availableModes = ['plan', 'build', ...allModes]
+                            .filter((value, index, arr) => arr.indexOf(value) === index);
+                    }
+                    let slashCommands: Array<{ name: string; description: string }> = [];
+                    if (slashResult.status === 'fulfilled' && Array.isArray(slashResult.value)) {
+                        slashCommands = slashResult.value;
+                    }
+                    if (nextModels.length) {
+                        const stillValid = nextModels.some((m) => m.fullId === this.selectedModel);
+                        if (!stillValid) this.selectedModel = nextModels[0]?.fullId;
+                    }
+                    const wv = this._view?.webview;
+                    if (!wv) return;
+                    wv.postMessage({
+                        type: 'init',
+                        models: nextModels,
+                        sessions: rankedSessions,
+                        modes: this.availableModes,
+                        selectedModel: this.selectedModel,
+                        selectedVariant: this.selectedVariant,
+                        selectedMode: this.selectedMode,
+                        currentSessionId: this.currentSessionId || '',
+                        sessionId: this.currentSessionId || '',
+                        showStartupChooser: !this.currentSessionId,
+                        metadataOnly: true,
+                        slashCommands,
+                        panelId: this.getWebviewLivenessPanelId(),
+                        webviewInstanceId: this._webviewInstanceId,
+                    });
+                    if (slashCommands.length) {
+                        wv.postMessage({ type: 'slashCommands', commands: slashCommands });
+                    }
+                    await this.postModelQuota(wv, 'init-bg');
+                    this.uiDebugChannel.appendLine(
+                        `[EXT][INIT_BG_DONE] models=${nextModels.length} modes=${this.availableModes.length} slash=${slashCommands.length}`
+                    );
+                } catch (e) {
+                    rtLog(`SENDINIT_BG_FAIL ${String(e).slice(0, 100)}`);
+                }
+            })();
             return;
         } else {
             const initSessionId = this.currentSessionId || '';
