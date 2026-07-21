@@ -1674,7 +1674,7 @@ function showSlash(filter: string): void {
   if (slashIndex >= ranked.length) slashIndex = 0;
   el.innerHTML = ranked
     .map((c, i) => {
-      const isSkill = /^(Skill:|skill:)/i.test(c.description || '') || false;
+      const isSkill = /^skill:/i.test(c.description || '') || /\bSkill:/i.test(c.description || '');
       const desc = escHtml(c.description || '');
       return (
         `<div class="slash-item${i === slashIndex ? ' active' : ''}${isSkill ? ' slash-item--skill' : ''}" data-name="${escHtml(c.name)}">` +
