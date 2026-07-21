@@ -391,7 +391,15 @@ chat.addEventListener('scroll', onScroll, { passive: true });
 btnHome?.addEventListener('click', () => post({ type: 'newSession' }));
 btnSend?.addEventListener('click', doSend);
 btnAbort?.addEventListener('click', () => post({ type: 'abort' }));
+promptEl?.addEventListener('input', onPromptInput);
 promptEl?.addEventListener('keydown', (e) => {
+  if (!document.getElementById('slash-overlay')?.hidden) {
+    const items = Array.from(document.querySelectorAll('.slash-item'));
+    if (e.key === 'ArrowDown') { e.preventDefault(); slashIndex = Math.min(items.length - 1, slashIndex + 1); onPromptInput(); return; }
+    if (e.key === 'ArrowUp') { e.preventDefault(); slashIndex = Math.max(0, slashIndex - 1); onPromptInput(); return; }
+    if (e.key === 'Tab' || (e.key === 'Enter' && items[slashIndex])) { e.preventDefault(); applySlash((items[slashIndex] as HTMLElement).dataset.name || ''); return; }
+    if (e.key === 'Escape') { hideSlash(); return; }
+  }
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     doSend();
@@ -411,7 +419,8 @@ window.addEventListener('message', (event: MessageEvent) => {
   if (!message || typeof message.type !== 'string') return;
   switch (message.type) {
     case 'init': {
-      if (Array.isArray(message.modes) && message.modes.length) {
+      if (Array.isArray(message.slashCommands)) slashCatalog = message.slashCommands;
+if (Array.isArray(message.modes) && message.modes.length) {
         fillSelect(
           modeSelect,
           message.modes.map((m: string) => ({ id: m, label: m })),
@@ -512,4 +521,70 @@ window.addEventListener('message', (event: MessageEvent) => {
 });
 
 startStarfield(document.getElementById('starfield') as HTMLCanvasElement | null);
+
+// ---- Slash palette ----
+let slashCatalog: Array<{ name: string; description: string }> = [];
+let slashIndex = 0;
+
+function ensureSlashOverlay(): HTMLElement {
+  let el = document.getElementById('slash-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'slash-overlay';
+    el.className = 'slash-overlay';
+    el.hidden = true;
+    document.querySelector('.input-area')?.prepend(el);
+  }
+  return el;
+}
+
+function hideSlash(): void {
+  const el = document.getElementById('slash-overlay');
+  if (el) el.hidden = true;
+  slashIndex = 0;
+}
+
+function showSlash(filter: string): void {
+  const el = ensureSlashOverlay();
+  const q = filter.toLowerCase();
+  const items = (slashCatalog || [])
+    .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.description || '').toLowerCase().includes(q))
+    .slice(0, 24);
+  if (!items.length) {
+    el.hidden = true;
+    return;
+  }
+  if (slashIndex >= items.length) slashIndex = 0;
+  el.innerHTML = items
+    .map(
+      (c, i) =>
+        `<div class="slash-item${i === slashIndex ? ' active' : ''}" data-name="${escHtml(c.name)}"><span class="slash-name">/${escHtml(c.name)}</span><span class="slash-desc">${escHtml(c.description || '')}</span></div>`
+    )
+    .join('');
+  el.hidden = false;
+  el.querySelectorAll('.slash-item').forEach((node) => {
+    node.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const name = (node as HTMLElement).dataset.name || '';
+      applySlash(name);
+    });
+  });
+}
+
+function applySlash(name: string): void {
+  if (!promptEl) return;
+  const v = promptEl.value;
+  const m = v.match(/^(.*?)(\/\S*)$/);
+  if (m) promptEl.value = m[1] + '/' + name + ' ';
+  else promptEl.value = '/' + name + ' ';
+  hideSlash();
+  promptEl.focus();
+}
+
+function onPromptInput(): void {
+  const v = promptEl?.value || '';
+  const m = v.match(/(?:^|\s)(\/([^\s]*))$/);
+  if (m) showSlash(m[2] || '');
+  else hideSlash();
+}
 post({ type: 'ready' });

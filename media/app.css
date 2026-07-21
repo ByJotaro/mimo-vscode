@@ -366,3 +366,33 @@ body.vscode-dark, body.vscode-light {
 .message.bot { margin: 1px 0; }
 /* tool default closed look when only summary */
 .mimo-part[open] > summary { color: #eeeeee; }
+
+.slash-overlay {
+  position: absolute;
+  bottom: 100%;
+  left: 8px;
+  right: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  background: #141414;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  z-index: 20;
+  box-shadow: 0 -4px 16px rgba(0,0,0,0.45);
+}
+.input-area { position: relative; }
+.slash-item {
+  display: flex;
+  gap: 10px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  border-bottom: 1px solid #1e1e1e;
+}
+.slash-item:hover, .slash-item.active {
+  background: #1e1e1e;
+  border-left: 2px solid #FF6A00;
+}
+.slash-name { color: #FF6A00; min-width: 100px; font-weight: 500; }
+.slash-desc { color: #808080; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -7,3 +7,9 @@ media/app.js.map
 _tmp*
 _probe*
 .opencode
+
+scripts/ref/oc-app/
+scripts/ref/ocgui2/
+out-test/
+*.vsix
+

@@ -10,6 +10,7 @@ import { cssVariablesDark } from './theme/tokens';
 import { mergeSessionMessagesById } from './session/merge';
 import type { DisplayMessage } from './format/formatPart';
 import { MimoClient, getWorkspaceRoot } from './cli/MimoClient';
+import { getSlashCommandCatalog } from './cli/slashCatalog';
 
 const HOME_RECENT_CAP = 6;
 const FIRST_LOAD_LIMIT = 24;
@@ -142,7 +143,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       selectedModel: this.selectedModel,
       selectedMode: this.selectedMode,
       showStartupChooser: !this.currentSessionId,
-      slashCommands: [],
+      slashCommands: getSlashCommandCatalog(),
     });
     this.log.appendLine(
       `[INIT] sessions=${sessions.length} ms=${Date.now() - t0} db=${dbAvailable()}`
@@ -179,7 +180,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           selectedMode: this.selectedMode,
           showStartupChooser: !this.currentSessionId,
           metadataOnly: true,
-          slashCommands: [],
+          slashCommands: getSlashCommandCatalog(),
         });
         this.log.appendLine(
           `[INIT_BG] models=${this.models.length} modes=${this.modes.length}`
