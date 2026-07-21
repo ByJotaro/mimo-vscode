@@ -358,7 +358,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           loadedCount: 0,
         },
       });
-      this.log.appendLine(`[NEW_SESSION] ${s.id}`);
+      this.post({ type: 'toast', text: 'New session' });
+      this.log.appendLine(`[NEW_SESSION] ${s.id}`);this.log.appendLine(`[NEW_SESSION] ${s.id}`);
     } catch (e) {
       this.post({ type: 'error', error: `newSession: ${String(e).slice(0, 200)}` });
       // still show home

@@ -2513,3 +2513,23 @@ textarea::placeholder {
 .mimo-part.mimo-part--flat > summary .mimo-part-title {
   font-family: "Cascadia Mono", Consolas, monospace !important;
 }
+
+/* Header buttons denser mono labels */
+#btn-history, #btn-undo, #btn-fork, #btn-home, #btn-abort {
+  letter-spacing: 0.02em !important;
+  text-transform: none !important;
+  min-height: 24px !important;
+  padding: 2px 8px !important;
+}
+/* Chat scrollbar denser CLI thin */
+#chat::-webkit-scrollbar {
+  width: 8px !important;
+}
+#chat::-webkit-scrollbar-thumb {
+  background: #3c3c3c !important;
+  border-radius: 4px !important;
+}
+#chat {
+  scrollbar-width: thin !important;
+  scrollbar-color: #3c3c3c transparent !important;
+}
