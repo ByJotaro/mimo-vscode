@@ -12,8 +12,15 @@
   "engines": {
     "vscode": "^1.80.0"
   },
-  "categories": ["AI", "Other"],
-  "keywords": ["MiMo Code", "AI coding", "code agent"],
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "MiMo Code",
+    "AI coding",
+    "code agent"
+  ],
   "activationEvents": [
     "onView:mimo.sidebar",
     "onCommand:mimo.checkVersion",
@@ -106,23 +113,6 @@
           "group": "mimo@1"
         }
       ]
-    }
-,
-,
-    "configuration": {
-      "title": "MiMo Code",
-      "properties": {
-        "mimo.cliPath": {
-          "type": "string",
-          "default": "",
-          "description": "Path to mimo executable (empty = auto-detect / PATH / MIMO_BIN)."
-        },
-        "mimo.servePort": {
-          "type": "number",
-          "default": 0,
-          "description": "Preferred loopback port for mimo serve (0 = hash from workspace)."
-        }
-      }
     },
     "keybindings": [
       {
@@ -145,7 +135,22 @@
         "key": "ctrl+shift+alt+.",
         "mac": "cmd+shift+alt+."
       }
-    ]
+    ],
+    "configuration": {
+      "title": "MiMo Code",
+      "properties": {
+        "mimo.cliPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to mimo executable (empty = auto-detect / PATH / MIMO_BIN)."
+        },
+        "mimo.servePort": {
+          "type": "number",
+          "default": 0,
+          "description": "Preferred loopback port for mimo serve (0 = hash from workspace)."
+        }
+      }
+    }
   },
   "scripts": {
     "compile": "tsc -p ./ && node scripts/build-webview.mjs",
