@@ -4378,8 +4378,9 @@ function renderAssistantMarkdown(content, message) {
 function splitMimoParts(text) {
     const src = String(text || '');
     const out = [];
-    // duration is optional 5th field
-    const re = /%%MIMO_PART:([^|%]+)\|([^|%]*)\|([^|%]*)\|([^|%]*)\|?([^%]*)%%\n?([\s\S]*?)%%\/MIMO_PART%%/g;
+    // Header fields: kind|title|meta|open|duration — allow % in fields by only stopping at |
+    // Close marker must be exact %%/MIMO_PART%% (body may contain escaped form)
+    const re = /%%MIMO_PART:([^|]*)\|([^|]*)\|([^|]*)\|([^|]*)\|(.*?)%%\r?\n?([\s\S]*?)%%\/MIMO_PART%%/g;
     let last = 0;
     let m;
     let found = false;
@@ -4387,13 +4388,14 @@ function splitMimoParts(text) {
         found = true;
         if (m.index > last) out.push({ kind: 'text', body: src.slice(last, m.index) });
         const openFlag = (m[4] || '').trim();
+        const body = String(m[6] || '').replace(/%%\/MIMO_PART_ESC%%/g, '%%/MIMO_PART%%');
         out.push({
-            kind: m[1].trim(),
-            title: m[2].trim(),
-            meta: m[3].trim(),
+            kind: (m[1] || 'tool').trim() || 'tool',
+            title: (m[2] || '').trim(),
+            meta: (m[3] || '').trim(),
             open: openFlag === 'open',
             duration: (m[5] || '').trim(),
-            body: m[6] || '',
+            body,
         });
         last = m.index + m[0].length;
     }
@@ -6090,11 +6092,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 m.textContent = s.when || s.id.slice(0, 16);
                 btn.appendChild(t);
                 btn.appendChild(m);
-                btn.addEventListener('click', function () {
+                btn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (btn.dataset.busy === '1') return;
+                    btn.dataset.busy = '1';
                     showSessionLoadingBar('Loading session…');
-                    root.classList.add('mimo-startup--leaving');
                     pendingExplicitSessionSelectionId = s.id;
                     activeSessionId = s.id;
+                    // Don't play leaving animation that blocks clicks — clear immediately
+                    try {
+                        const st = document.getElementById('mimo-startup');
+                        if (st) st.remove();
+                    } catch (_) {}
                     vscode.postMessage({ type: 'selectSession', sessionId: s.id });
                 });
                 list.appendChild(btn);
@@ -8073,17 +8083,24 @@ function shouldHideDcpUiMessage(message) {
             });
             return;
         }
-        chatContainer.innerHTML = '';
         const session = getSessionOrNull(activeSessionId);
         if (!session || !session.timeline.length) {
-            // Home: keep Recent sessions chooser — never replace with logo-only greeting
-            if (!activeSessionId && typeof window.__mimoShowStartupChooser === 'function') {
-                window.__mimoShowStartupChooser(
-                    Array.isArray(window.__mimoSessionsCache) && window.__mimoSessionsCache.length
-                        ? window.__mimoSessionsCache
-                        : (Array.isArray(sessions) ? sessions : [])
-                );
+            // Home: never wipe existing Recent chooser (blink/slow click). Only create if missing.
+            if (!activeSessionId) {
+                const existing = document.getElementById('mimo-startup');
+                const seed = Array.isArray(window.__mimoSessionsCache) && window.__mimoSessionsCache.length
+                    ? window.__mimoSessionsCache
+                    : (Array.isArray(sessions) ? sessions : []);
+                if (existing && typeof window.__mimoFillStartupList === 'function') {
+                    window.__mimoFillStartupList(seed);
+                } else if (typeof window.__mimoShowStartupChooser === 'function') {
+                    window.__mimoShowStartupChooser(seed);
+                } else {
+                    chatContainer.innerHTML = '';
+                    setDefaultGreeting();
+                }
             } else {
+                chatContainer.innerHTML = '';
                 setDefaultGreeting();
             }
             renderQuestionCardInTimeline();
@@ -8094,6 +8111,7 @@ function shouldHideDcpUiMessage(message) {
             }
             return;
         }
+        chatContainer.innerHTML = '';
 
         if (session.snapshotFinalizeReady === true) {
             const pendingEpoch = typeof session.snapshotPendingEpoch === 'number' ? session.snapshotPendingEpoch : 0;
@@ -12196,9 +12214,14 @@ window.addEventListener('message', (event) => {
                 break;
             }
             case 'showStartupChooser': {
-                sessions = Array.isArray(message.sessions) ? message.sessions : sessions;
-                if (sessions.length) window.__mimoSessionsCache = sessions;
-                // If chooser already open, only refresh list; else build full UI
+                const incoming = Array.isArray(message.sessions) ? message.sessions : null;
+                if (incoming && incoming.length) {
+                    sessions = incoming;
+                    window.__mimoSessionsCache = incoming;
+                } else if (Array.isArray(window.__mimoSessionsCache) && window.__mimoSessionsCache.length) {
+                    sessions = window.__mimoSessionsCache;
+                }
+                // Prefer fill-only when chooser already mounted (no blink)
                 if (document.getElementById('mimo-startup') && typeof window.__mimoFillStartupList === 'function') {
                     window.__mimoFillStartupList(sessions);
                 } else if (typeof window.__mimoShowStartupChooser === 'function') {

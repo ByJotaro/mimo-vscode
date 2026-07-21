@@ -8893,9 +8893,17 @@ ${attachmentLines.join('\n')}`
         open = false,
         duration = ''
     ): string {
-        const safe = (s: string) => String(s || '').replace(/\|/g, '/').replace(/\n/g, ' ').slice(0, 200);
+        // Header fields must NEVER contain | or % — webview regex splits on them
+        const safe = (s: string) => String(s || '')
+            .replace(/\|/g, '/')
+            .replace(/%/g, 'pct')
+            .replace(/\r?\n/g, ' ')
+            .replace(/%%/g, '')
+            .slice(0, 160);
         const flag = open ? 'open' : 'closed';
-        return `\n%%MIMO_PART:${kind}|${safe(title)}|${safe(meta)}|${flag}|${safe(duration)}%%\n${body || ''}\n%%/MIMO_PART%%\n`;
+        // Escape accidental close marker inside body so splitMimoParts can't truncate
+        const safeBody = String(body || '').replace(/%%\/MIMO_PART%%/g, '%%/MIMO_PART_ESC%%');
+        return `\n%%MIMO_PART:${safe(kind)}|${safe(title)}|${safe(meta)}|${flag}|${safe(duration)}%%\n${safeBody}\n%%/MIMO_PART%%\n`;
     }
 
     private formatPartDuration(part: any): string {
