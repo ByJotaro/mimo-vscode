@@ -2418,3 +2418,18 @@ a.mimo-ext-link:hover {
   font-size: 10px !important;
   color: #707070 !important;
 }
+
+/* === beta.140 milestone: tool chrome must never flatten === */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+  border-bottom: 1px solid #242424 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
