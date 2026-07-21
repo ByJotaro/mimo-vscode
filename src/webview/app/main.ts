@@ -903,6 +903,56 @@ promptEl?.addEventListener('keydown', (e) => {
     doSend();
   }
 });
+
+// Global shortcuts (CLI-ish)
+window.addEventListener('keydown', (e) => {
+  const mod = e.ctrlKey || e.metaKey;
+  // Escape closes top overlay first
+  if (e.key === 'Escape') {
+    const hist = document.getElementById('mimo-history-panel');
+    if (hist) {
+      hist.remove();
+      e.preventDefault();
+      return;
+    }
+    if (document.getElementById('permission-overlay') || document.getElementById('question-overlay')) {
+      return; // leave explicit dismiss to card buttons
+    }
+    hideSlash();
+    return;
+  }
+  if (!mod) return;
+  const k = e.key.toLowerCase();
+  // Ctrl/Cmd+Shift+H → history
+  if (e.shiftKey && k === 'h') {
+    e.preventDefault();
+    showHistoryPanel([{ id: '_loading', title: 'Loading…' }]);
+    post({ type: 'fetchSessions', history: true });
+    return;
+  }
+  // Ctrl/Cmd+Shift+N → new session
+  if (e.shiftKey && k === 'n') {
+    e.preventDefault();
+    post({ type: 'newSession' });
+    return;
+  }
+  // Ctrl/Cmd+Shift+U → home
+  if (e.shiftKey && k === 'u') {
+    e.preventDefault();
+    activeSessionId = '';
+    titleEl.textContent = 'MiMo Code';
+    document.getElementById('mimo-history-panel')?.remove();
+    chat.innerHTML = '';
+    showStartup([]);
+    post({ type: 'goHome' });
+    return;
+  }
+  // Ctrl/Cmd+. → abort when busy
+  if (k === '.' && busy) {
+    e.preventDefault();
+    post({ type: 'abort' });
+  }
+});
 modeSelect?.addEventListener('change', () => {
   selectedMode = modeSelect.value;
   post({ type: 'setMode', mode: selectedMode });
