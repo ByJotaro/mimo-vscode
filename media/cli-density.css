@@ -1330,3 +1330,16 @@ body.mimo-busy #btn-abort {
   color: #808080 !important;
   font-size: 11px !important;
 }
+
+.message-content blockquote {
+  margin: 0.4em 0 !important;
+  padding: 2px 0 2px 10px !important;
+  border-left: 2px solid #FF6A00 !important;
+  color: #9a9a9a !important;
+  font-style: italic !important;
+}
+.message-content hr {
+  border: none !important;
+  border-top: 1px solid #2a2a2a !important;
+  margin: 10px 0 !important;
+}

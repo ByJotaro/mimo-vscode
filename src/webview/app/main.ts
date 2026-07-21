@@ -76,7 +76,8 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
   if (seg.kind === 'thinking') {
     const det = document.createElement('details');
     det.className = 'mimo-thinking';
-    det.open = false;
+    // Open while parent message is still streaming (CLI shows live thought)
+    det.open = Boolean((seg as any).open) || Boolean(document.querySelector('.message.is-streaming'));
     const bodyText = String((seg as any).body || '').trim();
     const words = bodyText ? bodyText.split(/\s+/).filter(Boolean).length : 0;
     const dur =
@@ -1135,6 +1136,10 @@ if (Array.isArray(message.modes) && message.modes.length) {
       }
       document.querySelectorAll('.message.is-streaming').forEach((el) => {
         el.classList.remove('is-streaming');
+        // Collapse thoughts after turn ends (CLI collapses finished thought)
+        el.querySelectorAll('details.mimo-thinking[open]').forEach((d) => {
+          (d as HTMLDetailsElement).open = false;
+        });
       });
       if (message.text) {
         appendOrUpdateMessage({
