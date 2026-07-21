@@ -682,6 +682,21 @@ export class MimoClient {
     );
   }
 
+
+  async fetchSessionUsage(sessionId: string): Promise<{ used: number; size: number; amount: number } | null> {
+    try {
+      const data = await this.request('GET', /session/ + encodeURIComponent(sessionId), undefined, 8000);
+      const u = data?.tokens || data?.usage || data?.info?.tokens || data;
+      if (!u || typeof u !== 'object') return null;
+      return {
+        used: Number(u.total || u.used || (Number(u.input||0)+Number(u.output||0)) || 0) || 0,
+        size: Number(u.context || u.size || u.limit || 0) || 0,
+        amount: Number(u.cost || u.amount || 0) || 0,
+      };
+    } catch {
+      return null;
+    }
+  }
   /** Dispose only our spawned process — never blanket-kill mimo. */
   dispose(): void {
     this.eventAbort?.abort();

@@ -306,6 +306,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       );
       // warm serve for live follow
       void this.client.ensureServer().catch(() => undefined);
+      void this.client.fetchSessionUsage(sessionId).then((u) => {
+        if (u && this.currentSessionId === sessionId) {
+          this.post({ type: 'sessionUsage', sessionId, used: u.used, size: u.size, amount: u.amount });
+        }
+      }).catch(() => undefined);
     } catch (e) {
       this.post({
         type: 'sessionLoadFailed',
