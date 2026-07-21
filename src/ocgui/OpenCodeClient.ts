@@ -8997,7 +8997,7 @@ export class OpenCodeClient {
     public async listSessions(): Promise<SessionInfo[]> {
         // 1) Fast path: direct sqlite3 (no server cold-start). Titles in <100ms typically.
         try {
-            const fromDb = this.listSessionsFromSqlite(40);
+            const fromDb = this.listSessionsFromSqlite(12);
             if (fromDb.length) {
                 rtLog(`LIST_SESSIONS sqlite n=${fromDb.length}`);
                 // Warm server in background for later API calls — don't block Recent

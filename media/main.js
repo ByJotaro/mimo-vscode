@@ -6057,16 +6057,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
         function fillList(src) {
             let raw = Array.isArray(src) ? src : [];
-            // Never clobber a good cache with empty payload
+            // Never clobber a good cache with empty payload; never grow home list beyond host cap
             if (!raw.length && Array.isArray(window.__mimoSessionsCache) && window.__mimoSessionsCache.length) {
                 raw = window.__mimoSessionsCache;
             }
             if (!raw.length && Array.isArray(sessions) && sessions.length) raw = sessions;
-            if (raw.length) {
-                window.__mimoSessionsCache = raw;
-                sessions = raw;
+            // Home Recent: max 6 real sessions (Show history can hold more later)
+            const items = raw.map(normalizeSessionItem).filter(function (s) {
+                if (!s) return false;
+                const t = String(s.title || '').trim();
+                if (!t || t.length < 2) return false;
+                if (/^One-word greeting/i.test(t)) return false;
+                if (/^New session\s*-/i.test(t)) return false;
+                if (/^Untitled/i.test(t)) return false;
+                return true;
+            }).slice(0, 6);
+            if (items.length) {
+                window.__mimoSessionsCache = items;
+                sessions = items;
             }
-            const items = raw.map(normalizeSessionItem).filter(Boolean).slice(0, 30);
             // Skip DOM rebuild if same ids already shown (stops blink)
             const nextIds = items.map(function (s) { return s.id; }).join('|');
             if (list.dataset.ids === nextIds && items.length) {

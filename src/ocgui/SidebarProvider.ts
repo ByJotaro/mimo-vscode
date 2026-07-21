@@ -697,6 +697,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
      */
     private readonly recentSessionLoadLimit = 24;
     private readonly sessionLoadMoreStep = 40;
+    /** Home "Recent sessions" — only a few latest, not the whole DB. */
+    private readonly homeRecentSessionsCap = 6;
     private readonly webviewLivenessPingTimeoutMs = 3000;
     private readonly webviewAutoRescueCooldownMs = 60000;
     private readonly webviewAutoRescueNotificationTtlMs = 60000;
@@ -4103,11 +4105,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                 case "fetchSessions": {
                     try {
                         const raw = await this.client.listSessions();
-                        let filtered = raw.filter((s) => !s.parentID);
-                        if (!filtered.length && raw.length) filtered = raw.slice();
+                        let filtered = this.pickHomeRecentSessions(raw);
                         const workspaceRoot = this.client.getWorkspaceRoot()
                             || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-                        // Rank remembered recent first, but do NOT drop others by cwd
                         if (workspaceRoot) {
                             const key = this.getWorkspaceKeyForRoot(workspaceRoot);
                             const recentId = this._context.globalState.get<string>(`recentSession.${key}`);
@@ -4116,17 +4116,20 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                                 if (idx > 0) {
                                     const [hit] = filtered.splice(idx, 1);
                                     filtered.unshift(hit);
+                                } else if (idx < 0) {
+                                    const hit = raw.find((s) => s.id === recentId);
+                                    if (hit) filtered = [hit, ...filtered].slice(0, this.homeRecentSessionsCap);
                                 }
                             }
                         }
-                        filtered = filtered.slice(0, 80);
+                        filtered = filtered.slice(0, this.homeRecentSessionsCap);
                         const wv = this._view?.webview;
                         if (wv) {
                             // Only sessionsList — do NOT re-post showStartupChooser (wipes chat / races hydrate)
                             wv.postMessage({ type: 'sessionsList', sessions: filtered });
                         }
                         this.uiDebugChannel.appendLine(
-                            `[EXT][FETCH_SESSIONS_OK] count=${filtered.length} raw=${raw.length} workspace=${workspaceRoot || 'null'}`
+                            `[EXT][FETCH_SESSIONS_OK] count=${filtered.length} raw=${raw.length} cap=${this.homeRecentSessionsCap}`
                         );
                     } catch (e) {
                         rtLog(`FETCH_SESSIONS_ERR: ${String(e).slice(0, 100)}`);
@@ -6274,7 +6277,7 @@ ${attachmentLines.join('\n')}`
             rtLog(`SENDINIT sessions FAIL: ${String(error)}`);
         }
         // Cap visible recent to a short list (no scroll needed on home)
-        const sessions = allMainSessions.slice(0, 12);
+        const sessions = this.pickHomeRecentSessions(allMainSessions);
 
         const storedModel = this._context.globalState.get<string>('mimo.model');
         const storedVariant = this._context.globalState.get<string>('mimo.variant');
@@ -8305,16 +8308,38 @@ ${attachmentLines.join('\n')}`
     private async refreshSessions(webview: vscode.Webview, requestId: string): Promise<void> {
         try {
             const sessions = await this.client.listSessions();
-            // Show all main sessions — do NOT workspace-filter (causes missing sessions)
-            let filteredSessions = sessions.filter((s) => !s.parentID);
+            // History panel: more rows than home Recent, still drop junk stubs
+            let filteredSessions = this.pickHomeRecentSessions(sessions, 40);
             if (!filteredSessions.length && sessions.length) {
-                filteredSessions = sessions.slice();
+                filteredSessions = sessions.filter((s) => !s.parentID).slice(0, 40);
             }
-            filteredSessions = filteredSessions.slice(0, 80);
             webview.postMessage({ type: 'sessionsList', requestId, sessions: filteredSessions });
         } catch (error) {
             this.postAddResponse(webview, `Failed to refresh sessions: ${error}`);
         }
+    }
+
+    /**
+     * Home Recent: few latest real sessions only.
+     * Drops child agents, empty/stub titles ("One-word greeting", "New session - …").
+     */
+    private pickHomeRecentSessions(raw: SessionInfo[], cap = this.homeRecentSessionsCap): SessionInfo[] {
+        const list = Array.isArray(raw) ? raw : [];
+        const main = list.filter((s) => !s?.parentID);
+        const base = main.length ? main : list;
+        const junkTitle = (title: string): boolean => {
+            const t = String(title || '').trim();
+            if (!t) return true;
+            if (/^One-word greeting/i.test(t)) return true;
+            if (/^New session\s*-/i.test(t)) return true;
+            if (/^Untitled/i.test(t)) return true;
+            if (t.length < 2) return true;
+            return false;
+        };
+        const real = base.filter((s) => s?.id && !junkTitle(s.title || ''));
+        const ordered = (real.length ? real : base.filter((s) => s?.id)).slice();
+        // listSessions already sorts by updated desc when from sqlite/API
+        return ordered.slice(0, Math.max(1, Math.min(40, cap)));
     }
 
     private async saveUndoSegmentsState(): Promise<void> {
