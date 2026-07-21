@@ -186,6 +186,20 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
     const ch = det.querySelector('.mimo-chev');
     if (ch) ch.textContent = det.open ? '▾' : '▸';
   });
+  const metaEl = det.querySelector('.mimo-part-meta');
+  metaEl?.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const t = inn || metaText || '';
+    if (t && navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(t);
+      if (statusLabel) {
+        statusLabel.textContent = 'copied';
+        statusLabel.classList.add('is-flash');
+        setTimeout(() => statusLabel?.classList.remove('is-flash'), 500);
+      }
+    }
+  });
   return det;
 }
 
