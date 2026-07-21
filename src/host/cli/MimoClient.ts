@@ -104,6 +104,12 @@ export class MimoClient {
   }
 
   private defaultPort(): number {
+    try {
+      const pref = Number(vscode.workspace.getConfiguration('mimo').get('servePort') || 0);
+      if (pref > 1024 && pref < 65535) return pref;
+    } catch {
+      /* tests / no vscode config */
+    }
     return PORT_BASE + (this.hashRoot(this.workspaceRoot) % PORT_RANGE);
   }
 
