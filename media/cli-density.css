@@ -1501,3 +1501,24 @@ a.mimo-ext-link:hover {
   animation: mimo-spin 0.7s linear infinite;
   vertical-align: middle;
 }
+
+/* Subtle role markers like CLI density */
+.message.user .message-content {
+  position: relative;
+}
+.message.bot > .message-content {
+  border-left: 2px solid transparent;
+  padding-left: 8px;
+}
+.message.is-streaming.bot > .message-content {
+  border-left-color: #FF6A00;
+}
+
+.mimo-io-v--cmd {
+  word-break: break-all !important;
+  white-space: pre-wrap !important;
+}
+/* History search focus ring */
+.mimo-history-search:focus-visible {
+  outline: none !important;
+}
