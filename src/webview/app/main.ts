@@ -808,6 +808,43 @@ function handleLocalSlash(full: string): boolean {
   }
   if (cmd === 'clear') {
     chat.innerHTML = '';
+    loadedCount = 0;
+    (window as any).__mimoOlderCount = 0;
+    if (activeSessionId) {
+      const empty = document.createElement('div');
+      empty.className = 'mimo-empty-session';
+      empty.innerHTML =
+        '<div class="mimo-empty-title">View cleared</div>' +
+        '<div class="mimo-empty-sub">Session kept — send a message or open History</div>';
+      chat.appendChild(empty);
+    } else {
+      showStartup([]);
+      post({ type: 'goHome' });
+    }
+    if (statusLabel) statusLabel.textContent = 'cleared';
+    return true;
+  }
+  if (cmd === 'agent' || cmd === 'mode') {
+    if (rest) {
+      selectedMode = rest.split(/\s+/)[0];
+      if (modeSelect) {
+        const opt = Array.from(modeSelect.options).find(
+          (o) => o.value === selectedMode || o.textContent === selectedMode
+        );
+        if (opt) modeSelect.value = opt.value;
+        else {
+          const o = document.createElement('option');
+          o.value = selectedMode;
+          o.textContent = selectedMode;
+          modeSelect.appendChild(o);
+          modeSelect.value = selectedMode;
+        }
+      }
+      post({ type: 'setMode', mode: selectedMode });
+      if (statusLabel) statusLabel.textContent = 'mode ' + selectedMode;
+    } else if (modeSelect) {
+      modeSelect.focus();
+    }
     return true;
   }
   if (cmd === 'sessions' || cmd === 'history') {
