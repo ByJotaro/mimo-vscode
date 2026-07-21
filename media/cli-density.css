@@ -3949,3 +3949,43 @@ canvas#starfield {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.192 denser empty session + FINAL strip */
+.mimo-empty-session {
+  border-left: 2px solid #FF6A00 !important;
+  background: #141414 !important;
+  padding: 12px 14px !important;
+  border-radius: 0 4px 4px 0 !important;
+  margin: 12px 8px !important;
+  max-width: 360px !important;
+}
+.mimo-empty-title {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  color: #eeeeee !important;
+  font-size: 13px !important;
+  margin-bottom: 4px !important;
+}
+.mimo-empty-sub {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  color: #808080 !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+}
+/* denser first tool after text */
+.message.bot .mimo-text-seg + .mimo-thinking,
+.message.bot .mimo-thinking + .mimo-part {
+  margin-top: 6px !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
