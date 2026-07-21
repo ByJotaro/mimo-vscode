@@ -254,7 +254,7 @@ export function paintLogo(host: HTMLElement): LogoHandle {
     const avail = Math.max(220, (host.clientWidth || 360) - 8);
     const probe = canvas.getContext('2d')!;
     let fs = Math.floor(avail / Math.max(1, grid.cols));
-    fs = Math.max(14, Math.min(36, fs));
+    fs = Math.max(16, Math.min(42, fs));
     let advance = fs;
     let guard = 0;
     while (guard++ < 48) {
@@ -268,14 +268,14 @@ export function paintLogo(host: HTMLElement): LogoHandle {
       if (advance * grid.cols <= avail || fs <= 12) break;
       fs -= 1;
     }
-    // Keep draw font = measurement font. Cell pitch = measured █ advance so neighbors abut.
+    // Keep draw font = measurement font. Horizontal pitch = █ advance (abut).
+    // Vertical pitch slightly taller so MIMO CODE rows have breathing room.
     fontSize = fs;
-    cellW = advance;
-    cellH = advance; // square TUI cell
-    // Re-measure after snap: ensure pitch matches actual glyph advance at fontSize
     probe.font = `600 ${fontSize}px ${LOGO_FONT}`;
     const verify = probe.measureText('██').width / 2 || probe.measureText('█').width;
-    if (verify > 0) cellW = cellH = Math.max(1, Math.round(verify));
+    const pitch = Math.max(1, Math.round(verify > 0 ? verify : advance));
+    cellW = pitch;
+    cellH = Math.max(1, Math.round(pitch * 1.22));
     W = grid.cols * cellW;
     H = grid.rows * cellH;
     canvas.width = Math.floor(W * dpr);

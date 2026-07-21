@@ -81,6 +81,11 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
       String((seg as any).duration || '').trim() ||
       (words ? `~${Math.max(1, Math.round(words / 40))}s` : '');
     const summary = document.createElement('summary');
+    const chev = document.createElement('span');
+    chev.className = 'mimo-chev';
+    chev.setAttribute('aria-hidden', 'true');
+    chev.textContent = '▸';
+    summary.appendChild(chev);
     const title = document.createElement('span');
     title.className = 'mimo-thinking-title';
     title.textContent = (seg as any).title || 'thinking';
@@ -104,28 +109,31 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
     det.appendChild(body);
     return det;
   }
+  // Flat CLI tool card: header + IN/OUT split by line — no nested rounded bubbles
   const det = document.createElement('details');
-  det.className = 'mimo-part';
+  det.className = 'mimo-part mimo-part--flat';
   det.open = Boolean((seg as any).open);
   const title = escHtml((seg as any).title || seg.kind);
   const meta = escHtml((seg as any).meta || '');
   const body = String((seg as any).body || '');
   const { inn, out } = parseInOut(body);
   let bodyHtml = '';
-  if (inn)
-    bodyHtml += `<div class="mimo-io"><div class="mimo-io-k">IN</div><pre class="mimo-io-v">${escHtml(inn)}</pre></div>`;
+  if (inn) {
+    bodyHtml += `<div class="mimo-io-block"><div class="mimo-io-k">IN</div><pre class="mimo-io-pre">${escHtml(inn)}</pre></div>`;
+  }
+  if (inn && out) bodyHtml += `<div class="mimo-io-rule" role="separator"></div>`;
   if (out) {
     const isDiff = looksLikeDiff(out);
     const wide = (chat?.clientWidth || window.innerWidth || 0) >= 520;
     if (isDiff && wide) {
-      bodyHtml += `<div class="mimo-io"><div class="mimo-io-k">OUT</div>${renderSideBySideDiff(out)}</div>`;
+      bodyHtml += `<div class="mimo-io-block"><div class="mimo-io-k">OUT</div>${renderSideBySideDiff(out)}</div>`;
     } else {
-      bodyHtml += `<div class="mimo-io"><div class="mimo-io-k">OUT</div><pre class="mimo-io-v${
+      bodyHtml += `<div class="mimo-io-block"><div class="mimo-io-k">OUT</div><pre class="mimo-io-pre${
         isDiff ? ' mimo-io-v--diff' : ''
       }">${isDiff ? colorDiff(out) : escHtml(out)}</pre></div>`;
     }
   }
-  det.innerHTML = `<summary><span class="mimo-part-title">${title}</span>${
+  det.innerHTML = `<summary><span class="mimo-chev" aria-hidden="true">▸</span><span class="mimo-part-title">${title}</span>${
     meta ? `<span class="mimo-part-meta">${meta}</span>` : ''
   }</summary><div class="mimo-part-body">${bodyHtml}</div>`;
   return det;
@@ -399,6 +407,8 @@ function showStartup(sessions: Array<{ id: string; title: string; updated?: stri
   activeSessionId = '';
   titleEl.textContent = 'MiMo Code';
   setInputEnabled(true);
+  document.getElementById('mimo-history-panel')?.remove();
+  document.getElementById('mimo-startup')?.remove();
   chat.innerHTML = '';
   const root = document.createElement('div');
   root.className = 'mimo-startup';
@@ -551,11 +561,13 @@ function onScroll(): void {
   if (!activeSessionId) return;
   const older = Number((window as any).__mimoOlderCount || 0);
   const exhausted = (window as any).__mimoLoadMoreExhausted === true;
-  // Trigger near top — spacer or plain scrollTop; keep trying until host says exhausted
-  const nearTop = chat.scrollTop < 200;
-  if (nearTop && !loadMoreInFlight && !exhausted && (older > 0 || loadedCount >= 20)) {
+  // Trigger near top — allow even when olderCount was 0 once (host may still have more)
+  const nearTop = chat.scrollTop < 280;
+  if (nearTop && !loadMoreInFlight && !exhausted) {
+    // Always try if we have a session and aren't exhausted; host returns olderCount
+    if (older <= 0 && loadedCount < 20) return;
     const now = Date.now();
-    if (now - loadMoreCooldown < 600) return;
+    if (now - loadMoreCooldown < 500) return;
     loadMoreCooldown = now;
     loadMoreInFlight = true;
     updateHistoryTopSpacer(chat, Math.max(older, 1), true);
@@ -568,7 +580,13 @@ function onScroll(): void {
 }
 
 chat.addEventListener('scroll', onScroll, { passive: true });
-btnHome?.addEventListener('click', () => post({ type: 'newSession' }));
+btnHome?.addEventListener('click', () => {
+  // Home = logo + recent sessions, NOT a blank new session
+  activeSessionId = '';
+  titleEl.textContent = 'MiMo Code';
+  document.getElementById('mimo-history-panel')?.remove();
+  post({ type: 'goHome' });
+});
 btnHistoryTop?.addEventListener('click', () => post({ type: 'fetchSessions', history: true }));
 btnSend?.addEventListener('click', doSend);
 btnAbort?.addEventListener('click', () => post({ type: 'abort' }));
@@ -621,7 +639,12 @@ if (Array.isArray(message.modes) && message.modes.length) {
         selectedModel = message.selectedModel || message.models[0]?.fullId || '';
       }
       if (message.metadataOnly && activeSessionId) break;
-      if (message.showStartupChooser !== false && !activeSessionId) {
+      // Home / goHome always forces startup (logo + recent), even if a session was open
+      if (message.showStartupChooser === true) {
+        activeSessionId = '';
+        titleEl.textContent = 'MiMo Code';
+        showStartup(Array.isArray(message.sessions) ? message.sessions : []);
+      } else if (message.showStartupChooser !== false && !activeSessionId) {
         showStartup(Array.isArray(message.sessions) ? message.sessions : []);
       }
       break;

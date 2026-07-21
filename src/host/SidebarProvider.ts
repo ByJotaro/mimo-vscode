@@ -13,8 +13,8 @@ import { MimoClient, getWorkspaceRoot } from './cli/MimoClient';
 import { getSlashCommandCatalog } from './cli/slashCatalog';
 
 const HOME_RECENT_CAP = 6;
-const FIRST_LOAD_LIMIT = 24;
-const LOAD_MORE_STEP = 40;
+const FIRST_LOAD_LIMIT = 36;
+const LOAD_MORE_STEP = 48;
 
 /**
  * Thin host router: DB + format + CLI + postMessage.
@@ -87,6 +87,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case 'newSession':
           await this.newSession();
           break;
+        case 'goHome':
+          this.currentSessionId = '';
+          await this.sendInit();
+          break;
         case 'sendPrompt':
           await this.sendPrompt(
             String(msg.text || ''),
@@ -147,6 +151,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
   private async sendInit(): Promise<void> {
     const t0 = Date.now();
+    // Home always clears active session so webview shows logo + recent
+    this.currentSessionId = '';
     const raw = dbAvailable() ? listSessionsFromSqlite(12) : [];
     const sessions = pickHomeRecent(raw, HOME_RECENT_CAP);
     const storedMode = this.context.globalState.get<string>('mimo.mode');
@@ -161,7 +167,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       modes: this.modes,
       selectedModel: this.selectedModel,
       selectedMode: this.selectedMode,
-      showStartupChooser: !this.currentSessionId,
+      showStartupChooser: true,
       slashCommands: getSlashCommandCatalog(),
     });
     this.log.appendLine(

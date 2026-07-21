@@ -60,13 +60,14 @@ export function updateHistoryTopSpacer(
     sp.setAttribute('aria-hidden', 'true');
     chat.insertBefore(sp, chat.firstChild);
   }
-  const h = Math.min(12000, Math.max(120, n * 72));
+  // Compact load-zone only — NOT virtual height of all older msgs (that looked like empty void)
+  const h = loading ? 56 : Math.min(72, Math.max(40, 36 + Math.min(n, 8) * 2));
   sp.style.height = h + 'px';
   sp.style.minHeight = h + 'px';
   sp.classList.toggle('is-loading', loading);
   sp.innerHTML = loading
     ? '<div class="mimo-history-spacer-label">Loading older messages…</div>'
     : n > 0
-      ? '<div class="mimo-history-spacer-label">↑ scroll for older history</div>'
+      ? `<div class="mimo-history-spacer-label">↑ ${n} older · scroll to load</div>`
       : '';
 }
