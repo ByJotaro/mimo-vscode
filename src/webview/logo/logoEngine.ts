@@ -3,20 +3,29 @@
  * OOM-safe: MAX_PARTICLES, gather throttle, single instance, destroyable.
  */
 
-// CLI logoThin — fixed mono cells; gap MIMO|CODE = 1 col only (no leading pad on right blocks)
+/**
+ * Exact CLI logo from packages/opencode logo-data.ts (classic — used by logo.tsx).
+ * Do NOT invent glyphs; keep leading spaces on right for Xiaomi/CODE alignment.
+ */
 const LOGO_LEFT = [
-  '                  ',
-  '                  ',
-  '█▀▄▀█ █ █▀▄▀█ █▀▀█',
-  '█ ▀ █ █ █ ▀ █ █  █',
-  '▀   ▀ ▀ ▀   ▀ ▀▀▀▀',
+  '                                       ',
+  '                                       ',
+  '  ███╗   ███╗ ██╗ ███╗   ███╗  ██████╗ ',
+  '  ████╗ ████║ ██║ ████╗ ████║ ██╔═══██╗',
+  '  ██╔████╔██║ ██║ ██╔████╔██║ ██║   ██║',
+  '  ██║╚██╔╝██║ ██║ ██║╚██╔╝██║ ██║   ██║',
+  '  ██║ ╚═╝ ██║ ██║ ██║ ╚═╝ ██║ ╚██████╔╝',
+  '  ╚═╝     ╚═╝ ╚═╝ ╚═╝     ╚═╝  ╚═════╝ ',
 ];
 const LOGO_RIGHT = [
-  '            Xiaomi',
-  '                  ',
-  '█▀▀ █▀▀█ █▀▀▄ █▀▀▀',
-  '█   █  █ █  █ █▀▀ ',
-  '▀▀▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀',
+  '                              Xiaomi',
+  '                                    ',
+  ' ██████╗  ██████╗  ██████╗  ███████╗',
+  '██╔════╝ ██╔═══██╗ ██╔══██╗ ██╔════╝',
+  '██║      ██║   ██║ ██║  ██║ █████╗  ',
+  '██║      ██║   ██║ ██║  ██║ ██╔══╝  ',
+  '╚██████╗ ╚██████╔╝ ██████╔╝ ███████╗',
+  ' ╚═════╝  ╚═════╝  ╚═════╝  ╚══════╝',
 ];
 const LOGO_FONT =
   '"Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
@@ -101,31 +110,30 @@ function playUrl(url: string | undefined, volume: number): HTMLAudioElement | nu
 }
 
 function buildCells(): { cells: Cell[]; cols: number; rows: number } {
+  // CLI logo.tsx: FULL = left[y] + " ".repeat(GAP) + right[y] — keep all rows
+  // so Xiaomi sits on the same row as the blank top of MIMO (not a huge gap).
   const gap = 1;
   const cells: Cell[] = [];
-  let y0 = 0;
+  const leftW = Math.max(...LOGO_LEFT.map((l) => (l || '').length));
   for (let y = 0; y < LOGO_LEFT.length; y++) {
-    if (/[^\s]/.test(LOGO_LEFT[y]) || /[^\s]/.test(LOGO_RIGHT[y] || '')) {
-      y0 = y;
-      break;
-    }
-  }
-  const leftW = Math.max(
-    ...LOGO_LEFT.map((l) => (l || '').replace(/\s+$/, '').length || 0)
-  );
-  for (let y = y0; y < LOGO_LEFT.length; y++) {
     const L = LOGO_LEFT[y] || '';
     const R = LOGO_RIGHT[y] || '';
-    const gy = y - y0;
     for (let x = 0; x < leftW; x++) {
       const ch = L[x];
       if (ch && ch !== ' ')
-        cells.push({ ch, gx: x, gy, base: MIMO_ORANGE, px: 0, py: 0 });
+        cells.push({ ch, gx: x, gy: y, base: MIMO_ORANGE, px: 0, py: 0 });
     }
     for (let x = 0; x < R.length; x++) {
       const ch = R[x];
       if (ch && ch !== ' ')
-        cells.push({ ch, gx: leftW + gap + x, gy, base: MIMO_GRAY, px: 0, py: 0 });
+        cells.push({
+          ch,
+          gx: leftW + gap + x,
+          gy: y,
+          base: MIMO_GRAY,
+          px: 0,
+          py: 0,
+        });
     }
   }
   const maxX = cells.reduce((m, c) => Math.max(m, c.gx), 0);
@@ -253,44 +261,32 @@ export function paintLogo(host: HTMLElement): LogoHandle {
     // NEVER set fontSize = advance (that shrinks glyphs and opens seams).
     const avail = Math.max(220, (host.clientWidth || 360) - 8);
     const probe = canvas.getContext('2d')!;
-    // Size from width; leave headroom so vertical cells stay tall after measure
-    let fs = Math.floor(avail / Math.max(1, grid.cols * 0.92));
-    fs = Math.max(18, Math.min(48, fs));
+    // CLI/v1: square mono cells — cellW === cellH === measured █ advance.
+    // fontSize stays the measured size (NOT set equal to advance).
+    let fs = Math.floor(avail / Math.max(1, grid.cols));
+    fs = Math.max(10, Math.min(28, fs)); // classic logo is wide (~70 cols)
     let advance = fs;
     let guard = 0;
-    while (guard++ < 48) {
+    while (guard++ < 64) {
       probe.font = `600 ${fs}px ${LOGO_FONT}`;
-      // Prefer pair half so we get true mono pitch (avoids side bearings)
       const pair = probe.measureText('██').width;
       const single = probe.measureText('█').width;
       advance = pair > 0 ? pair / 2 : single;
-      if (!advance || advance < 4) advance = fs * 0.6;
+      if (!advance || advance < 3) advance = fs * 0.55;
       advance = Math.max(1, Math.round(advance));
-      if (advance * grid.cols <= avail || fs <= 12) break;
+      if (advance * grid.cols <= avail || fs <= 9) break;
       fs -= 1;
     }
-    // Horizontal pitch = █ advance (glyphs abut left-right).
-    // Vertical pitch MUST use glyph HEIGHT (em / bounding box), NOT width —
-    // mono █ advance is often ~0.55–0.65em; using width as cellH crushed rows.
     fontSize = fs;
     probe.font = `600 ${fontSize}px ${LOGO_FONT}`;
-    const mBlock = probe.measureText('█');
     const pair = probe.measureText('██').width;
     const pitch = Math.max(
       1,
-      Math.round(pair > 0 ? pair / 2 : mBlock.width || advance)
+      Math.round(pair > 0 ? pair / 2 : probe.measureText('█').width || advance)
     );
-    const ascent = Math.abs(mBlock.actualBoundingBoxAscent || 0);
-    const descent = Math.abs(mBlock.actualBoundingBoxDescent || 0);
-    const measuredH =
-      ascent + descent > 2
-        ? Math.ceil(ascent + descent)
-        : Math.ceil(fontSize * 1.05);
-    // Prefer true glyph height; never thinner than fontSize (anti-squash)
-    const glyphH = Math.max(fontSize, measuredH, pitch);
+    // Square TUI cells — edge-to-edge like CLI (no tall row scale)
     cellW = pitch;
-    // Extra vertical breathing so MIMO CODE is tall, not flat
-    cellH = Math.max(glyphH + 2, Math.round(glyphH * 1.12));
+    cellH = pitch;
     W = grid.cols * cellW;
     H = grid.rows * cellH;
     canvas.width = Math.floor(W * dpr);

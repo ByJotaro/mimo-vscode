@@ -1,6 +1,6 @@
 /**
- * CLI density overlay — makes the webview read like MiMo Code TUI.
- * Loaded after app.css. Palette from scripts/ref/mimo-cli/mimocode.json.
+ * CLI density — direct port of v1 media/main.css flat IO + mimocode.json palette.
+ * HARD: no nested rounded "windows" inside tool cards.
  */
 
 :root {
@@ -10,14 +10,13 @@
   --mimo-fg: #eeeeee;
   --mimo-muted: #808080;
   --mimo-dim: #606060;
-  --mimo-faint: #505050;
-  --mimo-border: #2a2a2a;
+  --mimo-faint: #555555;
+  --mimo-border: #242424;
   --mimo-border-hi: #3c3c3c;
   --mimo-primary: #ff6a00;
   --mimo-primary-soft: #ff8a3c;
   --mimo-accent: #818cf8;
   --mimo-warn: #fbbf24;
-  --mimo-err: #fb7185;
   --mimo-diff-add: #4fd6be;
   --mimo-diff-del: #c53b53;
   --mimo-diff-hunk: #828bb8;
@@ -26,9 +25,6 @@
   --mimo-diff-add-bg: #20303b;
   --mimo-diff-del-bg: #37222c;
   --mimo-font: "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace;
-  --mimo-fs: 13px;
-  --mimo-lh: 1.45;
-  --mimo-radius: 6px;
 }
 
 html,
@@ -37,190 +33,135 @@ body {
   background: var(--mimo-bg) !important;
   color: var(--mimo-fg);
   font-family: var(--mimo-font);
-  font-size: var(--mimo-fs);
-  line-height: var(--mimo-lh);
-  letter-spacing: 0;
+  font-size: 13px;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Chat column: terminal-like padding */
 .chat-area {
-  padding: 10px 14px 16px !important;
+  padding: 8px 12px 14px !important;
   gap: 0 !important;
-  scroll-behavior: smooth;
 }
 
-/* Messages — no cramped collapse */
 .message {
+  margin: 0 0 8px !important;
   padding: 0 !important;
-  margin: 0 0 10px !important;
-  animation: mimo-rise 0.18s ease both;
+  animation: mimo-rise 0.16s ease both;
 }
 .message.bot {
-  margin-bottom: 14px !important;
+  margin-bottom: 10px !important;
 }
 .message.user {
   align-self: stretch !important;
   max-width: 100% !important;
-  margin: 8px 0 12px !important;
-  padding: 10px 12px !important;
+  margin: 6px 0 10px !important;
+  padding: 8px 10px !important;
   background: var(--mimo-panel) !important;
-  border: 1px solid var(--mimo-border) !important;
-  border-radius: var(--mimo-radius) !important;
-  box-shadow: none;
+  border: 1px solid var(--mimo-border-hi) !important;
+  border-radius: 4px !important;
 }
 
 .message-content {
   font-size: 13px !important;
   line-height: 1.5 !important;
   color: var(--mimo-fg) !important;
-  word-break: break-word;
 }
-
-/* Markdown like CLI assistant text */
 .message-content p {
-  margin: 0.35em 0 !important;
+  margin: 0.3em 0 !important;
 }
 .message-content p:first-child {
   margin-top: 0 !important;
-}
-.message-content p:last-child {
-  margin-bottom: 0 !important;
 }
 .message-content h1,
 .message-content h2,
 .message-content h3 {
   color: var(--mimo-accent) !important;
-  font-weight: 600 !important;
   font-size: 13px !important;
+  font-weight: 600 !important;
+  margin: 0.7em 0 0.3em !important;
   line-height: 1.4 !important;
-  margin: 0.85em 0 0.35em !important;
-  letter-spacing: 0.01em;
-}
-.message-content h1:first-child,
-.message-content h2:first-child,
-.message-content h3:first-child {
-  margin-top: 0.15em !important;
 }
 .message-content ul,
 .message-content ol {
-  margin: 0.4em 0 0.5em !important;
-  padding-left: 1.35em !important;
+  margin: 0.35em 0 0.45em !important;
+  padding-left: 1.3em !important;
 }
 .message-content li {
-  margin: 0.22em 0 !important;
+  margin: 0.18em 0 !important;
   line-height: 1.5 !important;
-  color: var(--mimo-fg);
 }
 .message-content strong {
   color: var(--mimo-warn) !important;
-  font-weight: 600;
-}
-.message-content em {
-  color: #c8c8c8;
-}
-.message-content a {
-  color: var(--mimo-primary-soft) !important;
-  text-decoration: none;
-  border-bottom: 1px solid rgba(255, 138, 60, 0.35);
-}
-.message-content a:hover {
-  color: var(--mimo-primary) !important;
 }
 .message-content code {
   color: var(--mimo-primary) !important;
   background: var(--mimo-element) !important;
-  padding: 1px 5px !important;
-  border-radius: 3px !important;
+  padding: 1px 4px !important;
+  border-radius: 2px !important;
+  border: 1px solid var(--mimo-border-hi);
   font-size: 0.92em;
-  border: 1px solid var(--mimo-border);
 }
 .message-content pre {
   background: var(--mimo-panel) !important;
-  border: 1px solid var(--mimo-border) !important;
-  border-radius: var(--mimo-radius) !important;
-  padding: 10px 12px !important;
-  margin: 0.55em 0 !important;
-  overflow: auto;
-  font-size: 12px !important;
-  line-height: 1.45 !important;
-  color: var(--mimo-fg);
-}
-.message-content pre code {
-  background: transparent !important;
-  border: none !important;
-  padding: 0 !important;
-  color: inherit !important;
-}
-.message-content blockquote {
-  border-left: 2px solid var(--mimo-warn) !important;
+  border: 1px solid var(--mimo-border-hi) !important;
+  border-radius: 4px !important;
+  padding: 8px 10px !important;
   margin: 0.45em 0 !important;
-  padding: 2px 0 2px 12px !important;
-  color: #d4c08a !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  overflow: auto;
 }
-.message-content hr {
-  border: none;
-  border-top: 1px solid var(--mimo-border);
-  margin: 0.75em 0;
+.message-content a {
+  color: var(--mimo-primary-soft) !important;
 }
 
-/* Text segments between tools */
 .mimo-text-seg {
-  margin: 0.45em 0 0.55em !important;
+  margin: 0.35em 0 0.45em !important;
   line-height: 1.5 !important;
 }
 
-/* —— Tools: flat CLI strip —— */
+/* ========== TOOLS: flat, NO nested windows ========== */
 .mimo-part,
 .mimo-part--flat {
   display: block !important;
   width: 100% !important;
-  margin: 6px 0 !important;
+  margin: 4px 0 !important;
   border: none !important;
-  border-left: 2px solid var(--mimo-border) !important;
+  border-left: 2px solid var(--mimo-border-hi) !important;
   border-radius: 0 !important;
   background: transparent !important;
-  transition: border-color 0.15s ease;
+  box-shadow: none !important;
 }
-.mimo-part[open],
-.mimo-part--flat[open] {
+.mimo-part[open] {
   border-left-color: var(--mimo-primary) !important;
 }
-.mimo-part > summary,
-.mimo-part--flat > summary {
+.mimo-part > summary {
   list-style: none !important;
   cursor: pointer;
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
-  padding: 5px 8px 5px 6px !important;
-  min-height: 26px !important;
+  gap: 6px !important;
+  padding: 3px 6px !important;
+  min-height: 22px !important;
   background: transparent !important;
+  border: none !important;
   border-radius: 0 !important;
   color: var(--mimo-muted) !important;
   font-size: 12px !important;
-  line-height: 1.35 !important;
-  user-select: none;
-  transition: color 0.12s ease, background 0.12s ease;
-}
-.mimo-part > summary:hover {
-  color: var(--mimo-fg) !important;
-  background: rgba(255, 255, 255, 0.02) !important;
 }
 .mimo-part > summary::-webkit-details-marker {
   display: none;
 }
-.mimo-part[open] > summary {
+.mimo-part > summary:hover {
   color: var(--mimo-fg) !important;
 }
 .mimo-part-title {
   color: var(--mimo-primary) !important;
   font-weight: 600 !important;
   font-size: 12px !important;
-  letter-spacing: 0.01em;
 }
 .mimo-part-meta {
-  color: var(--mimo-faint) !important;
+  color: #505050 !important;
   font-size: 11px !important;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -229,154 +170,129 @@ body {
   min-width: 0;
 }
 .mimo-part-body {
-  padding: 2px 4px 8px 10px !important;
+  padding: 0 !important;
   margin: 0 !important;
   background: transparent !important;
-  animation: mimo-expand 0.16s ease;
+  border: none !important;
+  border-radius: 0 !important;
 }
 
-/* IN / OUT grid like CLI: small label | body */
-.mimo-io-block,
-.mimo-io-block--out {
-  display: grid !important;
-  grid-template-columns: 36px minmax(0, 1fr) !important;
-  gap: 8px !important;
-  align-items: start !important;
-  padding: 3px 0 !important;
-  margin: 0 !important;
-  width: 100% !important;
+/* Kill any leftover nested box look */
+.mimo-part-body .mimo-cmd-box,
+.mimo-part-body .mimo-out-box,
+.mimo-part-body .mimo-io-strip,
+.mimo-part-body .mimo-io-block,
+.mimo-part-body .mimo-io-pre,
+.mimo-part-body pre,
+.mimo-part-body .mimo-io-v {
+  border: none !important;
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
-.mimo-io-block--out:has(.mimo-diff-split) {
+
+.mimo-io,
+.mimo-io--flat {
   display: flex !important;
   flex-direction: column !important;
+  min-width: 0;
+  background: transparent !important;
+  border: none !important;
+  padding: 2px 0 4px !important;
+  margin: 0 !important;
+}
+
+/* CLI grid: 26px label | body — no boxes */
+.mimo-io-line {
+  display: grid !important;
+  grid-template-columns: 28px minmax(0, 1fr) !important;
   gap: 6px !important;
+  align-items: start !important;
+  min-width: 0;
+  padding: 2px 8px !important;
+  background: transparent !important;
+  border: none !important;
 }
 .mimo-io-k {
-  font-size: 10px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.06em !important;
+  font-family: var(--mimo-font) !important;
+  font-size: 0.68em !important;
+  letter-spacing: 0.04em !important;
   text-transform: uppercase !important;
-  color: var(--mimo-faint) !important;
+  color: #555 !important;
+  user-select: none;
   line-height: 1.55 !important;
   padding-top: 1px !important;
   margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
 }
-.mimo-io-pre,
-.mimo-io-v {
+.mimo-io-v,
+.mimo-io-v--cmd,
+.mimo-io-pre {
   margin: 0 !important;
   padding: 0 !important;
   font-family: var(--mimo-font) !important;
   font-size: 12px !important;
   line-height: 1.45 !important;
-  color: #e4e4e4 !important;
+  color: #eeeeee !important;
   white-space: pre-wrap !important;
   word-break: break-word !important;
   overflow-wrap: anywhere;
+  min-width: 0;
   max-height: 360px;
   overflow: auto;
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
+  box-shadow: none !important;
 }
-.mimo-io-rule {
-  grid-column: 1 / -1;
-  height: 0;
-  border: none;
-  border-top: 1px solid #242424 !important;
-  margin: 4px 0 4px 36px !important;
-}
-
-/* —— Thinking: CLI “Thought” row —— */
-.mimo-thinking {
-  margin: 4px 0 8px !important;
-  animation: mimo-rise 0.15s ease;
-}
-.mimo-thinking > summary {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 7px !important;
+.mimo-io-line--in .mimo-io-v {
+  color: #d0d0d0 !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+  max-height: calc(1.4em * 6);
+  overflow: hidden;
   cursor: pointer;
-  list-style: none !important;
-  color: var(--mimo-muted) !important;
-  font-style: normal !important;
-  font-size: 12px !important;
-  line-height: 1.4 !important;
-  padding: 3px 0 !important;
-  user-select: none;
-  transition: color 0.12s ease;
 }
-.mimo-thinking > summary:hover {
-  color: #a8a8a8 !important;
-}
-.mimo-thinking > summary::-webkit-details-marker {
-  display: none;
-}
-.mimo-thinking-title {
-  color: var(--mimo-primary) !important;
-  font-style: normal !important;
-  font-weight: 600 !important;
-  font-size: 12px !important;
-}
-.mimo-thinking-title::before {
-  content: none;
-}
-.mimo-dur {
-  font-size: 10px !important;
-  font-style: normal !important;
-  font-family: var(--mimo-font) !important;
-  color: var(--mimo-dim) !important;
-  padding: 1px 7px !important;
-  border: 1px solid var(--mimo-border) !important;
-  border-radius: 999px !important;
-  background: rgba(20, 20, 20, 0.8);
-  flex: 0 0 auto;
-}
-.mimo-thinking-hint {
-  font-size: 10px !important;
-  color: var(--mimo-faint) !important;
-  font-style: normal !important;
-}
-.mimo-thinking-body {
-  margin: 4px 0 6px 18px !important;
-  padding: 6px 0 6px 12px !important;
-  border-left: 1px solid #333 !important;
-  color: #9a9a9a !important;
-  font-style: italic !important;
-  font-size: 12px !important;
-  line-height: 1.45 !important;
-  white-space: pre-wrap;
+.mimo-io-line--in .mimo-io-v.is-expanded {
   max-height: 280px;
   overflow: auto;
-  animation: mimo-expand 0.16s ease;
+}
+.mimo-io-hr {
+  height: 1px !important;
+  margin: 4px 10px 4px 36px !important;
+  background: #242424 !important;
+  border: 0 !important;
+  padding: 0 !important;
 }
 
-/* Chevron */
-.mimo-chev {
-  display: inline-block;
-  width: 0.85em;
-  color: var(--mimo-faint);
-  font-style: normal !important;
-  font-size: 10px;
-  transition: transform 0.16s ease, color 0.16s ease;
-  transform-origin: 50% 50%;
-  flex-shrink: 0;
+/* OUT with side-by-side: full width column */
+.mimo-io-line--out:has(.mimo-diff-split) {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  padding: 2px 8px !important;
 }
-details[open] > summary .mimo-chev {
-  transform: rotate(90deg);
-  color: var(--mimo-primary);
+.mimo-io-line--out:has(.mimo-diff-split) > .mimo-io-k {
+  padding-top: 0;
+}
+.mimo-io-line--out > .mimo-diff-split,
+.mimo-io-line--out > .mimo-io-v {
+  width: 100% !important;
 }
 
-/* —— Diff CLI 1:1 —— */
+/* Diff: flat panels, minimal chrome (CLI colors only) */
 .mimo-io-v--diff {
   color: var(--mimo-fg) !important;
   font-size: 12px !important;
   line-height: 1.4 !important;
-  max-height: 480px !important;
+  max-height: 420px !important;
   white-space: pre !important;
   overflow: auto !important;
   width: 100% !important;
   background: transparent !important;
   border: none !important;
+  border-radius: 0 !important;
   padding: 0 !important;
 }
 .mimo-diff-add {
@@ -396,19 +312,21 @@ details[open] > summary .mimo-chev {
   display: grid !important;
   grid-template-columns: 1fr 1fr !important;
   width: 100% !important;
-  border: 1px solid var(--mimo-border) !important;
-  border-radius: var(--mimo-radius) !important;
+  /* hairline only — not a "window" */
+  border: 1px solid #2a2a2a !important;
+  border-radius: 0 !important;
   overflow: hidden !important;
-  min-height: 40px;
-  margin: 2px 0 4px !important;
-  animation: mimo-rise 0.16s ease;
+  min-height: 32px;
+  margin: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 .mimo-diff-col {
   margin: 0 !important;
-  padding: 10px 12px !important;
+  padding: 6px 8px !important;
   font-family: var(--mimo-font) !important;
   font-size: 12px !important;
-  line-height: 1.45 !important;
+  line-height: 1.4 !important;
   white-space: pre-wrap !important;
   word-break: break-word;
   max-height: 420px;
@@ -416,10 +334,11 @@ details[open] > summary .mimo-chev {
   min-width: 0;
   border: none !important;
   border-radius: 0 !important;
+  box-shadow: none !important;
 }
 .mimo-diff-col--del {
   background: var(--mimo-diff-del-bg) !important;
-  border-right: 1px solid var(--mimo-border) !important;
+  border-right: 1px solid #2a2a2a !important;
   color: var(--mimo-diff-del-hi) !important;
 }
 .mimo-diff-col--add {
@@ -429,173 +348,164 @@ details[open] > summary .mimo-chev {
 .mimo-diff-col-label {
   display: block;
   font-size: 10px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #8f8f8f;
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   font-weight: 600;
 }
 
-/* Tables */
-.mimo-md-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 0.5em 0;
-  font-size: 12px;
-  line-height: 1.4;
+/* Thinking / Thought */
+.mimo-thinking {
+  margin: 2px 0 6px !important;
 }
-.mimo-md-table th,
-.mimo-md-table td {
-  border: 1px solid var(--mimo-border-hi);
-  padding: 6px 10px;
-  text-align: left;
-  vertical-align: top;
-}
-.mimo-md-table th {
-  background: var(--mimo-element);
-  color: var(--mimo-fg);
-  font-weight: 600;
-}
-.mimo-md-table tr:nth-child(even) td {
-  background: rgba(20, 20, 20, 0.55);
-}
-
-/* Header / input chrome */
-.session-header {
-  padding: 8px 12px !important;
-  border-bottom: 1px solid var(--mimo-border) !important;
-  background: rgba(10, 10, 10, 0.92) !important;
-  backdrop-filter: blur(8px);
-}
-.session-title {
+.mimo-thinking > summary {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  cursor: pointer;
+  list-style: none !important;
+  color: var(--mimo-muted) !important;
+  font-style: normal !important;
   font-size: 12px !important;
-  color: var(--mimo-fg) !important;
-  font-weight: 500;
+  padding: 2px 0 !important;
 }
-.header-actions button {
-  border-radius: 5px !important;
-  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+.mimo-thinking > summary::-webkit-details-marker {
+  display: none;
 }
-.header-actions button:hover {
-  border-color: var(--mimo-primary) !important;
+.mimo-thinking-title {
   color: var(--mimo-primary) !important;
-  background: rgba(255, 106, 0, 0.06);
+  font-weight: 600 !important;
+  font-style: normal !important;
+}
+.mimo-dur {
+  font-size: 10px !important;
+  font-style: normal !important;
+  color: var(--mimo-dim) !important;
+  padding: 0 6px !important;
+  border: 1px solid #2a2a2a !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+}
+.mimo-thinking-hint {
+  font-size: 10px !important;
+  color: #505050 !important;
+  font-style: normal !important;
+}
+.mimo-thinking-body {
+  margin: 2px 0 4px 16px !important;
+  padding: 4px 0 4px 10px !important;
+  border-left: 1px solid #333 !important;
+  color: #9a9a9a !important;
+  font-style: italic !important;
+  font-size: 12px !important;
+  line-height: 1.45 !important;
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow: auto;
+  background: transparent !important;
+  border-radius: 0 !important;
 }
 
-.input-area {
-  border-top: 1px solid var(--mimo-border) !important;
-  padding: 10px 12px !important;
-  background: rgba(10, 10, 10, 0.94) !important;
+.mimo-chev {
+  display: inline-block;
+  width: 0.85em;
+  color: #555;
+  font-size: 10px;
+  transition: transform 0.14s ease, color 0.14s ease;
+  flex-shrink: 0;
 }
-#prompt {
-  background: var(--mimo-panel) !important;
-  border: 1px solid var(--mimo-border-hi) !important;
-  border-radius: var(--mimo-radius) !important;
-  padding: 9px 12px !important;
-  font-size: 13px !important;
-  line-height: 1.4 !important;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-#prompt:focus {
-  outline: none;
-  border-color: var(--mimo-primary) !important;
-  box-shadow: 0 0 0 1px rgba(255, 106, 0, 0.25);
-}
-#btn-send {
-  background: var(--mimo-primary) !important;
-  border-radius: var(--mimo-radius) !important;
-  min-width: 44px;
-  transition: filter 0.12s ease, transform 0.1s ease;
-}
-#btn-send:hover:not(:disabled) {
-  filter: brightness(1.08);
-}
-#btn-send:active:not(:disabled) {
-  transform: scale(0.96);
-}
-#mode-select,
-#model-select {
-  background: var(--mimo-panel) !important;
-  border: 1px solid var(--mimo-border) !important;
-  border-radius: 4px !important;
-  color: var(--mimo-fg) !important;
-  padding: 3px 6px !important;
+details[open] > summary .mimo-chev {
+  transform: rotate(90deg);
+  color: var(--mimo-primary);
 }
 
-/* Session cards */
+/* Home / logo */
+.mimo-startup {
+  padding: 20px 12px 28px !important;
+  gap: 16px !important;
+  align-items: center !important;
+}
+.mimo-startup-logo,
+.mimo-welcome-logo {
+  overflow: visible !important;
+  margin: 4px 0 8px !important;
+  min-height: 0 !important;
+}
+.mimo-welcome-sub {
+  margin-top: 8px !important;
+  color: #808080 !important;
+  font-size: 11px !important;
+  font-style: italic !important;
+}
+.mimo-welcome-hint {
+  margin-top: 4px !important;
+  color: #505050 !important;
+  font-size: 10px !important;
+}
 .mimo-session-card {
-  border-radius: var(--mimo-radius) !important;
-  padding: 10px 12px !important;
-  transition: border-color 0.12s ease, transform 0.12s ease, background 0.12s ease;
+  border-radius: 6px !important;
+  padding: 8px 10px !important;
+  background: #141414 !important;
+  border: 1px solid #3c3c3c !important;
+  transition: border-color 0.12s ease, background 0.12s ease;
 }
 .mimo-session-card:hover {
   border-color: var(--mimo-primary) !important;
   background: #181818 !important;
-  transform: translateY(-1px);
+  transform: none !important;
 }
-.mimo-startup {
-  padding: 32px 14px 40px !important;
-  gap: 22px !important;
+.mimo-logo-canvas {
+  image-rendering: pixelated;
 }
 
-/* Scrollbars — thin orange-accent CLI */
+/* Chrome */
+.session-header {
+  padding: 6px 10px !important;
+  border-bottom: 1px solid #2a2a2a !important;
+}
+.input-area {
+  border-top: 1px solid #2a2a2a !important;
+  padding: 8px 10px !important;
+}
+#prompt {
+  background: #141414 !important;
+  border: 1px solid #3c3c3c !important;
+  border-radius: 4px !important;
+  padding: 8px 10px !important;
+}
+#prompt:focus {
+  outline: none;
+  border-color: var(--mimo-primary) !important;
+}
+#btn-send {
+  background: var(--mimo-primary) !important;
+  border-radius: 4px !important;
+}
+
+/* Scrollbars thin */
 .chat-area,
-.mimo-io-pre,
-.mimo-thinking-body,
-.mimo-history-panel,
+.mimo-io-v,
 .mimo-diff-col,
-.slash-overlay {
+.mimo-thinking-body {
   scrollbar-width: thin;
-  scrollbar-color: #3a3a3a transparent;
+  scrollbar-color: #333 transparent;
 }
-.chat-area::-webkit-scrollbar,
-.mimo-io-pre::-webkit-scrollbar,
-.mimo-thinking-body::-webkit-scrollbar,
-.mimo-diff-col::-webkit-scrollbar {
-  width: 9px;
-  height: 9px;
-}
-.chat-area::-webkit-scrollbar-track {
-  background: transparent;
+.chat-area::-webkit-scrollbar {
+  width: 8px;
 }
 .chat-area::-webkit-scrollbar-thumb {
   background: #2e2e2e;
-  border-radius: 5px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
+  border-radius: 4px;
 }
 .chat-area::-webkit-scrollbar-thumb:hover {
   background: var(--mimo-primary);
-  background-clip: padding-box;
-  border: 2px solid transparent;
 }
 
-/* History spacer */
-.mimo-history-spacer-label {
-  color: #4a4a4a !important;
-  font-size: 10px !important;
-  letter-spacing: 0.04em;
-  padding: 10px !important;
-}
-.mimo-history-spacer.is-loading .mimo-history-spacer-label {
-  color: var(--mimo-primary) !important;
-}
-
-/* Motion */
 @keyframes mimo-rise {
   from {
     opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-@keyframes mimo-expand {
-  from {
-    opacity: 0;
-    transform: translateY(-2px);
+    transform: translateY(3px);
   }
   to {
     opacity: 1;
@@ -603,15 +513,12 @@ details[open] > summary .mimo-chev {
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 360px) {
   .mimo-diff-split {
     grid-template-columns: 1fr !important;
   }
   .mimo-diff-col--del {
     border-right: none !important;
-    border-bottom: 1px solid var(--mimo-border) !important;
-  }
-  .mimo-io-block {
-    grid-template-columns: 28px minmax(0, 1fr) !important;
+    border-bottom: 1px solid #2a2a2a !important;
   }
 }

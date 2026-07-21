@@ -112,32 +112,35 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
     det.appendChild(body);
     return det;
   }
-  // Flat CLI tool card: header + IN/OUT split by line — no nested rounded bubbles
+  // Flat CLI tool card (v1 main.js) — NO nested rounded windows
   const det = document.createElement('details');
   det.className = 'mimo-part mimo-part--flat';
   det.open = Boolean((seg as any).open);
-  const title = escHtml((seg as any).title || seg.kind);
+  const titleRaw = String((seg as any).title || seg.kind);
+  const title = escHtml(titleRaw);
   const meta = escHtml((seg as any).meta || '');
   const body = String((seg as any).body || '');
   const { inn, out } = parseInOut(body);
+  const isDiff =
+    looksLikeDiff(out) ||
+    seg.kind === 'patch' ||
+    /^(write|edit)$/i.test(titleRaw);
   let bodyHtml = '';
   if (inn) {
-    bodyHtml += `<div class="mimo-io-block"><div class="mimo-io-k">IN</div><pre class="mimo-io-pre">${escHtml(inn)}</pre></div>`;
+    // label "in"/"file" + bare pre — no box
+    const inLab = isDiff || seg.kind === 'patch' ? 'file' : 'in';
+    bodyHtml += `<div class="mimo-io-line mimo-io-line--in"><span class="mimo-io-k">${inLab}</span><pre class="mimo-io-v mimo-io-v--cmd">${escHtml(inn)}</pre></div>`;
   }
-  if (inn && out) bodyHtml += `<div class="mimo-io-rule" role="separator"></div>`;
+  if (inn && out) bodyHtml += `<div class="mimo-io-hr" role="separator"></div>`;
   if (out) {
-    const isDiff =
-      looksLikeDiff(out) ||
-      seg.kind === 'patch' ||
-      /^(write|edit)$/i.test(String((seg as any).title || ''));
-    const label = isDiff ? 'DIFF' : 'OUT';
-    bodyHtml += `<div class="mimo-io-block mimo-io-block--out"><div class="mimo-io-k">${label}</div>${
-      isDiff ? renderDiffOut(out) : `<pre class="mimo-io-pre">${escHtml(out)}</pre>`
+    const outLab = isDiff ? 'diff' : 'out';
+    bodyHtml += `<div class="mimo-io-line mimo-io-line--out"><span class="mimo-io-k">${outLab}</span>${
+      isDiff ? renderDiffOut(out) : `<pre class="mimo-io-v">${escHtml(out)}</pre>`
     }</div>`;
   }
   det.innerHTML = `<summary><span class="mimo-chev" aria-hidden="true">▸</span><span class="mimo-part-title">${title}</span>${
     meta ? `<span class="mimo-part-meta">${meta}</span>` : ''
-  }</summary><div class="mimo-part-body">${bodyHtml}</div>`;
+  }</summary><div class="mimo-part-body"><div class="mimo-io mimo-io--flat">${bodyHtml}</div></div>`;
   return det;
 }
 
