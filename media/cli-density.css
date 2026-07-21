@@ -5105,3 +5105,57 @@ body.is-streaming .header {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.214 denser logo host + home layout + FINAL strip */
+#logo-host,
+.logo-host,
+#mimo-logo {
+  min-height: 140px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+.home-view,
+#home {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  padding: 12px 14px !important;
+  gap: 8px !important;
+}
+.home-hint {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  color: #707070 !important;
+  border-left: 2px solid #3c3c3c !important;
+  padding-left: 8px !important;
+  line-height: 1.4 !important;
+}
+/* denser scrollbar global */
+#chat::-webkit-scrollbar,
+.chat-area::-webkit-scrollbar {
+  width: 6px !important;
+}
+#chat::-webkit-scrollbar-thumb,
+.chat-area::-webkit-scrollbar-thumb {
+  background: #3c3c3c !important;
+}
+#chat::-webkit-scrollbar-thumb:hover,
+.chat-area::-webkit-scrollbar-thumb:hover {
+  background: #FF6A00 !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
