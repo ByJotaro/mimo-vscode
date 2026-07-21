@@ -316,6 +316,29 @@ export class MimoClient {
     return { id: s.id };
   }
 
+  async forkSession(sessionId: string): Promise<{ id: string }> {
+    const sid = encodeURIComponent(sessionId);
+    // Try common serve routes; fall back to plain create
+    const paths = [
+      `/session/${sid}/fork`,
+      `/session/${sid}/clone`,
+      `/session/fork`,
+    ];
+    for (const reqPath of paths) {
+      try {
+        const body =
+          reqPath === '/session/fork'
+            ? { sessionID: sessionId, sessionId }
+            : {};
+        const s = await this.request('POST', reqPath, body, 15000);
+        if (s?.id) return { id: s.id };
+      } catch {
+        /* try next */
+      }
+    }
+    return this.createSession();
+  }
+
   async listModels(): Promise<Array<{ fullId: string; name?: string; providerId?: string }>> {
     try {
       const data = await this.request('GET', '/config/providers', undefined, 10000);

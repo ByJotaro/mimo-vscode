@@ -94,6 +94,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case 'newSession':
           await this.newSession();
           break;
+        case 'forkSession':
+          await this.forkSession();
+          break;
         case 'refreshUsage':
           if (this.currentSessionId) {
             void this.client.fetchSessionUsage(this.currentSessionId).then((u) => {
@@ -249,6 +252,31 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       `[SESSIONS] history=${historyPanel} raw=${raw.length} out=${sessions.length}`
     );
     this.post({ type: 'sessionsList', sessions, historyPanel });
+  }
+
+  private async forkSession(): Promise<void> {
+    try {
+      await this.client.ensureServer();
+      const from = this.currentSessionId;
+      if (!from) {
+        await this.newSession();
+        return;
+      }
+      const s = await this.client.forkSession(from);
+      this.currentSessionId = s.id;
+      this.post({
+        type: 'sessionData',
+        sessionId: s.id,
+        title: 'Fork',
+        messages: [],
+        meta: { source: 'fork', pinBottom: true, olderCount: 0, totalMessages: 0, loadedCount: 0 },
+      });
+      // Prefer loading forked history from DB when available
+      await this.selectSession(s.id);
+      this.log.appendLine(`[FORK] from=${from} to=${s.id}`);
+    } catch (e) {
+      this.post({ type: 'error', error: `fork: ${String(e).slice(0, 200)}` });
+    }
   }
 
   private async newSession(): Promise<void> {
@@ -682,6 +710,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     <div class="header-actions">
       <button type="button" id="btn-history-top" title="Session history">History</button>
       <button type="button" id="btn-undo" title="Undo last file changes">Undo</button>
+      <button type="button" id="btn-fork" title="Fork session">Fork</button>
       <button type="button" id="btn-home" title="Home — logo & recent">Home</button>
       <button type="button" id="btn-abort" title="Abort current turn" hidden>Stop</button>
     </div>

@@ -39,6 +39,7 @@ const btnHistoryTop = document.getElementById('btn-history-top') as HTMLButtonEl
 const btnUndo = document.getElementById('btn-undo') as HTMLButtonElement | null;
 const btnSend = document.getElementById('btn-send') as HTMLButtonElement;
 const btnAbort = document.getElementById('btn-abort') as HTMLButtonElement | null;
+const btnFork = document.getElementById('btn-fork') as HTMLButtonElement | null;
 const promptEl = document.getElementById('prompt') as HTMLTextAreaElement;
 const modeSelect = document.getElementById('mode-select') as HTMLSelectElement | null;
 const modelSelect = document.getElementById('model-select') as HTMLSelectElement | null;
@@ -710,6 +711,10 @@ function handleLocalSlash(full: string): boolean {
   if (!m) return false;
   const cmd = m[1].toLowerCase();
   const rest = (m[2] || '').trim();
+  if (cmd === 'fork') {
+    post({ type: 'forkSession' });
+    return true;
+  }
   if (cmd === 'new') {
     post({ type: 'newSession' });
     return true;
@@ -871,6 +876,7 @@ btnHome?.addEventListener('click', () => {
   post({ type: 'goHome' });
 });
 btnUndo?.addEventListener('click', () => post({ type: 'undoLast' }));
+btnFork?.addEventListener('click', () => post({ type: 'forkSession' }));
 btnHistoryTop?.addEventListener('click', () => {
   // Instant feedback so History never feels "dead"
   showHistoryPanel([{ id: '_loading', title: 'Loading…' }]);
