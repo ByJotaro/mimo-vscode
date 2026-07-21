@@ -2641,3 +2641,15 @@ textarea::placeholder {
 .mimo-part:not([open]) > summary:hover .mimo-part-title {
   color: #d0d0d0 !important;
 }
+
+.message {
+  margin: 2px 0 6px !important;
+  padding: 0 8px !important;
+}
+.message.bot + .message.bot {
+  margin-top: 2px !important;
+}
+/* Tool stack denser between consecutive tools */
+.message .mimo-part + .mimo-part {
+  margin-top: 1px !important;
+}
