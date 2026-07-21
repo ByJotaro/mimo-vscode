@@ -1429,6 +1429,9 @@ if (Array.isArray(message.modes) && message.modes.length) {
       }
       break;
     }
+    case 'toast':
+      if (message.text) showToast(String(message.text));
+      break;
     case 'serverStatus':
       if (statusLabel) {
         const st = String(message.status || '');

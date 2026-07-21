@@ -699,6 +699,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         (result as any)?.ok ||
         (result as any)?.status === 'ok';
       if (ok) {
+        this.post({ type: 'toast', text: 'Undo applied' });
         vscode.window.showInformationMessage('Undo applied');
         await this.selectSession(sid);
       } else {
@@ -706,9 +707,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           (result as any)?.reason ||
           (result as any)?.status ||
           JSON.stringify(result).slice(0, 120);
+        this.post({ type: 'toast', text: 'Undo: ' + String(reason).slice(0, 80) });
         vscode.window.showWarningMessage('Undo: ' + reason);
       }
     } catch (e) {
+      this.post({ type: 'toast', text: 'Undo failed' });
       vscode.window.showErrorMessage('Undo failed: ' + String(e).slice(0, 200));
       this.log.appendLine('[undo] ' + String(e));
     }
