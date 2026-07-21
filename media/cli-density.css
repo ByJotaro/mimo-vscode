@@ -126,7 +126,9 @@ body {
   display: block !important;
   width: 100% !important;
   margin: 4px 0 !important;
-  border: none !important;
+  border-top: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
   border-left: 2px solid var(--mimo-border-hi) !important;
   border-radius: 0 !important;
   background: transparent !important;
