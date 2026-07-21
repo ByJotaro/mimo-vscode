@@ -905,6 +905,7 @@ function handleLocalSlash(full: string): boolean {
   }
   if (cmd === 'new') {
     showToast('new session');
+    lastUserPrompt = '';
     post({ type: 'newSession' });
     return true;
   }
@@ -915,6 +916,7 @@ function handleLocalSlash(full: string): boolean {
   }
   if (cmd === 'home') {
     showToast('Home');
+    lastUserPrompt = '';
     post({ type: 'goHome' });
     return true;
   }
@@ -1644,6 +1646,7 @@ if (Array.isArray(message.modes) && message.modes.length) {
       }
       if (message.showStartupChooser === true) {
         activeSessionId = '';
+        lastUserPrompt = '';
         titleEl.textContent = 'MiMo Code';
         showStartup(Array.isArray(message.sessions) ? message.sessions : []);
       } else if (message.showStartupChooser !== false && !activeSessionId) {
