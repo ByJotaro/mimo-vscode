@@ -5,6 +5,14 @@ export function activate(context: vscode.ExtensionContext): void {
   const cfg = vscode.workspace.getConfiguration('mimo');
   const cliPath = String(cfg.get('cliPath') || '').trim();
   if (cliPath) process.env.MIMO_BIN = cliPath;
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (!e.affectsConfiguration('mimo.cliPath')) return;
+      const p = String(vscode.workspace.getConfiguration('mimo').get('cliPath') || '').trim();
+      if (p) process.env.MIMO_BIN = p;
+      else delete process.env.MIMO_BIN;
+    })
+  );
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   status.text = '$(chip) MiMo';
   status.tooltip = 'MiMo Code — open chat (Ctrl+Shift+M)';
