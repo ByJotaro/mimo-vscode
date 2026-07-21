@@ -3672,3 +3672,45 @@ pre:hover .mimo-pre-copy {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.184 denser starfield/chat stacking + FINAL strip */
+#starfield,
+.starfield,
+canvas#starfield {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 0 !important;
+  pointer-events: none !important;
+  opacity: 0.55 !important;
+}
+.chat-area,
+#chat {
+  position: relative !important;
+  z-index: 1 !important;
+}
+.header,
+.input-area {
+  position: relative !important;
+  z-index: 2 !important;
+}
+/* FINAL tool chrome */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+  border-bottom: 1px solid #242424 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
+/* denser thinking under starfield */
+.mimo-thinking {
+  position: relative !important;
+  z-index: 1 !important;
+}
