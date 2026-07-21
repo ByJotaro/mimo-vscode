@@ -713,3 +713,20 @@ body.mimo-busy #status-label {
   -webkit-box-orient: vertical;
   white-space: normal !important;
 }
+
+.mimo-empty-session {
+  margin: 48px auto;
+  text-align: center;
+  color: #606060;
+  animation: mimo-rise 0.25s ease both;
+}
+.mimo-empty-title {
+  color: #808080;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+.mimo-empty-sub {
+  font-size: 11px;
+  color: #505050;
+}

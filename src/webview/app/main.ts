@@ -424,6 +424,15 @@ function renderMessages(
     chat.appendChild(el);
   }
 
+  if (!collapsed.length && !opts.loadMore) {
+    const empty = document.createElement('div');
+    empty.className = 'mimo-empty-session';
+    empty.innerHTML =
+      '<div class="mimo-empty-title">Empty session</div>' +
+      '<div class="mimo-empty-sub">Type a message or open History for another chat</div>';
+    chat.appendChild(empty);
+  }
+
   loadedCount = messages.length;
   const tools = chat.querySelectorAll('.mimo-part').length;
   post({
