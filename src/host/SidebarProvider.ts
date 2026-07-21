@@ -94,6 +94,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case 'newSession':
           await this.newSession();
           break;
+        case 'refreshUsage':
+          if (this.currentSessionId) {
+            void this.client.fetchSessionUsage(this.currentSessionId).then((u) => {
+              if (u) this.post({ type: 'sessionUsage', sessionId: this.currentSessionId, used: u.used, size: u.size, amount: u.amount });
+            });
+          }
+          break;
         case 'goHome':
           this.currentSessionId = '';
           await this.sendInit();

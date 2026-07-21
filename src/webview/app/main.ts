@@ -744,6 +744,11 @@ function handleLocalSlash(full: string): boolean {
     }
     return true;
   }
+  if (cmd === 'cost' || cmd === 'status' || cmd === 'usage') {
+    if (activeSessionId) post({ type: 'refreshUsage', sessionId: activeSessionId });
+    if (statusLabel) statusLabel.textContent = 'usage…';
+    return true;
+  }
   if (cmd === 'help') {
     appendOrUpdateMessage({
       id: 'sys_help_' + Date.now(),

@@ -845,3 +845,104 @@ body.mimo-busy #status-label {
 .mimo-md-table tr:hover td {
   background: #181818 !important;
 }
+
+/* Composer + scrollbars — denser CLI chrome */
+.input-area {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  background: #0c0c0c !important;
+}
+.input-area .composer-row {
+  display: flex !important;
+  gap: 8px !important;
+  align-items: flex-end !important;
+}
+#prompt {
+  flex: 1 !important;
+  min-height: 44px !important;
+  max-height: 160px !important;
+  resize: vertical !important;
+  font-size: 13px !important;
+  line-height: 1.35 !important;
+  color: #e8e8e8 !important;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease !important;
+}
+#prompt:focus {
+  box-shadow: 0 0 0 1px rgba(255, 106, 0, 0.35) !important;
+}
+#btn-send {
+  min-width: 40px !important;
+  height: 40px !important;
+  border: none !important;
+  color: #0a0a0a !important;
+  font-weight: 700 !important;
+  font-size: 16px !important;
+  cursor: pointer;
+  transition: filter 0.12s ease, transform 0.08s ease;
+}
+#btn-send:hover {
+  filter: brightness(1.08);
+}
+#btn-send:active {
+  transform: scale(0.96);
+}
+.input-area select {
+  background: #141414 !important;
+  border: 1px solid #333 !important;
+  color: #c8c8c8 !important;
+  border-radius: 4px !important;
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  max-width: 140px;
+}
+.chat-area::-webkit-scrollbar {
+  width: 9px !important;
+  height: 9px !important;
+}
+.chat-area::-webkit-scrollbar-track {
+  background: #0a0a0a !important;
+}
+.chat-area::-webkit-scrollbar-thumb {
+  background: #2a2a2a !important;
+  border-radius: 6px !important;
+  border: 2px solid #0a0a0a !important;
+}
+.chat-area::-webkit-scrollbar-thumb:hover {
+  background: #FF6A00 !important;
+}
+.mimo-io-v::-webkit-scrollbar,
+.mimo-thinking-body::-webkit-scrollbar,
+.mimo-history-list::-webkit-scrollbar {
+  width: 7px !important;
+}
+.mimo-io-v::-webkit-scrollbar-thumb,
+.mimo-thinking-body::-webkit-scrollbar-thumb,
+.mimo-history-list::-webkit-scrollbar-thumb {
+  background: #2e2e2e !important;
+  border-radius: 4px !important;
+}
+.mimo-io-v::-webkit-scrollbar-thumb:hover,
+.mimo-thinking-body::-webkit-scrollbar-thumb:hover,
+.mimo-history-list::-webkit-scrollbar-thumb:hover {
+  background: #FF6A00 !important;
+}
+/* Slash palette denser */
+.slash-overlay {
+  border: 1px solid #333 !important;
+  background: #121212 !important;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.55) !important;
+  border-radius: 8px !important;
+  max-height: 280px !important;
+  overflow: auto !important;
+}
+.slash-item {
+  padding: 7px 10px !important;
+  border-bottom: 1px solid #1e1e1e !important;
+  font-size: 12px !important;
+}
+.slash-item.active,
+.slash-item:hover {
+  background: #1a140f !important;
+  border-left: 2px solid #FF6A00 !important;
+}
