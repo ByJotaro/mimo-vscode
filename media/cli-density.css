@@ -3600,3 +3600,36 @@ pre:hover .mimo-pre-copy {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.182: avoid double left bar from box-shadow + border */
+.mimo-part[open] {
+  box-shadow: none !important;
+  border-left: 2px solid #FF6A00 !important;
+}
+/* denser status muted */
+#status-label,
+.status-label {
+  margin-left: auto !important;
+  max-width: 42% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+/* denser chat area bottom pad for sticky composer */
+.chat-area,
+#chat {
+  padding-bottom: 8px !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
