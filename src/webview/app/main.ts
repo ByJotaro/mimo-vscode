@@ -568,6 +568,19 @@ if (Array.isArray(message.modes) && message.modes.length) {
       setBusy(false);
       if (statusLabel) statusLabel.textContent = String(message.error || 'error').slice(0, 40);
       break;
+    case 'permissionRequest':
+      if (message.permissionId) {
+        showPermission({
+          sessionId: message.sessionId,
+          permissionId: message.permissionId,
+          permission: message.permission,
+          patterns: message.patterns,
+        });
+      }
+      break;
+    case 'permissionCleared':
+      document.getElementById('permission-overlay')?.remove();
+      break;
     case 'serverStatus':
       if (statusLabel)
         statusLabel.textContent = `${message.status || ''}${message.detail ? ' ' + message.detail : ''}`.slice(
@@ -645,4 +658,40 @@ function onPromptInput(): void {
   if (m) showSlash(m[2] || '');
   else hideSlash();
 }
+
+function showPermission(req: {
+  sessionId?: string;
+  permissionId: string;
+  permission?: string;
+  patterns?: string[];
+}): void {
+  document.getElementById('permission-overlay')?.remove();
+  const ov = document.createElement('div');
+  ov.id = 'permission-overlay';
+  ov.className = 'permission-overlay';
+  const pats = (req.patterns || []).slice(0, 6).map((p) => escHtml(p)).join('<br/>');
+  ov.innerHTML = `
+    <div class="permission-card">
+      <div class="permission-title">Permission</div>
+      <div class="permission-body">${escHtml(req.permission || 'allow tool')} ${pats ? '<div class="permission-pats">' + pats + '</div>' : ''}</div>
+      <div class="permission-actions">
+        <button type="button" data-r="once">Allow once</button>
+        <button type="button" data-r="always">Allow always</button>
+        <button type="button" data-r="reject" class="danger">Reject</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  ov.querySelectorAll('button[data-r]').forEach((b) => {
+    b.addEventListener('click', () => {
+      post({
+        type: 'permissionReply',
+        sessionId: req.sessionId || activeSessionId,
+        permissionId: req.permissionId,
+        response: (b as HTMLElement).dataset.r,
+      });
+      ov.remove();
+    });
+  });
+}
+
 post({ type: 'ready' });

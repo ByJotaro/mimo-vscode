@@ -112,6 +112,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           this.sendInFlight = false;
           this.post({ type: 'sendState', busy: false });
           break;
+        case 'permissionReply':
+          if (typeof msg.sessionId === 'string' && typeof msg.permissionId === 'string') {
+            const resp = msg.response === 'always' || msg.response === 'reject' ? msg.response : 'once';
+            await this.client.respondPermission(msg.sessionId, msg.permissionId, resp);
+            this.post({ type: 'permissionCleared', permissionId: msg.permissionId });
+          }
+          break;
         case 'ui-debug':
           if (Array.isArray(msg.payload)) {
             this.log.appendLine(msg.payload.map(String).join(' '));
@@ -461,6 +468,18 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
     if (ev.type === 'status') {
       this.post({ type: 'serverStatus', status: ev.status, detail: (ev as any).detail });
+    }
+    if (ev.type === 'permission') {
+      this.post({
+        type: 'permissionRequest',
+        sessionId: (ev as any).sessionId || this.currentSessionId,
+        permissionId: (ev as any).permissionId,
+        permission: (ev as any).permission,
+        patterns: (ev as any).patterns,
+      });
+    }
+    if (ev.type === 'permissionReplied') {
+      this.post({ type: 'permissionCleared', permissionId: (ev as any).permissionId });
     }
   }
 

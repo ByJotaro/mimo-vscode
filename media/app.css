@@ -440,3 +440,40 @@ body.vscode-dark, body.vscode-light {
   padding: 2px 8px;
   border-radius: 4px;
 }
+
+.permission-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0,0,0,0.35);
+  padding: 12px;
+}
+.permission-card {
+  width: 100%;
+  max-width: 420px;
+  background: #141414;
+  border: 1px solid #FF6A00;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 12px;
+}
+.permission-title { color: #FF6A00; font-weight: 600; margin-bottom: 6px; }
+.permission-body { color: #eeeeee; margin-bottom: 10px; word-break: break-word; }
+.permission-pats { color: #808080; font-size: 10px; margin-top: 4px; }
+.permission-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.permission-actions button {
+  flex: 1;
+  background: #1e1e1e;
+  border: 1px solid #3c3c3c;
+  color: #eeeeee;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+}
+.permission-actions button.danger { border-color: #c53b53; color: #c53b53; }
+.permission-actions button:hover { border-color: #FF6A00; }

@@ -16,7 +16,15 @@ export type ChatEvent =
   | { type: 'part'; part: any; messageId?: string; sessionId?: string }
   | { type: 'done'; sessionId?: string; messageId?: string }
   | { type: 'error'; error: string; sessionId?: string }
-  | { type: 'status'; status: string; detail?: string };
+  | { type: 'status'; status: string; detail?: string }
+  | {
+      type: 'permission';
+      sessionId?: string;
+      permissionId: string;
+      permission?: string;
+      patterns?: string[];
+    }
+  | { type: 'permissionReplied'; sessionId?: string; permissionId: string };
 
 type ServerLock = {
   workspaceRoot: string;
@@ -363,6 +371,31 @@ export class MimoClient {
     }
   }
 
+  async respondPermission(
+    sessionId: string,
+    permissionId: string,
+    response: 'once' | 'always' | 'reject'
+  ): Promise<void> {
+    const body = { response };
+    try {
+      await this.request(
+        'POST',
+        `/session/${encodeURIComponent(sessionId)}/permissions/${encodeURIComponent(permissionId)}`,
+        body,
+        8000
+      );
+      return;
+    } catch {
+      /* fall through */
+    }
+    await this.request(
+      'POST',
+      `/permission/${encodeURIComponent(permissionId)}/reply?directory=${encodeURIComponent(this.workspaceRoot)}`,
+      { reply: response },
+      8000
+    );
+  }
+
   private connectEvents(): void {
     if (this.eventActive || !this.baseUrl) return;
     this.eventActive = true;
@@ -441,6 +474,28 @@ export class MimoClient {
         const st = props.type || props.status || type;
         if (/idle|complete|done/i.test(String(st))) {
           this.emit({ type: 'done', sessionId, messageId });
+        }
+        return;
+      }
+      if (type === 'permission.asked' || /permission\.asked/i.test(type)) {
+        const permissionId = String(props.id || props.permissionId || props.requestID || '');
+        if (permissionId) {
+          this.emit({
+            type: 'permission',
+            sessionId,
+            permissionId,
+            permission: typeof props.permission === 'string' ? props.permission : undefined,
+            patterns: Array.isArray(props.patterns)
+              ? props.patterns.filter((x: any) => typeof x === 'string')
+              : undefined,
+          });
+        }
+        return;
+      }
+      if (type === 'permission.replied' || /permission\.replied/i.test(type)) {
+        const permissionId = String(props.requestID || props.permissionId || props.id || '');
+        if (permissionId) {
+          this.emit({ type: 'permissionReplied', sessionId, permissionId });
         }
         return;
       }
