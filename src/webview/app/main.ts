@@ -920,6 +920,7 @@ function handleLocalSlash(full: string): boolean {
     return true;
   }
   if (cmd === 'agent' || cmd === 'mode') {
+    const label = cmd === 'agent' ? 'agent' : 'mode';
     if (rest) {
       selectedMode = rest.split(/\s+/)[0];
       if (modeSelect) {
@@ -936,11 +937,13 @@ function handleLocalSlash(full: string): boolean {
         }
       }
       post({ type: 'setMode', mode: selectedMode });
-      showToast('mode · ' + selectedMode);
-      if (statusLabel) statusLabel.textContent = 'mode ' + selectedMode;
+      showToast(label + ' · ' + selectedMode);
+      if (statusLabel) statusLabel.textContent = label + ' ' + selectedMode;
     } else if (modeSelect) {
       modeSelect.focus();
-      showToast('pick mode');
+      showToast('pick ' + label);
+    } else {
+      showToast(label + ' list in CLI');
     }
     return true;
   }

@@ -5427,3 +5427,35 @@ body.is-busy #send-btn {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.221 denser header chrome + FINAL strip */
+.header {
+  border-bottom: 1px solid #242424 !important;
+  background: #0e0e0e !important;
+  min-height: 36px !important;
+  padding: 4px 8px !important;
+  gap: 6px !important;
+}
+.session-title,
+#session-title {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+  color: #eeeeee !important;
+  max-width: 46% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
