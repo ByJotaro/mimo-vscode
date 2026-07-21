@@ -812,6 +812,7 @@ function setBusy(on: boolean): void {
   if (btnSend) btnSend.classList.toggle('is-busy', on);
   // Keep server status if present; only override when running
   if (statusLabel) {
+    statusLabel.classList.toggle('is-busy', on);
     if (on) {
       const n = document.querySelectorAll('.message.is-streaming .mimo-part').length;
       statusLabel.textContent = n > 0 ? `running · ${n} tools` : 'running…';
@@ -1320,6 +1321,11 @@ if (Array.isArray(message.modes) && message.modes.length) {
       document
         .querySelector(`.message[data-id="${CSS.escape(String(message.messageId || 'live'))}"]`)
         ?.classList.add('is-streaming');
+        // last-open-tool-scroll
+        const lastOpen = document.querySelector(
+          '.message.is-streaming .mimo-part[open]:last-of-type'
+        ) as HTMLElement | null;
+        lastOpen?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       if (busy && statusLabel) {
         const n = document.querySelectorAll('.message.is-streaming .mimo-part').length;
         statusLabel.textContent = n > 0 ? 'running · ' + n + ' tools' : 'running…';

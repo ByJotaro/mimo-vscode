@@ -2190,3 +2190,11 @@ a.mimo-ext-link:hover {
   background: rgba(140, 50, 50, 0.18) !important;
   color: #e8a0a0 !important;
 }
+
+/* Busy status with tool count pulse */
+.status-label.is-busy,
+#statusLabel.is-busy {
+  border-left: 2px solid #FF6A00 !important;
+  padding-left: 6px !important;
+  animation: mimo-busy-pulse 1.1s ease-in-out infinite !important;
+}
