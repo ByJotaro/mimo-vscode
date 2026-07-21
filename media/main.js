@@ -7829,60 +7829,35 @@ function stripSystemInjections(text) {
 }
 
 function collapseSessionDataMessagesForDisplay(messages, anchorMsgIds = new Set()) {
+    // CRITICAL: keep EVERY assistant message. Old logic kept only the last assistant
+    // before each user turn (pendingAssistant overwrite) → dropped tool-heavy steps.
     if (!Array.isArray(messages) || messages.length === 0) return [];
     const collapsed = [];
-    let pendingAssistant = null;
-    const hiddenControlUserIds = new Set();
-
-    const flushAssistant = () => {
-        if (pendingAssistant) {
-            collapsed.push(pendingAssistant);
-            pendingAssistant = null;
-        }
-    };
 
     for (const item of messages) {
         if (!item || !item.id) continue;
         const role = item.role;
         const meta = item.meta || {};
         if (role === 'system') {
-            if (meta.kind === 'changeList') {
-                flushAssistant();
-                collapsed.push(item);
-            }
+            if (meta.kind === 'changeList') collapsed.push(item);
             continue;
         }
         if (role === 'user') {
             if (meta.syntheticUser === true || isHiddenControlUserText(item.text || '')) {
-                hiddenControlUserIds.add(item.id);
                 continue;
             }
             const text = stripSystemInjections((item.text || '').replace(/^(\r?\n)+/, ''));
             if (!text.trim()) continue;
-            flushAssistant();
             collapsed.push({ ...item, text });
             continue;
         }
         if (role === 'assistant') {
             const text = item.text || '';
             if (isHiddenControlAssistantText(text)) continue;
-            const parentId =
-                (typeof item.parentId === 'string' && item.parentId)
-                || (typeof item.parentID === 'string' && item.parentID)
-                || (typeof meta.parentId === 'string' && meta.parentId)
-                || (typeof meta.parentID === 'string' && meta.parentID)
-                || '';
             if (!text.trim()) continue;
-            if (anchorMsgIds.has(item.id)) {
-                flushAssistant();
-                collapsed.push({ ...item, text });
-                continue;
-            }
-            pendingAssistant = { ...item, text };
+            collapsed.push({ ...item, text });
         }
     }
-
-    flushAssistant();
     return collapsed;
 }
 

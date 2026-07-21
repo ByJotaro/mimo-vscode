@@ -5003,6 +5003,12 @@ ${attachmentLines.join('\n')}`
                                 const snapshotMessages = snapshotFormatted.messages;
                                 baseTitle = snapshotFormatted.title || baseTitle;
                                 baseMessages = snapshotMessages;
+                                // Snapshot is optional preview only — do NOT mark sessionDataSent
+                                // so DB-first path still runs and delivers tool cards.
+                                // Strip timelineMessageIds: dual-load + sparse snap dropped tools.
+                                const snapMeta = { ...(snapPayload.meta || {}) };
+                                delete (snapMeta as any).timelineMessageIds;
+                                delete (snapMeta as any).segmentBackingMessageIds;
                                 const payload = {
                                     type: 'sessionData',
                                     sessionId: targetSessionId,
@@ -5010,14 +5016,14 @@ ${attachmentLines.join('\n')}`
                                     messages: snapshotMessages,
                                     segments,
                                     meta: {
-                                        ...(snapPayload.meta || {}),
-                                        source: 'snapshot'
+                                        ...snapMeta,
+                                        source: 'snapshot',
+                                        pinBottom: true,
+                                        preview: true,
                                     }
                                 };
-                                const sent = postSessionData(payload, 'snapshot');
-                                if (sent && snapshotMessages.length > 0) {
-                                    sessionDataSent = true;
-                                }
+                                postSessionData(payload, 'snapshot');
+                                // keep sessionDataSent=false so DB path always runs
                                 this.uiDebugChannel.appendLine(
                                     `[EXT][SNAP_LOAD_HIT] sessionId=${targetSessionId} file=${this.getSnapshotFile(targetSessionId)} bytes=${snap.bytes} costMs=${Date.now() - snapshotStart}`
                                 );
@@ -5074,15 +5080,14 @@ ${attachmentLines.join('\n')}`
 
                             if (!isCurrentSelection()) break;
 
-                            // Merge snapshot-only extras (don't drop snapshot if DB thinner on non-tools)
+                            // Prefer DB tool-rich text over snapshot plain text (merge score).
+                            // Order: base=DB tools first, snapshot fills missing ids only.
                             const mergedMessages = this.mergeSessionMessagesById(messages, baseMessages);
                             const toolMsgs = mergedMessages.filter((m) =>
                                 typeof m?.text === 'string' && m.text.includes('%%MIMO_PART')
                             ).length;
-                            const timelineIds = mergedMessages
-                                .map((message) => (typeof message?.id === 'string' ? message.id : ''))
-                                .filter((id): id is string => Boolean(id));
-
+                            // Do NOT pass timelineMessageIds for DB loads — dual-load path +
+                            // collapse previously dropped multi-step assistants / tools.
                             let finalMessages = mergedMessages;
                             try {
                                 const injected = await this.injectChangeLists(targetSessionId, {
@@ -5090,12 +5095,20 @@ ${attachmentLines.join('\n')}`
                                     messages: mergedMessages,
                                 });
                                 if (injected?.messages?.length) {
-                                    finalMessages = injected.messages;
+                                    // injectChangeLists must not wipe tools — re-score prefer tools
+                                    finalMessages = this.mergeSessionMessagesById(
+                                        mergedMessages,
+                                        injected.messages
+                                    );
                                     if (injected.title) title = injected.title;
                                 }
                             } catch { /* keep merged */ }
 
                             if (!isCurrentSelection()) break;
+
+                            const toolMsgsFinal = finalMessages.filter((m) =>
+                                typeof m?.text === 'string' && m.text.includes('%%MIMO_PART')
+                            ).length;
 
                             const sessionPayload = {
                                 type: 'sessionData',
@@ -5105,11 +5118,11 @@ ${attachmentLines.join('\n')}`
                                 segments,
                                 meta: {
                                     source,
-                                    timelineMessageIds: timelineIds,
+                                    // omit timelineMessageIds → webview uses collapse-all path (keeps tools)
                                     fullLoad: false,
                                     pinBottom: true,
-                                    hasToolCards: toolMsgs > 0,
-                                    toolMsgs,
+                                    hasToolCards: toolMsgsFinal > 0,
+                                    toolMsgs: toolMsgsFinal,
                                     limit,
                                     loadMs: Date.now() - recentStart,
                                 }
@@ -8777,6 +8790,16 @@ ${attachmentLines.join('\n')}`
             return merged;
         }
 
+        // Prefer text that still has tool/thinking markers — snapshot often has plain text only.
+        const textScore = (t: string): number => {
+            if (!t) return 0;
+            let s = t.length;
+            if (t.includes('%%MIMO_PART')) s += 1_000_000;
+            if (t.includes('%%MIMO_PART:tool') || t.includes('%%MIMO_PART:patch')) s += 500_000;
+            if (t.includes('%%MIMO_PART:thinking')) s += 100_000;
+            return s;
+        };
+
         for (const message of incomingMessages) {
             if (!message || typeof message.text !== 'string') {
                 continue;
@@ -8785,13 +8808,17 @@ ${attachmentLines.join('\n')}`
             if (messageId && indexById.has(messageId)) {
                 const idx = indexById.get(messageId)!;
                 const prev = merged[idx];
-                // Same ID means same logical message; prefer the latest payload text/meta.
+                const prevText = typeof prev.text === 'string' ? prev.text : '';
+                const nextText = typeof message.text === 'string' ? message.text : '';
+                const preferNext = textScore(nextText) > textScore(prevText);
                 merged[idx] = {
                     ...prev,
                     ...message,
                     id: messageId,
                     role: message.role || prev.role,
-                    text: typeof message.text === 'string' && message.text.length ? message.text : prev.text
+                    // NEVER let plain snapshot text wipe DB tool cards
+                    text: preferNext ? nextText : (prevText || nextText),
+                    meta: { ...(prev.meta || {}), ...(message.meta || {}) },
                 };
                 continue;
             }
