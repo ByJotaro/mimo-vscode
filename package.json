@@ -3,7 +3,7 @@
   "displayName": "MiMo Code",
   "publisher": "mimo",
   "description": "MiMo Code VS Code sidebar — modular rewrite (v2). Fast DB-first history, CLI-faithful tools & theme.",
-  "version": "1.0.0-beta.244",
+  "version": "1.0.0-beta.245",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -107,6 +107,29 @@
         }
       ]
     }
+,
+    "keybindings": [
+      {
+        "command": "mimo.openSidebar",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m"
+      },
+      {
+        "command": "mimo.newSession",
+        "key": "ctrl+shift+alt+n",
+        "mac": "cmd+shift+alt+n"
+      },
+      {
+        "command": "mimo.insertSelection",
+        "key": "ctrl+shift+alt+s",
+        "mac": "cmd+shift+alt+s"
+      },
+      {
+        "command": "mimo.abort",
+        "key": "ctrl+shift+alt+.",
+        "mac": "cmd+shift+alt+."
+      }
+    ]
   },
   "scripts": {
     "compile": "tsc -p ./ && node scripts/build-webview.mjs",
