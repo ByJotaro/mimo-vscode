@@ -526,6 +526,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const styleUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'media', 'app.css')
     );
+    const densityUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'cli-density.css')
+    );
     const starUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'media', 'starfield.css')
     );
@@ -549,6 +552,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   <meta http-equiv="Content-Security-Policy" content="${csp}" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link href="${styleUri}" rel="stylesheet" />
+  <link href="${densityUri}" rel="stylesheet" />
   <link href="${starUri}" rel="stylesheet" />
   <style>${cssVariablesDark()}</style>
   <title>MiMo Code</title>

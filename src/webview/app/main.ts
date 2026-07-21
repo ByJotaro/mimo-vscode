@@ -88,7 +88,10 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
     summary.appendChild(chev);
     const title = document.createElement('span');
     title.className = 'mimo-thinking-title';
-    title.textContent = (seg as any).title || 'thinking';
+    // CLI-style label (matches “Thought” row in TUI)
+    title.textContent = (seg as any).title === 'thinking' || !(seg as any).title
+      ? 'Thought'
+      : String((seg as any).title);
     summary.appendChild(title);
     if (dur) {
       const d = document.createElement('span');
