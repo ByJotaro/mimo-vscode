@@ -2986,3 +2986,19 @@ select#model {
   color: #eeeeee !important;
   padding: 4px 10px !important;
 }
+
+/* beta.164 denser tool body when open under strip */
+.mimo-part[open] > .mimo-part-body {
+  animation: mimo-expand 0.12s ease both !important;
+}
+.mimo-part-body .mimo-io-hr {
+  border: none !important;
+  border-top: 1px solid #242424 !important;
+  height: 0 !important;
+}
+/* Compose mode badge soft if present */
+#modeSelect option,
+.mode-select option {
+  background: #141414 !important;
+  color: #eeeeee !important;
+}
