@@ -1688,3 +1688,21 @@ a.mimo-ext-link:hover {
   margin-left: 0 !important;
   margin-right: 0 !important;
 }
+
+.mimo-part > summary .mimo-dur {
+  order: 3;
+  margin-left: 6px !important;
+  border-color: #333 !important;
+  color: #909090 !important;
+  background: #101010 !important;
+}
+.mimo-part > summary .mimo-chev {
+  order: 0;
+  flex-shrink: 0;
+}
+.mimo-part > summary .mimo-part-title {
+  order: 1;
+}
+.mimo-part > summary .mimo-part-meta {
+  order: 2;
+}
