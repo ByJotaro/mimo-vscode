@@ -1857,3 +1857,10 @@ a.mimo-ext-link:hover {
 .mimo-history-list .mimo-session-card:hover {
   border-left-color: #FF6A00 !important;
 }
+
+.message.user {
+  border-left: 2px solid #3c3c3c !important;
+}
+.message.user:hover {
+  border-left-color: #FF6A00 !important;
+}
