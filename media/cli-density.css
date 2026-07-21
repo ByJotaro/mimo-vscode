@@ -2173,3 +2173,20 @@ a.mimo-ext-link:hover {
 .mimo-part[open] > summary {
   background: #121212 !important;
 }
+
+.mimo-io-line--in .mimo-io-v {
+  color: #c8d4e0 !important;
+}
+.mimo-io-line--in .mimo-io-v:hover {
+  color: #FF6A00 !important;
+  cursor: pointer !important;
+}
+/* Diff add/remove denser under strip */
+.mimo-diff-add, .diff-add, .mimo-diff .add {
+  background: rgba(60, 120, 60, 0.18) !important;
+  color: #a8d4b8 !important;
+}
+.mimo-diff-del, .diff-del, .mimo-diff .del {
+  background: rgba(140, 50, 50, 0.18) !important;
+  color: #e8a0a0 !important;
+}

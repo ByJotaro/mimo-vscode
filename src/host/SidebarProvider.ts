@@ -757,11 +757,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       return;
     }
     try {
+      // restoreCommit on snap = post-undo base; undoTargetCommit = pre-undo forward
+      const forward = snap.undoTargetCommit || snap.restoreCommit;
       const result = await this.gitUndo.restoreAll(
         snap.sessionId,
-        snap.restoreCommit,
+        forward,
         snap.fileSet,
-        snap.undoTargetCommit
+        snap.restoreCommit
       );
       const ok = Boolean((result as any)?.applied);
       if (ok) {
