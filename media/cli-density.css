@@ -1218,48 +1218,85 @@ body.mimo-busy #btn-abort {
   color: #fff;
 }
 
-/* Tool cards denser 1:1 CLI */
+/* Tool cards — v1 left bar + title strip (not nested rounded windows) */
+.mimo-part,
 .mimo-part--flat {
-  margin: 4px 0 6px !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 4px 0 8px !important;
   border: none !important;
+  border-left: 2px solid #3c3c3c !important;
+  border-radius: 0 !important;
   background: transparent !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
 }
+.mimo-part[open],
+.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+  background: rgba(14, 14, 14, 0.35) !important;
+}
+.mimo-part > summary,
 .mimo-part--flat > summary {
+  list-style: none !important;
+  cursor: pointer !important;
   display: flex !important;
   align-items: center !important;
   gap: 6px !important;
-  padding: 2px 0 !important;
-  cursor: pointer;
-  list-style: none !important;
+  padding: 4px 8px !important;
+  min-height: 24px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  background: #141414 !important;
+  border: none !important;
+  border-bottom: 1px solid #1e1e1e !important;
+  border-radius: 0 !important;
+  color: #808080 !important;
   font-size: 12px !important;
-  color: #b0b0b0 !important;
 }
-.mimo-part--flat > summary::-webkit-details-marker { display: none; }
+.mimo-part > summary::-webkit-details-marker,
+.mimo-part--flat > summary::-webkit-details-marker {
+  display: none !important;
+}
+.mimo-part > summary:hover,
+.mimo-part--flat > summary:hover {
+  background: #181818 !important;
+  color: #c8c8c8 !important;
+}
 .mimo-part-title {
-  color: #FF6A00 !important;
-  font-weight: 600 !important;
-  font-family: "Cascadia Mono", Consolas, monospace !important;
+  color: #eeeeee !important;
+  font-weight: 500 !important;
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace !important;
   font-size: 12px !important;
+  letter-spacing: 0.01em !important;
+  flex: 0 0 auto !important;
 }
 .mimo-part-meta {
-  color: #707070 !important;
+  margin-left: auto !important;
+  color: #808080 !important;
   font-size: 11px !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
   white-space: nowrap !important;
-  flex: 1 !important;
+  max-width: 42% !important;
   min-width: 0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  flex: 0 1 auto !important;
 }
 .mimo-part-body {
-  margin: 2px 0 4px 14px !important;
-  padding: 0 !important;
+  margin: 0 !important;
+  padding: 4px 0 6px !important;
   border: none !important;
-  background: transparent !important;
+  border-top: 1px solid #1e1e1e !important;
+  background: rgba(12, 12, 12, 0.4) !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 .mimo-io--flat {
   border: none !important;
   background: transparent !important;
-  padding: 0 !important;
+  padding: 2px 0 0 !important;
 }
 .mimo-io-k {
   color: #606060 !important;
@@ -1272,7 +1309,7 @@ body.mimo-busy #btn-abort {
 .mimo-io-hr {
   border: none !important;
   border-top: 1px solid #2a2a2a !important;
-  margin: 4px 0 !important;
+  margin: 4px 8px !important;
 }
 .mimo-io-v {
   margin: 0 !important;
@@ -1283,7 +1320,13 @@ body.mimo-busy #btn-abort {
   line-height: 1.35 !important;
   color: #c8c8c8 !important;
 }
-
+.mimo-part[open] > summary .mimo-chev,
+.mimo-part--flat[open] > summary .mimo-chev {
+  color: #FF6A00 !important;
+}
+.mimo-part[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
 .mimo-session-meta {
   display: flex !important;
   justify-content: space-between !important;
