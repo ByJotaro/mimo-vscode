@@ -923,13 +923,16 @@ function handleLocalSlash(full: string): boolean {
         }
       }
       post({ type: 'setMode', mode: selectedMode });
+      showToast('mode · ' + selectedMode);
       if (statusLabel) statusLabel.textContent = 'mode ' + selectedMode;
     } else if (modeSelect) {
       modeSelect.focus();
+      showToast('pick mode');
     }
     return true;
   }
   if (cmd === 'sessions' || cmd === 'history') {
+    showToast('history');
     showHistoryPanel([{ id: '_loading', title: 'Loading…' }]);
     post({ type: 'fetchSessions', history: true });
     return true;
