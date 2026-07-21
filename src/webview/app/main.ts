@@ -826,6 +826,9 @@ btnHome?.addEventListener('click', () => {
   activeSessionId = '';
   titleEl.textContent = 'MiMo Code';
   document.getElementById('mimo-history-panel')?.remove();
+  chat.innerHTML = '';
+  // Optimistic home paint while host reloads session list
+  showStartup([]);
   post({ type: 'goHome' });
 });
 btnUndo?.addEventListener('click', () => post({ type: 'undoLast' }));
@@ -886,8 +889,11 @@ if (Array.isArray(message.modes) && message.modes.length) {
         );
         selectedModel = message.selectedModel || message.models[0]?.fullId || '';
       }
-      if (message.metadataOnly && activeSessionId) break;
-      // Home / goHome always forces startup (logo + recent), even if a session was open
+      // Home / goHome always forces startup (logo + recent). metadataOnly only
+      // refreshes models when a session is open AND host is not asking for home.
+      if (message.metadataOnly && activeSessionId && message.showStartupChooser !== true) {
+        break;
+      }
       if (message.showStartupChooser === true) {
         activeSessionId = '';
         titleEl.textContent = 'MiMo Code';

@@ -34,9 +34,9 @@ const EXPAND = 1.5;
 const GAIN = 2.0;
 const WIDTH = 0.76;
 /** Hard ceiling — OOM root was unbounded spawn per frame */
-const MAX_PARTICLES = 90;
-const GATHER_CAP = 45;
-const GATHER_SPAWN_EVERY_MS = 48;
+const MAX_PARTICLES = 120;
+const GATHER_CAP = 60;
+const GATHER_SPAWN_EVERY_MS = 36;
 
 type Cell = {
   ch: string;
