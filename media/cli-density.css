@@ -2808,3 +2808,28 @@ textarea::placeholder {
 .mimo-part:not([open]) > summary {
   min-height: 22px !important;
 }
+
+/* beta.158 tool strip when meta empty — title still fills strip window */
+.mimo-part > summary .mimo-part-meta:empty {
+  display: none !important;
+}
+.mimo-part > summary .mimo-part-title:only-of-type,
+.mimo-part > summary .mimo-part-title {
+  flex: 1 1 auto !important;
+}
+/* denser tool open body IO label column */
+.mimo-part-body .mimo-io-k {
+  color: #606060 !important;
+}
+/* sticky chat top mask denser */
+#chat::before {
+  content: '' !important;
+  position: sticky !important;
+  top: 0 !important;
+  display: block !important;
+  height: 8px !important;
+  margin-bottom: -8px !important;
+  background: linear-gradient(180deg, #0a0a0a, transparent) !important;
+  pointer-events: none !important;
+  z-index: 4 !important;
+}

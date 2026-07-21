@@ -1379,9 +1379,13 @@ if (Array.isArray(message.modes) && message.modes.length) {
         statusLabel.classList.add('is-flash');
         setTimeout(() => statusLabel?.classList.remove('is-flash'), 600);
       }
-      if (typeof showToast === 'function') {
+      {
         const n = document.querySelectorAll('.message .mimo-part').length;
-        /* soft */ showToast(n ? ('turn done · ' + n + ' tools') : 'turn done', 1200);
+        // only toast when tools present (CLI denser, less noise)
+        if (n > 0) showToast('turn done · ' + n + ' tools', 1100);
+        else if (statusLabel && !statusLabel.dataset.server) {
+          statusLabel.textContent = 'done';
+        }
       }
       document.querySelectorAll('.message.is-streaming').forEach((el) => {
         el.classList.remove('is-streaming');
