@@ -1301,3 +1301,32 @@ body.mimo-busy #btn-abort {
   display: block !important;
   margin-top: 2px !important;
 }
+
+.session-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 20 !important;
+  box-shadow: 0 1px 0 #1e1e1e !important;
+}
+.mimo-startup-label {
+  color: #FF6A00 !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.12em !important;
+  margin: 4px 0 8px !important;
+}
+/* Soft fade at top of chat when scrolled */
+.chat-area {
+  mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 6px, #000 calc(100% - 4px), transparent 100%);
+}
+/* User bubble less heavy */
+.message.user {
+  background: #121212 !important;
+  border-color: #2a2a2a !important;
+}
+/* Diff headers denser */
+.mimo-diff-line--meta {
+  color: #808080 !important;
+  font-size: 11px !important;
+}

@@ -856,6 +856,13 @@ function handleLocalSlash(full: string): boolean {
     if (statusLabel) statusLabel.textContent = 'usage…';
     return true;
   }
+  if (cmd === 'details') {
+    const parts = Array.from(document.querySelectorAll('details.mimo-part')) as HTMLDetailsElement[];
+    const anyClosed = parts.some((p) => !p.open);
+    parts.forEach((p) => { p.open = anyClosed; });
+    if (statusLabel) statusLabel.textContent = anyClosed ? 'details open' : 'details closed';
+    return true;
+  }
   if (cmd === 'help') {
     appendOrUpdateMessage({
       id: 'sys_help_' + Date.now(),
