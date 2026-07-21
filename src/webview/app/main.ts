@@ -1384,6 +1384,14 @@ if (Array.isArray(message.modes) && message.modes.length) {
           text: message.text,
         });
       }
+      // streamDone resync — pull finalized tools from host after short settle
+      if (activeSessionId) {
+        setTimeout(() => {
+          if (activeSessionId && !busy) {
+            post({ type: 'selectSession', sessionId: activeSessionId, soft: true });
+          }
+        }, 400);
+      }
       break;
     case 'sendState':
       setBusy(message.busy === true);

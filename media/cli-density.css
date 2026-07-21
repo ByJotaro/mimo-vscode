@@ -2457,3 +2457,41 @@ textarea::placeholder {
   color: #555 !important;
   font-family: "Cascadia Mono", Consolas, monospace !important;
 }
+
+.message.bot .message-content {
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+  color: #eeeeee !important;
+}
+.message.user .message-content {
+  font-size: 13px !important;
+  line-height: 1.25 !important;
+}
+/* Tool strip title never wrap awkwardly */
+.mimo-part > summary {
+  flex-wrap: nowrap !important;
+  overflow: hidden !important;
+}
+
+.mimo-error-card {
+  border-left: 3px solid #c44 !important;
+  background: #141414 !important;
+  padding: 10px 12px !important;
+  border-radius: 0 4px 4px 0 !important;
+  margin: 12px !important;
+}
+.mimo-error-title {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  color: #e88 !important;
+  font-weight: 600 !important;
+  margin-bottom: 6px !important;
+}
+.mimo-error-actions button {
+  border-left: 2px solid #3c3c3c !important;
+  background: #121212 !important;
+  margin-right: 6px !important;
+  border-radius: 0 3px 3px 0 !important;
+}
+.mimo-error-actions button.primary {
+  border-left-color: #FF6A00 !important;
+}
