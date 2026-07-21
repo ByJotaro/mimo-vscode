@@ -2433,3 +2433,27 @@ a.mimo-ext-link:hover {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+#btn-send,
+.btn-send,
+button.send {
+  border-left: 2px solid #FF6A00 !important;
+  background: #141414 !important;
+  color: #eeeeee !important;
+  border-radius: 0 3px 3px 0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+}
+#btn-send:hover,
+.btn-send:hover {
+  background: #1a1a1a !important;
+}
+#btn-send.is-busy {
+  opacity: 0.7 !important;
+  animation: mimo-busy-pulse 1.1s ease-in-out infinite !important;
+}
+/* Placeholder denser CLI */
+#prompt::placeholder,
+textarea::placeholder {
+  color: #555 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+}

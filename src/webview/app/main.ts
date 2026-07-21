@@ -1327,6 +1327,8 @@ if (Array.isArray(message.modes) && message.modes.length) {
         pinBottom: meta.pinBottom !== false && meta.source !== 'loadMore',
       });
       loadMoreInFlight = false;
+      // focus after sessionData
+      setTimeout(() => promptEl?.focus(), 50);
       setInputEnabled(true);
       setTimeout(() => promptEl?.focus(), 40);
       break;
