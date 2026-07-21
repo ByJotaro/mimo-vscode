@@ -179,6 +179,12 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
       }
     });
   });
+  const chev = det.querySelector('.mimo-chev');
+  if (chev) chev.textContent = det.open ? '▾' : '▸';
+  det.addEventListener('toggle', () => {
+    const ch = det.querySelector('.mimo-chev');
+    if (ch) ch.textContent = det.open ? '▾' : '▸';
+  });
   return det;
 }
 
@@ -846,7 +852,16 @@ btnHistoryTop?.addEventListener('click', () => {
 });
 btnSend?.addEventListener('click', doSend);
 btnAbort?.addEventListener('click', () => post({ type: 'abort' }));
-promptEl?.addEventListener('input', onPromptInput);
+function autoResizePrompt(): void {
+  if (!promptEl) return;
+  promptEl.style.height = 'auto';
+  const h = Math.min(160, Math.max(44, promptEl.scrollHeight));
+  promptEl.style.height = h + 'px';
+}
+promptEl?.addEventListener('input', () => {
+  autoResizePrompt();
+  onPromptInput();
+});
 promptEl?.addEventListener('keydown', (e) => {
   if (!document.getElementById('slash-overlay')?.hidden) {
     const items = Array.from(document.querySelectorAll('.slash-item'));
