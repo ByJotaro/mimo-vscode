@@ -1532,24 +1532,35 @@ function showPermission(req: {
       </div>
     </div>`;
   document.body.appendChild(ov);
-  ov.querySelectorAll('button[data-r]').forEach((b) => {
-    b.addEventListener('click', () => {
-      const r = (b as HTMLElement).dataset.r || 'once';
-      post({
-        type: 'permissionReply',
-        sessionId: req.sessionId || activeSessionId,
-        permissionId: req.permissionId,
-        response: r,
-      });
-      ov.remove();
-      if (statusLabel) {
-        statusLabel.textContent =
-          r === 'reject' ? 'rejected' : r === 'always' ? 'allowed always' : 'allowed once';
-        statusLabel.classList.add('is-flash');
-        setTimeout(() => statusLabel?.classList.remove('is-flash'), 800);
-      }
+  const reply = (r: string) => {
+    post({
+      type: 'permissionReply',
+      sessionId: req.sessionId || activeSessionId,
+      permissionId: req.permissionId,
+      response: r,
     });
+    ov.remove();
+    window.removeEventListener('keydown', onPermKey);
+    if (statusLabel) {
+      statusLabel.textContent =
+        r === 'reject' ? 'rejected' : r === 'always' ? 'allowed always' : 'allowed once';
+      statusLabel.classList.add('is-flash');
+      setTimeout(() => statusLabel?.classList.remove('is-flash'), 800);
+    }
+  };
+  ov.querySelectorAll('button[data-r]').forEach((b) => {
+    b.addEventListener('click', () => reply((b as HTMLElement).dataset.r || 'once'));
   });
+  /* perm-keys */
+  const onPermKey = (e: KeyboardEvent) => {
+    if (e.key === '1' || e.key === 'o') { e.preventDefault(); reply('once'); }
+    else if (e.key === '2' || e.key === 'a') { e.preventDefault(); reply('always'); }
+    else if (e.key === '3' || e.key === 'r' || e.key === 'Escape') {
+      e.preventDefault();
+      reply('reject');
+    }
+  };
+  window.addEventListener('keydown', onPermKey);
 }
 
 function showQuestion(req: {
