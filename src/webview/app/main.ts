@@ -403,7 +403,12 @@ function formatMarkdownLite(text: string): string {
     }
     if (/^[-*]\s+/.test(line)) {
       flush();
-      blocks.push(`<li>${inlineMd(line.replace(/^[-*]\s+/, ''))}</li>`);
+      blocks.push(`<li data-list="ul">${inlineMd(line.replace(/^[-*]\s+/, ''))}</li>`);
+      continue;
+    }
+    if (/^\d+\.\s+/.test(line)) {
+      flush();
+      blocks.push(`<li data-list="ol">${inlineMd(line.replace(/^\d+\.\s+/, ''))}</li>`);
       continue;
     }
     buf.push(line);
@@ -412,7 +417,13 @@ function formatMarkdownLite(text: string): string {
   flushTable();
   flush();
   let html = blocks.join('\n');
-  html = html.replace(/(?:<li>[\s\S]*?<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`);
+  // Group consecutive <li> into ul/ol by data-list
+  html = html.replace(/(?:<li data-list="ul">[\s\S]*?<\/li>\n?)+/g, (m) => {
+    return `<ul>${m.replace(/\s*data-list="ul"/g, '')}</ul>`;
+  });
+  html = html.replace(/(?:<li data-list="ol">[\s\S]*?<\/li>\n?)+/g, (m) => {
+    return `<ol>${m.replace(/\s*data-list="ol"/g, '')}</ol>`;
+  });
   return html || '';
 }
 
