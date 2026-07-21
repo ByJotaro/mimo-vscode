@@ -119,6 +119,18 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             this.post({ type: 'permissionCleared', permissionId: msg.permissionId });
           }
           break;
+        case 'questionReply':
+          if (typeof msg.sessionId === 'string' && typeof msg.callId === 'string') {
+            const answers = Array.isArray(msg.answers) ? msg.answers : [msg.answer || msg.value || ''];
+            await this.client.respondQuestion(
+              msg.sessionId,
+              msg.callId,
+              answers,
+              typeof msg.requestId === 'string' ? msg.requestId : undefined
+            );
+            this.post({ type: 'questionCleared', callId: msg.callId });
+          }
+          break;
         case 'ui-debug':
           if (Array.isArray(msg.payload)) {
             this.log.appendLine(msg.payload.map(String).join(' '));
@@ -431,9 +443,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
     if (ev.type === 'part' && ev.part) {
       if (sid && this.currentSessionId && sid !== this.currentSessionId) return;
+      // Mid-turn: tool/thinking cards stream into the live assistant bubble immediately
       const card = formatPartForDisplay(ev.part);
       if (card) {
-        this.liveBuffer += card;
+        // Prefer append with separators so consecutive tools stay distinct
+        const sep = this.liveBuffer && !this.liveBuffer.endsWith('\n') ? '\n' : '';
+        this.liveBuffer += sep + card;
         this.post({
           type: 'streamUpdate',
           sessionId: sid,
@@ -480,6 +495,21 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
     if (ev.type === 'permissionReplied') {
       this.post({ type: 'permissionCleared', permissionId: (ev as any).permissionId });
+    }
+    if (ev.type === 'question') {
+      this.post({
+        type: 'questionOverlay',
+        sessionId: (ev as any).sessionId || this.currentSessionId,
+        callId: (ev as any).callId,
+        requestId: (ev as any).requestId,
+        title: (ev as any).title,
+        prompt: (ev as any).prompt,
+        options: (ev as any).options,
+        questions: (ev as any).questions,
+      });
+    }
+    if (ev.type === 'questionCleared') {
+      this.post({ type: 'questionCleared', callId: (ev as any).callId });
     }
   }
 

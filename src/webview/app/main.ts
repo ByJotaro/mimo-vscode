@@ -714,6 +714,20 @@ if (Array.isArray(message.modes) && message.modes.length) {
     case 'permissionCleared':
       document.getElementById('permission-overlay')?.remove();
       break;
+    case 'questionOverlay':
+      showQuestion({
+        sessionId: message.sessionId,
+        callId: message.callId,
+        requestId: message.requestId,
+        title: message.title,
+        prompt: message.prompt,
+        options: Array.isArray(message.options) ? message.options : [],
+        questions: Array.isArray(message.questions) ? message.questions : [],
+      });
+      break;
+    case 'questionCleared':
+      document.getElementById('question-overlay')?.remove();
+      break;
     case 'serverStatus':
       if (statusLabel)
         statusLabel.textContent = `${message.status || ''}${message.detail ? ' ' + message.detail : ''}`.slice(
@@ -826,6 +840,118 @@ function showPermission(req: {
       ov.remove();
     });
   });
+}
+
+function showQuestion(req: {
+  sessionId?: string;
+  callId: string;
+  requestId?: string;
+  title?: string;
+  prompt?: string;
+  options: Array<{ label: string; description?: string; value?: string }>;
+  questions: Array<{
+    title: string;
+    prompt: string;
+    options: Array<{ label: string; description?: string; value?: string }>;
+    multiple?: boolean;
+  }>;
+}): void {
+  document.getElementById('question-overlay')?.remove();
+  const items =
+    req.questions && req.questions.length
+      ? req.questions
+      : [
+          {
+            title: req.title || 'Question',
+            prompt: req.prompt || '',
+            options: req.options || [],
+            multiple: false,
+          },
+        ];
+  const ov = document.createElement('div');
+  ov.id = 'question-overlay';
+  ov.className = 'permission-overlay question-overlay';
+  const card = document.createElement('div');
+  card.className = 'permission-card question-card';
+  const answers: string[][] = items.map(() => []);
+
+  items.forEach((q, qi) => {
+    const block = document.createElement('div');
+    block.className = 'question-block';
+    block.innerHTML = `<div class="permission-title">${escHtml(q.title || 'Question')}</div>
+      <div class="permission-body">${escHtml(q.prompt || '')}</div>`;
+    const list = document.createElement('div');
+    list.className = 'question-options';
+    (q.options || []).forEach((opt, oi) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'question-opt';
+      btn.innerHTML = `<span class="question-opt-label">${escHtml(opt.label)}</span>${
+        opt.description
+          ? `<span class="question-opt-desc">${escHtml(opt.description)}</span>`
+          : ''
+      }`;
+      btn.addEventListener('click', () => {
+        const val = opt.value || opt.label;
+        if (q.multiple) {
+          const idx = answers[qi].indexOf(val);
+          if (idx >= 0) {
+            answers[qi].splice(idx, 1);
+            btn.classList.remove('selected');
+          } else {
+            answers[qi].push(val);
+            btn.classList.add('selected');
+          }
+        } else {
+          answers[qi] = [val];
+          list.querySelectorAll('.question-opt').forEach((b) => b.classList.remove('selected'));
+          btn.classList.add('selected');
+        }
+      });
+      list.appendChild(btn);
+    });
+    block.appendChild(list);
+    card.appendChild(block);
+  });
+
+  const actions = document.createElement('div');
+  actions.className = 'permission-actions';
+  const submit = document.createElement('button');
+  submit.type = 'button';
+  submit.textContent = 'Submit';
+  submit.addEventListener('click', () => {
+    const flat = answers.map((a) => (a.length ? a[0] : '')).filter(Boolean);
+    if (!flat.length && items[0]?.options?.[0]) {
+      flat.push(items[0].options[0].value || items[0].options[0].label);
+    }
+    post({
+      type: 'questionReply',
+      sessionId: req.sessionId || activeSessionId,
+      callId: req.callId,
+      requestId: req.requestId,
+      answers: flat,
+    });
+    ov.remove();
+  });
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'danger';
+  cancel.textContent = 'Skip';
+  cancel.addEventListener('click', () => {
+    post({
+      type: 'questionReply',
+      sessionId: req.sessionId || activeSessionId,
+      callId: req.callId,
+      requestId: req.requestId,
+      answers: ['skip'],
+    });
+    ov.remove();
+  });
+  actions.appendChild(submit);
+  actions.appendChild(cancel);
+  card.appendChild(actions);
+  ov.appendChild(card);
+  document.body.appendChild(ov);
 }
 
 post({ type: 'ready' });

@@ -1,0 +1,101 @@
+/**
+ * Rebuild VS Code extensions.json so mimo.mimo-vscode is registered
+ * and corrupted nested {value,Count} wrappers are flattened.
+ */
+import fs from 'fs';
+import path from 'path';
+
+const extRoot = path.join(process.env.USERPROFILE || '', '.vscode', 'extensions');
+const ej = path.join(extRoot, 'extensions.json');
+const obs = path.join(extRoot, '.obsolete');
+
+function unixPath(p) {
+  let s = p.replace(/\\/g, '/');
+  if (/^[A-Za-z]:/.test(s)) s = '/' + s;
+  return s.toLowerCase();
+}
+
+function flatten(node, out) {
+  if (!node) return;
+  if (Array.isArray(node)) {
+    for (const x of node) flatten(x, out);
+    return;
+  }
+  if (typeof node !== 'object') return;
+  if (node.identifier && node.identifier.id) {
+    out.push(node);
+    return;
+  }
+  if (node.value) flatten(node.value, out);
+}
+
+let old = [];
+try {
+  flatten(JSON.parse(fs.readFileSync(ej, 'utf8')), old);
+} catch (e) {
+  console.log('old_parse_err', e.message);
+}
+
+const byId = new Map();
+for (const e of old) {
+  if (!e?.identifier?.id) continue;
+  if (e.identifier.id === 'mimo.mimo-vscode') continue;
+  byId.set(e.identifier.id, e);
+}
+
+// Prefer disk folder for mimo
+const preferred = ['mimo.mimo-vscode-1.0.0-beta.6', 'mimo.mimo-vscode-1.0.0-beta.5'];
+let mimoFolder = preferred.find((f) => fs.existsSync(path.join(extRoot, f, 'package.json')));
+if (!mimoFolder) {
+  const hit = fs
+    .readdirSync(extRoot)
+    .find((n) => n.startsWith('mimo.mimo-vscode-') && fs.existsSync(path.join(extRoot, n, 'package.json')));
+  mimoFolder = hit;
+}
+
+const out = [...byId.values()];
+if (mimoFolder) {
+  const dir = path.join(extRoot, mimoFolder);
+  const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+  out.push({
+    identifier: { id: 'mimo.mimo-vscode' },
+    version: pkg.version || '1.0.0-beta.6',
+    location: { $mid: 1, path: unixPath(dir), scheme: 'file' },
+    relativeLocation: mimoFolder,
+    metadata: {
+      installedTimestamp: Date.now(),
+      pinned: false,
+      source: 'vsix',
+      id: 'mimo.mimo-vscode',
+      publisherDisplayName: 'mimo',
+      publisherId: 'mimo',
+      isApplicationScoped: false,
+      isMachineScoped: false,
+      isBuiltin: false,
+      isPreReleaseVersion: true,
+      hasPreReleaseVersion: true,
+      preRelease: true,
+    },
+  });
+}
+
+// Normalize $mid
+for (const e of out) {
+  if (e.location) {
+    if (e.location.mid != null && e.location.$mid == null) e.location.$mid = e.location.mid;
+    delete e.location.mid;
+    if (e.location.$mid == null) e.location.$mid = 1;
+  }
+}
+
+fs.writeFileSync(ej, JSON.stringify(out), 'utf8');
+fs.writeFileSync(obs, '{}', 'utf8');
+console.log(
+  'ok count=',
+  out.length,
+  'mimo=',
+  out
+    .filter((x) => String(x.identifier?.id || '').includes('mimo'))
+    .map((x) => `${x.identifier.id}@${x.version}`)
+    .join(',')
+);

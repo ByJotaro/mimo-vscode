@@ -11,6 +11,13 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { getMimoBin } from '../db/paths';
 
+export type QuestionOption = { label: string; description?: string; value?: string };
+export type QuestionItem = {
+  title: string;
+  prompt: string;
+  options: QuestionOption[];
+  multiple?: boolean;
+};
 export type ChatEvent =
   | { type: 'text'; text: string; messageId?: string; sessionId?: string }
   | { type: 'part'; part: any; messageId?: string; sessionId?: string }
@@ -24,7 +31,18 @@ export type ChatEvent =
       permission?: string;
       patterns?: string[];
     }
-  | { type: 'permissionReplied'; sessionId?: string; permissionId: string };
+  | { type: 'permissionReplied'; sessionId?: string; permissionId: string }
+  | {
+      type: 'question';
+      sessionId?: string;
+      callId: string;
+      requestId?: string;
+      title: string;
+      prompt: string;
+      options: QuestionOption[];
+      questions: QuestionItem[];
+    }
+  | { type: 'questionCleared'; sessionId?: string; callId?: string };
 
 type ServerLock = {
   workspaceRoot: string;
@@ -448,6 +466,11 @@ export class MimoClient {
 
       if (/message\.part|part\.updated|part\.delta/i.test(type)) {
         const part = props.part || props;
+        const q = this.extractQuestion(part);
+        if (q) {
+          this.emit({ type: 'question', sessionId, ...q });
+          return;
+        }
         if (part?.type === 'text' || typeof part?.text === 'string') {
           this.emit({
             type: 'text',
@@ -499,12 +522,153 @@ export class MimoClient {
         }
         return;
       }
+      if (type === 'question.asked' || /question\.asked/i.test(type)) {
+        const q = this.extractQuestion(props);
+        if (q) this.emit({ type: 'question', sessionId, ...q });
+        return;
+      }
+      if (type === 'question.replied' || /question\.replied|question\.cleared/i.test(type)) {
+        this.emit({
+          type: 'questionCleared',
+          sessionId,
+          callId: String(props.callId || props.callID || props.id || ''),
+        });
+        return;
+      }
       if (/error/i.test(type)) {
         this.emit({ type: 'error', error: String(props.message || props.error || type), sessionId });
       }
     } catch {
       /* ignore non-json */
     }
+  }
+
+  private extractQuestion(part: any): {
+    callId: string;
+    requestId?: string;
+    title: string;
+    prompt: string;
+    options: QuestionOption[];
+    questions: QuestionItem[];
+  } | null {
+    if (!part || typeof part !== 'object') return null;
+    const toolName =
+      (typeof part.toolName === 'string' && part.toolName) ||
+      (typeof part.tool === 'string' && part.tool) ||
+      (typeof part.name === 'string' && part.name) ||
+      '';
+    const looksQuestion =
+      toolName === 'question' ||
+      part.type === 'question' ||
+      Array.isArray(part.questions) ||
+      part.question;
+    if (!looksQuestion) return null;
+    const status = part.status ?? part.state?.status ?? part.state;
+    if (status && status !== 'running' && status !== 'pending') return null;
+
+    const callId = String(
+      part.callID || part.callId || part.id || part.tool?.callID || part.tool?.callId || ''
+    );
+    if (!callId && !part.questions && !part.question) return null;
+
+    const input = part.state?.input ?? part.input ?? part;
+    const candidates = Array.isArray(input?.questions)
+      ? input.questions
+      : input?.question
+        ? [input.question]
+        : Array.isArray(part.questions)
+          ? part.questions
+          : part.question
+            ? [part.question]
+            : [];
+
+    const normOpt = (raw: any): QuestionOption[] => {
+      if (!Array.isArray(raw)) return [];
+      return raw
+        .map((o) => {
+          if (typeof o === 'string') return { label: o, value: o };
+          if (!o || typeof o !== 'object') return null;
+          const label = String(o.label || o.name || o.title || o.value || '').trim();
+          if (!label) return null;
+          return {
+            label,
+            description: o.description ? String(o.description) : undefined,
+            value: String(o.value ?? o.id ?? label),
+          };
+        })
+        .filter(Boolean) as QuestionOption[];
+    };
+
+    const questions: QuestionItem[] = [];
+    for (const q of candidates) {
+      const title = String(q?.title ?? q?.header ?? q?.name ?? q?.label ?? '').trim();
+      const prompt = String(
+        q?.prompt ?? q?.question ?? q?.text ?? q?.description ?? ''
+      ).trim();
+      const options = normOpt(q?.options ?? q?.choices);
+      if (!prompt && !title) continue;
+      questions.push({
+        title: title || 'Question',
+        prompt: prompt || title || 'Choose',
+        options: options.length ? options : [{ label: 'OK', value: 'ok' }],
+        multiple: q?.multiple === true,
+      });
+    }
+    if (!questions.length) {
+      const title = String(part.header ?? part.title ?? 'Question').trim();
+      const prompt = String(part.questionText ?? part.prompt ?? part.text ?? '').trim();
+      const options = normOpt(input?.options ?? input?.choices ?? part.options ?? part.choices);
+      if (!prompt && !options.length) return null;
+      questions.push({
+        title,
+        prompt: prompt || title,
+        options: options.length ? options : [{ label: 'OK', value: 'ok' }],
+      });
+    }
+    const first = questions[0];
+    return {
+      callId: callId || `q_${Date.now()}`,
+      requestId: String(
+        part.requestID || part.requestId || part.tool?.requestID || part.id || ''
+      ) || undefined,
+      title: first.title,
+      prompt: first.prompt,
+      options: first.options,
+      questions,
+    };
+  }
+
+  /** Reply to interactive question tool */
+  async respondQuestion(
+    sessionId: string,
+    callId: string,
+    answers: Array<{ label?: string; value?: string } | string>,
+    requestId?: string
+  ): Promise<void> {
+    await this.ensureServer();
+    const body = {
+      answers: answers.map((a) =>
+        typeof a === 'string' ? { value: a, label: a } : a
+      ),
+      callID: callId,
+      callId,
+    };
+    const rid = requestId || callId;
+    try {
+      await this.request(
+        'POST',
+        `/question/${encodeURIComponent(rid)}/reply?directory=${encodeURIComponent(this.workspaceRoot)}`,
+        body
+      );
+      return;
+    } catch {
+      /* fallback */
+    }
+    await this.request(
+      'POST',
+      `/session/${encodeURIComponent(sessionId)}/question/${encodeURIComponent(rid)}/reply`,
+      body
+    );
   }
 
   /** Dispose only our spawned process — never blanket-kill mimo. */
