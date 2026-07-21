@@ -1921,3 +1921,20 @@ a.mimo-ext-link:hover {
   color: #a0a0a0 !important;
   font-size: 10px !important;
 }
+
+.mimo-part--error {
+  border-left-color: #c44 !important;
+}
+.mimo-part--error > summary .mimo-part-title {
+  color: #e88 !important;
+}
+.mimo-part--error[open] {
+  border-left-color: #f66 !important;
+}
+.mimo-toast {
+  border-left: 2px solid #FF6A00 !important;
+  background: #141414 !important;
+  border-radius: 0 4px 4px 0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+}
