@@ -329,7 +329,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       });
       // Prefer loading forked history from DB when available
       await this.selectSession(s.id);
-      this.log.appendLine(`[FORK] from=${from} to=${s.id}`);
+      this.post({ type: 'toast', text: 'Forked → ' + String(s.id).slice(0, 18) });
+      this.log.appendLine(`[FORK] from=${from} to=${s.id}`);this.log.appendLine(`[FORK] from=${from} to=${s.id}`);
     } catch (e) {
       this.post({ type: 'error', error: `fork: ${String(e).slice(0, 200)}` });
     }

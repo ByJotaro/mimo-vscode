@@ -1967,3 +1967,22 @@ a.mimo-ext-link:hover {
 .mimo-thinking[open] > summary {
   background: #121212 !important;
 }
+
+.input-area textarea,
+#prompt,
+.mimo-prompt {
+  border-left: 2px solid #3c3c3c !important;
+  background: #101010 !important;
+}
+.input-area textarea:focus,
+#prompt:focus {
+  border-left-color: #FF6A00 !important;
+  outline: none !important;
+}
+/* Header title mono denser */
+.header-title,
+#sessionTitle {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+  letter-spacing: 0.01em !important;
+}
