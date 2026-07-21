@@ -1745,3 +1745,15 @@ a.mimo-ext-link:hover {
   min-height: 22px !important;
   padding: 3px 8px !important;
 }
+
+.permission-card {
+  border-left: 3px solid #FF6A00 !important;
+  border-top: 1px solid #3a3a3a !important;
+}
+.question-opt.selected {
+  border-left: 3px solid #FF6A00 !important;
+}
+
+.header-actions button:hover {
+  border-left: 2px solid #FF6A00 !important;
+}
