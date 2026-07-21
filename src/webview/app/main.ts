@@ -625,11 +625,16 @@ function handleLocalSlash(full: string): boolean {
     post({ type: 'newSession' });
     return true;
   }
+  if (cmd === 'home') {
+    post({ type: 'goHome' });
+    return true;
+  }
   if (cmd === 'clear') {
     chat.innerHTML = '';
     return true;
   }
   if (cmd === 'sessions' || cmd === 'history') {
+    showHistoryPanel([{ id: '_loading', title: 'Loading…' }]);
     post({ type: 'fetchSessions', history: true });
     return true;
   }
@@ -642,15 +647,41 @@ function handleLocalSlash(full: string): boolean {
     if (modeSelect) modeSelect.value = cmd;
     post({ type: 'setMode', mode: cmd });
     if (rest) {
-      post({ type: 'sendPrompt', text: rest, sessionId: activeSessionId || undefined, mode: cmd, model: selectedModel || undefined });
+      post({
+        type: 'sendPrompt',
+        text: rest,
+        sessionId: activeSessionId || undefined,
+        mode: cmd,
+        model: selectedModel || undefined,
+      });
     }
+    return true;
+  }
+  if (cmd === 'model' && rest) {
+    selectedModel = rest;
+    if (modelSelect) {
+      const opt = Array.from(modelSelect.options).find(
+        (o) => o.value === rest || o.textContent === rest || o.value.endsWith('/' + rest)
+      );
+      if (opt) modelSelect.value = opt.value;
+      else {
+        const o = document.createElement('option');
+        o.value = rest;
+        o.textContent = rest;
+        modelSelect.appendChild(o);
+        modelSelect.value = rest;
+      }
+    }
+    post({ type: 'setModel', model: selectedModel });
     return true;
   }
   if (cmd === 'help') {
     appendOrUpdateMessage({
       id: 'sys_help_' + Date.now(),
       role: 'assistant',
-      text: 'Slash: /new /clear /sessions /history /stop /plan /build /help — and skills like /arxiv, /deep-research (sent to agent).',
+      text:
+        '**Local:** `/new` `/home` `/clear` `/sessions` `/history` `/stop` `/plan` `/build` `/compose` `/model <id>` `/help`\n\n' +
+        '**Agent skills:** type `/` for full catalog (arxiv, deep-research, …).',
     });
     return true;
   }
