@@ -5352,3 +5352,46 @@ body.is-streaming .header {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.219 denser busy body + empty chat + FINAL strip */
+body.is-busy #prompt {
+  border-left-color: #FF6A00 !important;
+}
+body.is-busy #send-btn {
+  opacity: 0.45 !important;
+  pointer-events: none !important;
+}
+.chat-empty,
+.mimo-chat-empty {
+  min-height: 40px !important;
+}
+.message.bot + .message.user {
+  margin-top: 10px !important;
+}
+.message.user + .message.bot {
+  margin-top: 6px !important;
+}
+/* denser fork badge if present */
+.fork-badge,
+.mimo-fork-badge {
+  border-left: 2px solid #569cd6 !important;
+  background: #0e141a !important;
+  color: #9cdcfe !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 10px !important;
+  padding: 1px 6px !important;
+  border-radius: 0 3px 3px 0 !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
