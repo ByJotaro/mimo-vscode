@@ -516,6 +516,7 @@ function showHistoryPanel(sessions: Array<{ id: string; title: string; updated?:
     btn.type = 'button';
     btn.className = 'mimo-session-card';
     const title = (s.title || s.id).replace(/\s+/g, ' ').trim();
+    btn.title = s.id;
     btn.innerHTML = `<div class="mimo-session-title">${escHtml(title)}</div><div class="mimo-session-id">${escHtml(s.id)}</div>`;
     btn.addEventListener('click', () => {
       panel.remove();
@@ -566,6 +567,7 @@ function showStartup(sessions: Array<{ id: string; title: string; updated?: stri
     btn.type = 'button';
     btn.className = 'mimo-session-card';
     const title = (s.title || s.id).replace(/\s+/g, ' ').trim();
+    btn.title = s.id;
     btn.innerHTML = `<div class="mimo-session-title">${escHtml(title)}</div><div class="mimo-session-id">${escHtml(s.id)}</div>`;
     btn.addEventListener('click', () => {
       showLoading(title);

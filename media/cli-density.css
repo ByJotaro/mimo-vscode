@@ -748,3 +748,12 @@ body.mimo-busy #status-label {
 .mimo-history-list .mimo-session-card {
   padding: 8px 10px !important;
 }
+
+/* Home recent: title-only cards (id on hover via title attr set in JS next) */
+.mimo-startup-list .mimo-session-id {
+  display: none !important;
+}
+.mimo-history-list .mimo-session-id {
+  display: block !important;
+  opacity: 0.7;
+}
