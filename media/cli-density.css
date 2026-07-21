@@ -2904,3 +2904,28 @@ select#model {
 #statusLabel.is-busy {
   letter-spacing: 0.02em !important;
 }
+
+/* beta.162 live thought denser circle */
+.mimo-dur--circle {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 28px !important;
+  height: 16px !important;
+  border-radius: 8px !important;
+  border: 1px solid #333 !important;
+  background: #101010 !important;
+  color: #a0a0a0 !important;
+  font-size: 10px !important;
+  margin-left: 6px !important;
+}
+.message.is-streaming .mimo-thinking[open] > summary .mimo-thinking-title {
+  color: #FF6A00 !important;
+  animation: mimo-busy-pulse 1.2s ease-in-out infinite !important;
+}
+.mimo-thinking[open] {
+  border-left-color: #505050 !important;
+}
+.message.is-streaming .mimo-thinking[open] {
+  border-left-color: #FF6A00 !important;
+}

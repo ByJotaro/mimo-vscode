@@ -1369,9 +1369,16 @@ if (Array.isArray(message.modes) && message.modes.length) {
         role: 'assistant',
         text: message.text || '',
       });
-      document
-        .querySelector(`.message[data-id="${CSS.escape(String(message.messageId || 'live'))}"]`)
-        ?.classList.add('is-streaming');
+      {
+        const live = document.querySelector(
+          `.message[data-id="${CSS.escape(String(message.messageId || 'live'))}"]`
+        ) as HTMLElement | null;
+        live?.classList.add('is-streaming');
+        // open thoughts live while streaming (CLI)
+        live?.querySelectorAll('details.mimo-thinking:not([open])').forEach((d) => {
+          (d as HTMLDetailsElement).open = true;
+        });
+      }
       // last-open-tool-scroll
       {
         const lastOpen = document.querySelector(
