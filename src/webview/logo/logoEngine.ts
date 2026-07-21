@@ -276,11 +276,11 @@ export function paintLogo(host: HTMLElement): LogoHandle {
       if (advance * grid.cols <= avail || fs <= 14) break;
       fs -= 1;
     }
-    // v1: fontSize = advance so █ fills square edge-to-edge.
-    // Slight vertical room so half-blocks (▀▄) don't look squashed in webview DPR.
+    // v1: fontSize = advance so █ fills square edge-to-edge (pixel-perfect abutting).
+    // Keep cells square — vertical stretch opened seams between half-blocks.
     fontSize = advance;
     cellW = advance;
-    cellH = Math.max(advance, Math.round(advance * 1.12));
+    cellH = advance;
     W = grid.cols * cellW;
     H = grid.rows * cellH;
     canvas.width = Math.floor(W * dpr);
