@@ -730,3 +730,21 @@ body.mimo-busy #status-label {
   font-size: 11px;
   color: #505050;
 }
+
+/* When tool open, dim the one-line preview (body has full IN) */
+.mimo-part[open] > summary .mimo-part-meta {
+  opacity: 0.45;
+}
+.mimo-io-v--cmd.is-clamped {
+  cursor: pointer;
+  max-height: calc(1.35em * 5);
+  overflow: hidden;
+}
+.mimo-io-v--cmd.is-expanded {
+  max-height: 280px !important;
+  overflow: auto !important;
+}
+/* History list denser */
+.mimo-history-list .mimo-session-card {
+  padding: 8px 10px !important;
+}
