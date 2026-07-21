@@ -1317,15 +1317,18 @@ window.addEventListener('keydown', (e) => {
   // Ctrl/Cmd+. → abort when busy
   if (k === '.' && busy) {
     e.preventDefault();
+    showToast('stopping…');
     post({ type: 'abort' });
   }
 });
 modeSelect?.addEventListener('change', () => {
   selectedMode = modeSelect.value;
+  showToast('mode · ' + selectedMode);
   post({ type: 'setMode', mode: selectedMode });
 });
 modelSelect?.addEventListener('change', () => {
   selectedModel = modelSelect.value;
+  showToast('model · ' + selectedModel);
   post({ type: 'setModel', model: selectedModel });
 });
 
