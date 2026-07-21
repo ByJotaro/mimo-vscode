@@ -1801,3 +1801,15 @@ a.mimo-ext-link:hover {
   border-left: none !important;
   margin: 0 !important;
 }
+
+/* Tool body open — soft expand under title strip */
+.mimo-part[open] > .mimo-part-body {
+  animation: mimo-expand 0.14s ease both;
+}
+/* Title strip separator more visible like v1 */
+.mimo-part > summary {
+  border-bottom: 1px solid #242424 !important;
+}
+.mimo-part[open] > summary {
+  border-bottom-color: #2e2e2e !important;
+}

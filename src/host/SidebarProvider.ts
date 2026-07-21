@@ -14,8 +14,8 @@ import { getSlashCommandCatalog } from './cli/slashCatalog';
 import { GitUndoEngine } from './undo/GitUndoEngine';
 
 const HOME_RECENT_CAP = 6;
-const FIRST_LOAD_LIMIT = 48;
-const LOAD_MORE_STEP = 48;
+const FIRST_LOAD_LIMIT = 56;
+const LOAD_MORE_STEP = 56;
 
 /**
  * Thin host router: DB + format + CLI + postMessage.
