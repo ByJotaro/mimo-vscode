@@ -24,6 +24,7 @@ export type ChatEvent =
   | { type: 'done'; sessionId?: string; messageId?: string }
   | { type: 'error'; error: string; sessionId?: string }
   | { type: 'status'; status: string; detail?: string }
+  | { type: 'usage'; sessionId?: string; used?: number; size?: number; amount?: number }
   | {
       type: 'permission';
       sessionId?: string;
@@ -497,6 +498,16 @@ export class MimoClient {
         const st = props.type || props.status || type;
         if (/idle|complete|done/i.test(String(st))) {
           this.emit({ type: 'done', sessionId, messageId });
+        }
+        return;
+      }
+      if (/session\.usage|usage\.updated|message\.usage/i.test(type) || props.tokens || props.usage) {
+        const u = props.usage || props.tokens || props;
+        const used = Number(u.used ?? u.input ?? u.total ?? u.prompt ?? 0) || undefined;
+        const size = Number(u.size ?? u.context ?? u.limit ?? 0) || undefined;
+        const amount = Number(u.amount ?? u.cost ?? u.totalCost ?? 0) || undefined;
+        if (used || size || amount) {
+          this.emit({ type: 'usage', sessionId, used, size, amount });
         }
         return;
       }

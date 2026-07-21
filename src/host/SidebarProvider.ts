@@ -502,6 +502,15 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     if (ev.type === 'status') {
       this.post({ type: 'serverStatus', status: ev.status, detail: (ev as any).detail });
     }
+    if (ev.type === 'usage') {
+      this.post({
+        type: 'sessionUsage',
+        sessionId: (ev as any).sessionId || this.currentSessionId,
+        used: (ev as any).used,
+        size: (ev as any).size,
+        amount: (ev as any).amount,
+      });
+    }
     if (ev.type === 'permission') {
       this.post({
         type: 'permissionRequest',

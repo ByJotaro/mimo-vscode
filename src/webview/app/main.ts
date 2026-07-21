@@ -971,6 +971,21 @@ if (Array.isArray(message.modes) && message.modes.length) {
     case 'questionCleared':
       document.getElementById('question-overlay')?.remove();
       break;
+    case 'sessionUsage': {
+      if (statusLabel && !busy) {
+        const used = Number(message.used || 0);
+        const size = Number(message.size || 0);
+        let t = '';
+        if (used && size) t = Math.round((used / size) * 100) + '% ctx';
+        else if (used) t = (used >= 1000 ? (used / 1000).toFixed(1) + 'k' : String(used)) + ' tok';
+        if (message.amount) t += (t ? ' · ' : '') + '$'+Number(message.amount).toFixed(2);
+        if (t) {
+          statusLabel.dataset.server = t;
+          statusLabel.textContent = t;
+        }
+      }
+      break;
+    }
     case 'serverStatus':
       if (statusLabel) {
         const t = `${message.status || ''}${message.detail ? ' ' + message.detail : ''}`.slice(0, 48);
