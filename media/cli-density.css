@@ -4490,3 +4490,59 @@ body.is-busy #busy-rail,
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.203 denser user msg + load-older sticky + FINAL strip */
+.message.user {
+  border-left: 2px solid #FF6A00 !important;
+  background: #141414 !important;
+  padding: 6px 10px !important;
+  border-radius: 0 4px 4px 0 !important;
+  margin: 6px 0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 13px !important;
+  color: #eeeeee !important;
+}
+.message.user .message-content {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+}
+.mimo-load-older,
+#load-older-strip {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 5 !important;
+  border-left: 2px solid #FF6A00 !important;
+  background: rgba(20,20,20,0.95) !important;
+  backdrop-filter: blur(4px) !important;
+  padding: 4px 8px !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  color: #a0a0a0 !important;
+}
+.mimo-load-older-btn {
+  border-left: 2px solid #3c3c3c !important;
+  background: #1a1a1a !important;
+  color: #c0c0c0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  padding: 3px 8px !important;
+  cursor: pointer !important;
+  border-radius: 0 3px 3px 0 !important;
+}
+.mimo-load-older-btn:hover {
+  border-left-color: #FF6A00 !important;
+  color: #eeeeee !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
