@@ -1219,6 +1219,12 @@ function handleLocalSlash(full: string): boolean {
     });
     return true;
   }
+  if (cmd === 'questions') {
+    const q = document.getElementById('question-overlay');
+    if (q) { showToast('answer question above'); }
+    else { showToast('no pending question'); }
+    return true;
+  }
   if (cmd === 'tasks') {
     showToast('tasks');
     appendOrUpdateMessage({
@@ -2090,6 +2096,7 @@ function showQuestion(req: {
     });
     showToast('answered');
     ov.remove();
+    if (activeSessionId) setTimeout(() => post({ type: 'selectSession', sessionId: activeSessionId, soft: true }), 400);
     if (statusLabel) {
       statusLabel.textContent = 'answered';
       statusLabel.classList.add('is-flash');
