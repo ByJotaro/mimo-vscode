@@ -1153,3 +1153,29 @@ body.mimo-busy #btn-abort {
 .mimo-startup-actions button:hover {
   border-color: #FF6A00 !important;
 }
+
+/* Mode / model bar denser */
+.input-meta select {
+  max-width: 160px !important;
+  min-width: 72px !important;
+  height: 26px !important;
+}
+.input-meta select:focus {
+  border-color: #FF6A00 !important;
+  outline: none !important;
+}
+/* Toast-like status flash */
+#status-label.is-flash {
+  color: #FF6A00 !important;
+  animation: mimo-rise 0.2s ease both;
+}
+/* History panel stronger */
+.mimo-history-panel {
+  animation: mimo-rise 0.18s ease both !important;
+}
+.mimo-history-head h3 {
+  letter-spacing: 0.08em !important;
+  color: #FF6A00 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}

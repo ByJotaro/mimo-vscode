@@ -1054,6 +1054,10 @@ if (Array.isArray(message.modes) && message.modes.length) {
       break;
     case 'streamDone':
       setBusy(false);
+      if (statusLabel) {
+        statusLabel.classList.add('is-flash');
+        setTimeout(() => statusLabel?.classList.remove('is-flash'), 600);
+      }
       document.querySelectorAll('.message.is-streaming').forEach((el) => {
         el.classList.remove('is-streaming');
       });
