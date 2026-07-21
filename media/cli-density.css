@@ -2282,3 +2282,23 @@ a.mimo-ext-link:hover {
   background: #1a1a1a !important;
   border-left: 2px solid #FF6A00 !important;
 }
+
+/* Version status mono strip */
+#statusLabel,
+.status-label {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  color: #909090 !important;
+  border-left: 2px solid #2a2a2a !important;
+  padding-left: 6px !important;
+}
+#statusLabel.is-busy {
+  color: #eeeeee !important;
+}
+/* Load older sticky denser strip */
+.mimo-load-older,
+#loadOlder {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 5 !important;
+}

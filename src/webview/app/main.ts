@@ -1245,7 +1245,7 @@ window.addEventListener('message', (event: MessageEvent) => {
       if (message.version && statusLabel && !busy) {
         statusLabel.dataset.server = String(message.version);
         if (!statusLabel.textContent || statusLabel.textContent === 'v2') {
-          statusLabel.textContent = String(message.version);
+          statusLabel.textContent = 'mimo · ' + String(message.version);
         }
       }
 if (Array.isArray(message.modes) && message.modes.length) {
