@@ -13,6 +13,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(status);
 
   const provider = new SidebarProvider(context.extensionUri, context);
+  context.subscriptions.push({ dispose: () => provider.dispose() });
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider('mimo.sidebar', provider, {
       webviewOptions: { retainContextWhenHidden: true },

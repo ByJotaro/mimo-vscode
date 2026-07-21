@@ -908,4 +908,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 </body>
 </html>`;
   }
+
+  dispose(): void {
+    try {
+      this.client.dispose();
+    } catch {
+      /* ignore */
+    }
+  }
 }
