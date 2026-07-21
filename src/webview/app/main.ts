@@ -1555,6 +1555,8 @@ if (Array.isArray(message.modes) && message.modes.length) {
       const t = String(message.title || '').trim();
       if (t && (!message.sessionId || message.sessionId === activeSessionId)) {
         titleEl.textContent = t;
+        titleEl.classList.add('is-live');
+        setTimeout(() => titleEl.classList.remove('is-live'), 900);
       }
       break;
     }
