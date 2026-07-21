@@ -777,6 +777,16 @@ function setInputEnabled(on: boolean): void {
   if (btnSend) btnSend.disabled = !on || busy;
 }
 
+function showToast(msg: string, ms = 1400): void {
+  document.getElementById('mimo-toast')?.remove();
+  const t = document.createElement('div');
+  t.id = 'mimo-toast';
+  t.className = 'mimo-toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), ms);
+}
+
 function setBusy(on: boolean): void {
   busy = on;
   setInputEnabled(true);
@@ -1526,9 +1536,9 @@ function showPermission(req: {
       <div class="permission-title">Permission</div>
       <div class="permission-body">${escHtml(req.permission || 'allow tool')} ${pats ? '<div class="permission-pats">' + pats + '</div>' : ''}</div>
       <div class="permission-actions">
-        <button type="button" data-r="once">Allow once</button>
-        <button type="button" data-r="always">Allow always</button>
-        <button type="button" data-r="reject" class="danger">Reject</button>
+        <button type="button" data-r="once">Allow once <kbd>1</kbd></button>
+        <button type="button" data-r="always">Always <kbd>2</kbd></button>
+        <button type="button" data-r="reject" class="danger">Reject <kbd>3</kbd></button>
       </div>
     </div>`;
   document.body.appendChild(ov);
