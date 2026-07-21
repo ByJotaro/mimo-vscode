@@ -11,6 +11,7 @@
 }
 
 html, body {
+  color-scheme: dark;
   margin: 0;
   padding: 0;
   height: 100%;
@@ -876,3 +877,169 @@ details[open] > summary .mimo-chev {
 
 /* Status connected tint */
 #status-label { letter-spacing: 0.02em; }
+
+
+/* ===== beta.8.1 scrollbars + logo height ===== */
+html, body, .chat-area {
+  color-scheme: dark;
+}
+/* Firefox */
+.chat-area,
+.mimo-io-pre,
+.mimo-thinking-body,
+.mimo-history-panel,
+.slash-overlay,
+.mimo-diff-sbs {
+  scrollbar-width: thin;
+  scrollbar-color: #FF6A00 #141414;
+}
+/* WebKit / VS Code webview */
+.chat-area::-webkit-scrollbar,
+.mimo-io-pre::-webkit-scrollbar,
+.mimo-thinking-body::-webkit-scrollbar,
+.mimo-history-panel::-webkit-scrollbar,
+.mimo-diff-sbs::-webkit-scrollbar,
+.slash-overlay::-webkit-scrollbar {
+  width: 10px !important;
+  height: 10px !important;
+}
+.chat-area::-webkit-scrollbar-track,
+.mimo-io-pre::-webkit-scrollbar-track,
+.mimo-thinking-body::-webkit-scrollbar-track,
+.mimo-history-panel::-webkit-scrollbar-track {
+  background: #0f0f0f !important;
+  border-left: 1px solid #1e1e1e;
+}
+.chat-area::-webkit-scrollbar-thumb,
+.mimo-io-pre::-webkit-scrollbar-thumb,
+.mimo-thinking-body::-webkit-scrollbar-thumb,
+.mimo-history-panel::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #3c3c3c 0%, #2a2a2a 100%) !important;
+  border-radius: 6px !important;
+  border: 2px solid #0f0f0f !important;
+  min-height: 40px;
+}
+.chat-area::-webkit-scrollbar-thumb:hover,
+.mimo-io-pre::-webkit-scrollbar-thumb:hover {
+  background: #FF6A00 !important;
+  border-color: #0a0a0a !important;
+}
+.chat-area::-webkit-scrollbar-thumb:active {
+  background: #ff8533 !important;
+}
+.chat-area::-webkit-scrollbar-corner {
+  background: #0a0a0a;
+}
+
+/* Logo host — give vertical room so tall cells aren't clipped */
+.mimo-startup-logo,
+.mimo-welcome-logo {
+  overflow: visible !important;
+  min-height: 96px;
+  margin: 16px 0 12px !important;
+}
+.mimo-logo-canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+/* ===== CLI mimocode.json diff (v1 fillDiffPre 1:1) ===== */
+.mimo-io-v--diff {
+  color: #eeeeee !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  max-height: 480px !important;
+  white-space: pre !important;
+  overflow: auto !important;
+  display: block !important;
+  width: 100% !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 2px 0 !important;
+  margin: 0 !important;
+}
+/* Unified colors — mimocode.json */
+.mimo-diff-add { color: #4fd6be !important; background: transparent; }
+.mimo-diff-del { color: #c53b53 !important; background: transparent; }
+.mimo-diff-hunk { color: #828bb8 !important; }
+.mimo-diff-ctx { color: #a0a0a0; }
+
+/* Side-by-side — removed | added */
+.mimo-diff-split {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  width: 100% !important;
+  max-width: 100%;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  overflow: hidden;
+  min-height: 48px;
+  margin: 2px 0 4px;
+  animation: mimo-fade-in 0.18s ease;
+}
+.mimo-diff-col {
+  margin: 0 !important;
+  padding: 8px 10px !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  white-space: pre-wrap !important;
+  word-break: break-word;
+  max-height: 420px;
+  overflow: auto;
+  min-width: 0;
+  display: block;
+  border: none !important;
+  border-radius: 0 !important;
+}
+.mimo-diff-col--del {
+  background: #37222c !important; /* diffRemovedBg */
+  border-right: 1px solid #2a2a2a !important;
+  color: #e26a75 !important; /* diffHighlightRemoved */
+}
+.mimo-diff-col--add {
+  background: #20303b !important; /* diffAddedBg */
+  color: #b8db87 !important; /* diffHighlightAdded */
+}
+.mimo-diff-col-label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8f8f8f;
+  margin-bottom: 6px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-weight: 600;
+}
+.mimo-io-block--out {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+.mimo-io-block--out > .mimo-io-k {
+  color: #606060;
+}
+@media (max-width: 360px) {
+  .mimo-diff-split {
+    grid-template-columns: 1fr;
+  }
+  .mimo-diff-col--del {
+    border-right: none !important;
+    border-bottom: 1px solid #2a2a2a !important;
+  }
+}
+
+/* kill old sbs grid if still present */
+.mimo-diff-sbs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  overflow: hidden;
+  max-height: 420px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.mimo-diff-sbs .mimo-diff-col--del { background: #37222c; color: #e26a75; }
+.mimo-diff-sbs .mimo-diff-col--add { background: #20303b; color: #b8db87; }

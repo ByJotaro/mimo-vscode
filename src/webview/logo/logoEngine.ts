@@ -253,8 +253,9 @@ export function paintLogo(host: HTMLElement): LogoHandle {
     // NEVER set fontSize = advance (that shrinks glyphs and opens seams).
     const avail = Math.max(220, (host.clientWidth || 360) - 8);
     const probe = canvas.getContext('2d')!;
-    let fs = Math.floor(avail / Math.max(1, grid.cols));
-    fs = Math.max(16, Math.min(42, fs));
+    // Size from width; leave headroom so vertical cells stay tall after measure
+    let fs = Math.floor(avail / Math.max(1, grid.cols * 0.92));
+    fs = Math.max(18, Math.min(48, fs));
     let advance = fs;
     let guard = 0;
     while (guard++ < 48) {
@@ -268,14 +269,28 @@ export function paintLogo(host: HTMLElement): LogoHandle {
       if (advance * grid.cols <= avail || fs <= 12) break;
       fs -= 1;
     }
-    // Keep draw font = measurement font. Horizontal pitch = █ advance (abut).
-    // Vertical pitch slightly taller so MIMO CODE rows have breathing room.
+    // Horizontal pitch = █ advance (glyphs abut left-right).
+    // Vertical pitch MUST use glyph HEIGHT (em / bounding box), NOT width —
+    // mono █ advance is often ~0.55–0.65em; using width as cellH crushed rows.
     fontSize = fs;
     probe.font = `600 ${fontSize}px ${LOGO_FONT}`;
-    const verify = probe.measureText('██').width / 2 || probe.measureText('█').width;
-    const pitch = Math.max(1, Math.round(verify > 0 ? verify : advance));
+    const mBlock = probe.measureText('█');
+    const pair = probe.measureText('██').width;
+    const pitch = Math.max(
+      1,
+      Math.round(pair > 0 ? pair / 2 : mBlock.width || advance)
+    );
+    const ascent = Math.abs(mBlock.actualBoundingBoxAscent || 0);
+    const descent = Math.abs(mBlock.actualBoundingBoxDescent || 0);
+    const measuredH =
+      ascent + descent > 2
+        ? Math.ceil(ascent + descent)
+        : Math.ceil(fontSize * 1.05);
+    // Prefer true glyph height; never thinner than fontSize (anti-squash)
+    const glyphH = Math.max(fontSize, measuredH, pitch);
     cellW = pitch;
-    cellH = Math.max(1, Math.round(pitch * 1.22));
+    // Extra vertical breathing so MIMO CODE is tall, not flat
+    cellH = Math.max(glyphH + 2, Math.round(glyphH * 1.12));
     W = grid.cols * cellW;
     H = grid.rows * cellH;
     canvas.width = Math.floor(W * dpr);
@@ -298,9 +313,10 @@ export function paintLogo(host: HTMLElement): LogoHandle {
     }
     const ctx = canvas.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // Left-edge grid (not center): fillText left-aligned at integer cell origin → no seam
+    // Left-edge X; top-baseline Y so each row sits in its own tall cell
     for (const c of grid.cells) {
       c.px = c.gx * cellW;
+      // center glyph vertically inside taller cell
       c.py = c.gy * cellH + cellH * 0.5;
     }
     fxW = Math.max(1, window.innerWidth || 400);

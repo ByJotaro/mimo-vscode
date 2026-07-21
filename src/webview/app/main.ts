@@ -123,15 +123,14 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
   }
   if (inn && out) bodyHtml += `<div class="mimo-io-rule" role="separator"></div>`;
   if (out) {
-    const isDiff = looksLikeDiff(out);
-    const wide = (chat?.clientWidth || window.innerWidth || 0) >= 520;
-    if (isDiff && wide) {
-      bodyHtml += `<div class="mimo-io-block"><div class="mimo-io-k">OUT</div>${renderSideBySideDiff(out)}</div>`;
-    } else {
-      bodyHtml += `<div class="mimo-io-block"><div class="mimo-io-k">OUT</div><pre class="mimo-io-pre${
-        isDiff ? ' mimo-io-v--diff' : ''
-      }">${isDiff ? colorDiff(out) : escHtml(out)}</pre></div>`;
-    }
+    const isDiff =
+      looksLikeDiff(out) ||
+      seg.kind === 'patch' ||
+      /^(write|edit)$/i.test(String((seg as any).title || ''));
+    const label = isDiff ? 'DIFF' : 'OUT';
+    bodyHtml += `<div class="mimo-io-block mimo-io-block--out"><div class="mimo-io-k">${label}</div>${
+      isDiff ? renderDiffOut(out) : `<pre class="mimo-io-pre">${escHtml(out)}</pre>`
+    }</div>`;
   }
   det.innerHTML = `<summary><span class="mimo-chev" aria-hidden="true">▸</span><span class="mimo-part-title">${title}</span>${
     meta ? `<span class="mimo-part-meta">${meta}</span>` : ''
@@ -154,45 +153,89 @@ function parseInOut(body: string): { inn: string; out: string } {
 }
 
 function looksLikeDiff(t: string): boolean {
-  return /^(diff |Index: |@@ |\+|\-|--- |\+\+\+)/m.test(t) || /```diff/.test(t);
+  const s = String(t || '');
+  return (
+    /^(diff |Index: |@@ |\+|-|---|\+\+\+)/m.test(s) ||
+    /```diff/.test(s) ||
+    (/^\+/.test(s) && /^-/m.test(s))
+  );
 }
 
+function stripDiffFences(t: string): string {
+  return String(t || '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/^```diff\n?/, '')
+    .replace(/\n?```\s*$/, '');
+}
+
+/** Unified CLI-style colored diff (mimocode.json palette). */
 function colorDiff(t: string): string {
-  return t
-    .split('\n')
-    .map((line) => {
-      const e = escHtml(line);
-      if (line.startsWith('+') && !line.startsWith('+++'))
+  const raw = stripDiffFences(t);
+  const lines = raw.split('\n');
+  return lines
+    .map((line, i) => {
+      const nl = i < lines.length - 1 ? '\n' : '';
+      const e = escHtml(line) + nl;
+      if (/^\+/.test(line) && !/^\+\+\+/.test(line))
         return `<span class="mimo-diff-add">${e}</span>`;
-      if (line.startsWith('-') && !line.startsWith('---'))
+      if (/^-/.test(line) && !/^---/.test(line))
         return `<span class="mimo-diff-del">${e}</span>`;
-      if (line.startsWith('@@')) return `<span class="mimo-diff-hunk">${e}</span>`;
-      return e;
+      if (
+        /^@@/.test(line) ||
+        /^diff /.test(line) ||
+        /^Index: /.test(line) ||
+        /^---/.test(line) ||
+        /^\+\+\+/.test(line) ||
+        /^=+$/.test(line)
+      )
+        return `<span class="mimo-diff-hunk">${e}</span>`;
+      return `<span class="mimo-diff-ctx">${e}</span>`;
     })
-    .join('\n');
+    .join('');
 }
 
-/** Side-by-side when sidebar is wide enough (CLI-style left del / right add). */
-function renderSideBySideDiff(t: string): string {
-  const lines = String(t || '').replace(/\r\n/g, '\n').split('\n');
-  const left: string[] = [];
-  const right: string[] = [];
+/**
+ * CLI/v1 side-by-side: left=removed, right=added (content without +/- prefix).
+ * Falls back to unified when narrow or only one side.
+ * Port of media/main.js fillDiffPre from 0.6.13.
+ */
+function renderDiffOut(t: string): string {
+  const raw = stripDiffFences(t);
+  if (!looksLikeDiff(raw)) {
+    return `<pre class="mimo-io-pre">${escHtml(raw)}</pre>`;
+  }
+  const lines = raw.split('\n');
+  const dels: string[] = [];
+  const adds: string[] = [];
   for (const line of lines) {
-    if (line.startsWith('+') && !line.startsWith('+++')) {
-      right.push(`<div class="mimo-diff-add">${escHtml(line)}</div>`);
-      left.push(`<div class="mimo-diff-pad">&nbsp;</div>`);
-    } else if (line.startsWith('-') && !line.startsWith('---')) {
-      left.push(`<div class="mimo-diff-del">${escHtml(line)}</div>`);
-      right.push(`<div class="mimo-diff-pad">&nbsp;</div>`);
-    } else {
-      const e = `<div class="mimo-diff-ctx">${escHtml(line)}</div>`;
-      left.push(e);
-      right.push(e);
+    if (/^\+/.test(line) && !/^\+\+\+/.test(line)) {
+      adds.push(line.slice(1));
+    } else if (/^-/.test(line) && !/^---/.test(line)) {
+      dels.push(line.slice(1));
     }
   }
-  return `<div class="mimo-diff-sbs"><div class="mimo-diff-col mimo-diff-col--del">${left.join(
-    ''
-  )}</div><div class="mimo-diff-col mimo-diff-col--add">${right.join('')}</div></div>`;
+  const hostW = (chat?.clientWidth || window.innerWidth || 0);
+  // CLI uses ≥360; keep slightly lower for sidebar so sbs shows more often
+  const wide = hostW >= 340;
+  if (wide && (dels.length || adds.length) && dels.length + adds.length >= 1) {
+    return (
+      `<div class="mimo-diff-split" role="group" aria-label="diff">` +
+      `<pre class="mimo-diff-col mimo-diff-col--del"><span class="mimo-diff-col-label">removed</span>${escHtml(
+        dels.join('\n') || '—'
+      )}</pre>` +
+      `<pre class="mimo-diff-col mimo-diff-col--add"><span class="mimo-diff-col-label">added</span>${escHtml(
+        adds.join('\n') || '—'
+      )}</pre>` +
+      `</div>`
+    );
+  }
+  return `<pre class="mimo-io-pre mimo-io-v--diff">${colorDiff(raw)}</pre>`;
+}
+
+/** @deprecated name kept for call sites — routes to renderDiffOut */
+function renderSideBySideDiff(t: string): string {
+  return renderDiffOut(t);
 }
 
 function isTableSep(line: string): boolean {
