@@ -2551,3 +2551,12 @@ textarea::placeholder {
   color: #909090 !important;
   background: #101010 !important;
 }
+
+/* beta.148: open tool title always orange (overrides kind closed colors) */
+.mimo-part[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
+.mimo-part[open] {
+  border-left-color: #FF6A00 !important;
+}
+/* Closed kind accents remain (bash/edit/read/skill) */
