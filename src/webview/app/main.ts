@@ -173,9 +173,20 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
   if (inn && out) bodyHtml += `<div class="mimo-io-hr" role="separator"></div>`;
   if (out) {
     const outLab = isDiff ? 'diff' : 'out';
-    bodyHtml += `<div class="mimo-io-line mimo-io-line--out"><span class="mimo-io-k">${outLab}</span>${
-      isDiff ? renderDiffOut(out) : `<pre class="mimo-io-v">${escHtml(out)}</pre>`
-    }</div>`;
+    if (isDiff) {
+      bodyHtml += `<div class="mimo-io-line mimo-io-line--out"><span class="mimo-io-k">${outLab}</span>${renderDiffOut(out)}</div>`;
+    } else {
+      const maxOL = 40;
+      const maxOC = 4000;
+      const oLines = out.split('\n');
+      let oShown = oLines.slice(0, maxOL).join('\n');
+      if (oShown.length > maxOC) oShown = oShown.slice(0, maxOC) + '…';
+      else if (oLines.length > maxOL) oShown += '\n…';
+      const oTrunc = oLines.length > maxOL || out.length > maxOC;
+      bodyHtml += `<div class="mimo-io-line mimo-io-line--out"><span class="mimo-io-k">${outLab}</span><pre class="mimo-io-v mimo-io-v--out${
+        oTrunc ? ' is-clamped' : ''
+      }" data-full="${escHtml(out)}" data-shown="${escHtml(oShown)}">${escHtml(oShown)}</pre></div>`;
+    }
   }
   det.innerHTML = `<summary><span class="mimo-chev" aria-hidden="true">▸</span><span class="mimo-part-title">${title}</span>${
     metaText ? `<span class="mimo-part-meta">${escHtml(metaText)}</span>` : ''
@@ -193,7 +204,7 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
     });
   });
   // Click clamped command to expand/collapse (v1)
-  det.querySelectorAll('pre.mimo-io-v--cmd.is-clamped').forEach((pre) => {
+  det.querySelectorAll('pre.mimo-io-v--cmd.is-clamped, pre.mimo-io-v--out.is-clamped').forEach((pre) => {
     pre.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
