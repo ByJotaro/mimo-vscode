@@ -542,8 +542,16 @@ function showLoading(title: string): void {
     ov.id = 'session-load-overlay';
     ov.className = 'session-load-overlay';
     ov.innerHTML =
-      '<div class="session-load-overlay-text">Loading session…</div><div class="session-load-overlay-sub">DB-first tail</div>';
-    chat.appendChild(ov);
+      `<div class="session-load-overlay-card">` +
+      `<div class="mimo-spin" aria-hidden="true"></div>` +
+      `<div class="session-load-overlay-text">Loading session…</div>` +
+      `<div class="session-load-overlay-sub">${escHtml(title || 'DB-first tail')}</div>` +
+      `</div>`;
+    // body-level so it covers chat + isn't clipped
+    document.body.appendChild(ov);
+  } else {
+    const sub = ov.querySelector('.session-load-overlay-sub');
+    if (sub) sub.textContent = title || 'DB-first tail';
   }
 }
 
