@@ -1282,14 +1282,40 @@ if (Array.isArray(message.modes) && message.modes.length) {
         if (btn) btn.textContent = 'Load failed — tap to retry';
       }
       break;
-    case 'sessionLoadFailed':
+    case 'sessionLoadFailed': {
       hideLoading();
       loadMoreInFlight = false;
-      chat.innerHTML = `<div class="error">Failed: ${escHtml(message.error || 'unknown')}</div>`;
+      const err = String(message.error || 'unknown');
+      const sid = String(message.sessionId || activeSessionId || '');
+      chat.innerHTML =
+        `<div class="mimo-error-card">` +
+        `<div class="mimo-error-title">Failed to load session</div>` +
+        `<div class="mimo-error-body">${escHtml(err)}</div>` +
+        `<div class="mimo-error-actions">` +
+        (sid
+          ? `<button type="button" id="err-retry" class="primary">Retry</button>`
+          : '') +
+        `<button type="button" id="err-home">Home</button>` +
+        `</div></div>`;
+      document.getElementById('err-retry')?.addEventListener('click', () => {
+        if (sid) {
+          showLoading('Retrying…');
+          post({ type: 'selectSession', sessionId: sid });
+        }
+      });
+      document.getElementById('err-home')?.addEventListener('click', () => {
+        activeSessionId = '';
+        post({ type: 'goHome' });
+      });
       break;
+    }
     case 'error':
       setBusy(false);
-      if (statusLabel) statusLabel.textContent = String(message.error || 'error').slice(0, 40);
+      if (statusLabel) {
+        statusLabel.textContent = String(message.error || 'error').slice(0, 40);
+        statusLabel.classList.add('is-flash');
+        setTimeout(() => statusLabel?.classList.remove('is-flash'), 900);
+      }
       break;
     case 'permissionRequest':
       if (message.permissionId) {

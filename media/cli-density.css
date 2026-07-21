@@ -1403,3 +1403,46 @@ a.mimo-ext-link:hover {
   font-size: 11px !important;
   color: #808080 !important;
 }
+
+.mimo-error-card {
+  margin: 32px auto;
+  max-width: 360px;
+  padding: 16px;
+  border: 1px solid #4a2020;
+  border-radius: 8px;
+  background: #141010;
+  text-align: center;
+  animation: mimo-rise 0.2s ease both;
+}
+.mimo-error-title {
+  color: #f0a0a0;
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.mimo-error-body {
+  color: #a08080;
+  font-size: 11px;
+  margin-bottom: 12px;
+  word-break: break-word;
+}
+.mimo-error-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.mimo-error-actions button {
+  border: 1px solid #333;
+  background: #1a1a1a;
+  color: #ddd;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.mimo-error-actions button.primary {
+  background: #FF6A00;
+  border-color: #FF6A00;
+  color: #0a0a0a;
+  font-weight: 600;
+}
