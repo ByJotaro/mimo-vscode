@@ -27,6 +27,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   private readonly log: vscode.OutputChannel;
   private readonly client: MimoClient;
   private gitUndo: GitUndoEngine | null = null;
+  /** Last successful undo snapshot for thin redo via restoreAll */
+  private lastUndoSnap: {
+    sessionId: string;
+    restoreCommit: string;
+    fileSet: string[];
+    undoTargetCommit: string;
+  } | null = null;
   private selectedMode = 'plan';
   private selectedModel = '';
   private modes: string[] = ['plan', 'build'];
@@ -164,8 +171,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           await this.runGitUndo();
           break;
         case 'redoLast':
-          this.post({ type: 'toast', text: 'Redo: use CLI for now' });
-          vscode.window.showInformationMessage('Git redo: full engine still porting — use CLI');
+          await this.runGitRedo();
           break;
         case 'openExternalUrl':
           if (typeof msg.url === 'string' && /^https?:\/\//i.test(msg.url)) {
@@ -700,6 +706,23 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         (result as any)?.ok ||
         (result as any)?.status === 'ok';
       if (ok) {
+        const restoreCommit = String((result as any)?.restoreCommit || '');
+        const fileSet = Array.isArray((result as any)?.fileSet)
+          ? ((result as any).fileSet as string[])
+          : Array.isArray((result as any)?.touchedFiles)
+            ? ((result as any).touchedFiles as string[])
+            : [];
+        const undoTargetCommit = String(
+          (result as any)?.undoTargetCommit || (result as any)?.startCommit || ''
+        );
+        if (restoreCommit && fileSet.length) {
+          this.lastUndoSnap = {
+            sessionId: sid,
+            restoreCommit,
+            fileSet,
+            undoTargetCommit: undoTargetCommit || restoreCommit,
+          };
+        }
         this.post({ type: 'toast', text: 'Undo applied' });
         vscode.window.showInformationMessage('Undo applied');
         await this.selectSession(sid);
@@ -715,6 +738,42 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       this.post({ type: 'toast', text: 'Undo failed' });
       vscode.window.showErrorMessage('Undo failed: ' + String(e).slice(0, 200));
       this.log.appendLine('[undo] ' + String(e));
+    }
+  }
+
+  private async runGitRedo(): Promise<void> {
+    if (!this.gitUndo) {
+      this.post({ type: 'toast', text: 'Git redo unavailable' });
+      return;
+    }
+    const snap = this.lastUndoSnap;
+    if (!snap || snap.sessionId !== this.currentSessionId) {
+      this.post({ type: 'toast', text: 'Nothing to redo' });
+      vscode.window.showInformationMessage('Nothing to redo (undo first)');
+      return;
+    }
+    try {
+      const result = await this.gitUndo.restoreAll(
+        snap.sessionId,
+        snap.restoreCommit,
+        snap.fileSet,
+        snap.undoTargetCommit
+      );
+      const ok = Boolean((result as any)?.applied);
+      if (ok) {
+        this.lastUndoSnap = null;
+        this.post({ type: 'toast', text: 'Redo applied' });
+        vscode.window.showInformationMessage('Redo applied');
+        await this.selectSession(snap.sessionId);
+      } else {
+        const reason = (result as any)?.reason || JSON.stringify(result).slice(0, 100);
+        this.post({ type: 'toast', text: 'Redo: ' + String(reason).slice(0, 80) });
+        vscode.window.showWarningMessage('Redo: ' + reason);
+      }
+    } catch (e) {
+      this.post({ type: 'toast', text: 'Redo failed' });
+      vscode.window.showErrorMessage('Redo failed: ' + String(e).slice(0, 200));
+      this.log.appendLine('[redo] ' + String(e));
     }
   }
 
