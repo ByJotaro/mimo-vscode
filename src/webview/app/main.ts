@@ -1298,15 +1298,22 @@ function handleLocalSlash(full: string): boolean {
       if (text.trim()) parts.push('## ' + role + '\n' + text.trim());
     });
     const blob = parts.join('\n\n---\n\n');
-    if (blob && navigator.clipboard?.writeText) {
+    if (!blob) {
+      showToast('nothing to export');
+      return true;
+    }
+    if (cmd === 'export') {
+      post({ type: 'saveExport', text: blob, sessionId: activeSessionId || '' });
+      showToast('export…');
+    } else if (navigator.clipboard?.writeText) {
       void navigator.clipboard.writeText(blob);
-      showToast('exported · ' + parts.length + ' msgs');
-      if (statusLabel) {
-        statusLabel.textContent = 'exported';
-        statusLabel.classList.add('is-flash');
-        setTimeout(() => statusLabel?.classList.remove('is-flash'), 700);
-      }
-    } else if (statusLabel) statusLabel.textContent = 'nothing to export';
+      showToast('copied · ' + parts.length + ' msgs');
+    }
+    if (statusLabel) {
+      statusLabel.textContent = cmd === 'export' ? 'export…' : 'copied';
+      statusLabel.classList.add('is-flash');
+      setTimeout(() => statusLabel?.classList.remove('is-flash'), 700);
+    }
     return true;
   }
   if (cmd === 'help') {

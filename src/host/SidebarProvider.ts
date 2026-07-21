@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import {
   querySessionFromDb,
   listSessionsFromSqlite,
@@ -189,6 +190,23 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case 'openSettings':
           void vscode.commands.executeCommand('workbench.action.openSettings', 'mimo');
           break;
+                case 'saveExport': {
+          const text = String(msg.text || '');
+          if (!text) {
+            this.post({ type: 'toast', text: 'nothing to export' });
+            break;
+          }
+          const def = 'mimo-session-' + String(msg.sessionId || 'export').slice(0, 12) + '.md';
+          const uri = await vscode.window.showSaveDialog({
+            defaultUri: vscode.Uri.file(path.join(getWorkspaceRoot(), def)),
+            filters: { Markdown: ['md'], 'All files': ['*'] },
+          });
+          if (uri) {
+            await vscode.workspace.fs.writeFile(uri, Buffer.from(text, 'utf8'));
+            this.post({ type: 'toast', text: 'saved ' + path.basename(uri.fsPath) });
+          }
+          break;
+        }
         case 'openExternalUrl':
           if (typeof msg.url === 'string' && /^https?:\/\//i.test(msg.url)) {
             void vscode.env.openExternal(vscode.Uri.parse(msg.url));
