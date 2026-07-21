@@ -2929,3 +2929,60 @@ select#model {
 .message.is-streaming .mimo-thinking[open] {
   border-left-color: #FF6A00 !important;
 }
+
+/* beta.163 startup / home denser CLI */
+.mimo-startup {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 10px !important;
+  padding: 8px 10px 16px !important;
+}
+.mimo-startup-logo {
+  min-height: 140px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+.mimo-startup-label {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 10px !important;
+  letter-spacing: 0.08em !important;
+  color: #707070 !important;
+  margin: 4px 0 6px !important;
+  border-left: 2px solid #3c3c3c !important;
+  padding-left: 8px !important;
+}
+.mimo-startup-list .mimo-session-card,
+.mimo-startup-list button {
+  border-left: 2px solid #2a2a2a !important;
+  background: #141414 !important;
+  border-radius: 0 4px 4px 0 !important;
+  text-align: left !important;
+  width: 100% !important;
+  padding: 6px 10px !important;
+  color: #eeeeee !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+  margin: 3px 0 !important;
+  cursor: pointer !important;
+}
+.mimo-startup-list .mimo-session-card:hover,
+.mimo-startup-list button:hover {
+  border-left-color: #FF6A00 !important;
+  background: #1a1a1a !important;
+}
+.mimo-startup-actions {
+  display: flex !important;
+  gap: 6px !important;
+  margin-top: 8px !important;
+}
+.mimo-startup-actions button {
+  border-left: 2px solid #FF6A00 !important;
+  background: #141414 !important;
+  border-radius: 0 3px 3px 0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  color: #eeeeee !important;
+  padding: 4px 10px !important;
+}

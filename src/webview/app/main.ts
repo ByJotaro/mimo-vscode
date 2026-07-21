@@ -693,7 +693,8 @@ function showHistoryPanel(sessions: Array<{ id: string; title: string; updated?:
       btn.addEventListener('click', () => {
         panel.remove();
         showLoading(title);
-        post({ type: 'selectSession', sessionId: s.id });
+        showToast('opening…', 900);
+      post({ type: 'selectSession', sessionId: s.id });
       });
       list.appendChild(btn);
     }
@@ -750,6 +751,7 @@ function showStartup(sessions: Array<{ id: string; title: string; updated?: stri
       (when ? `<div class="mimo-session-when">${escHtml(when)}</div>` : '');
     btn.addEventListener('click', () => {
       showLoading(title);
+      showToast('opening…', 900);
       post({ type: 'selectSession', sessionId: s.id });
     });
     list.appendChild(btn);
