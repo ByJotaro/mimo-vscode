@@ -859,6 +859,7 @@ function handleLocalSlash(full: string): boolean {
     return true;
   }
   if (cmd === 'clear') {
+    showToast('cleared');
     chat.innerHTML = '';
     loadedCount = 0;
     (window as any).__mimoOlderCount = 0;

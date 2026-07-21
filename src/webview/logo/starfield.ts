@@ -97,7 +97,7 @@ export function startStarfield(canvas: HTMLCanvasElement | null): StarfieldHandl
     cols = Math.max(8, Math.floor(W / cell));
     rows = Math.max(8, Math.floor(H / (cell * 1.2)));
     // denser field than before but still OOM-capped
-    const target = Math.min(MAX_STARS, Math.floor(cols * rows * 0.036));
+    const target = Math.min(MAX_STARS, Math.floor(cols * rows * 0.040));
     stars = [];
     for (let i = 0; i < target; i++) {
       stars.push({

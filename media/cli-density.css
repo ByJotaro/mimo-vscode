@@ -2229,3 +2229,14 @@ a.mimo-ext-link:hover {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+.mimo-empty-session {
+  border-left: 2px solid #FF6A00 !important;
+  background: #141414 !important;
+  padding: 10px 12px !important;
+  border-radius: 0 4px 4px 0 !important;
+}
+.mimo-empty-title {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  color: #eeeeee !important;
+}

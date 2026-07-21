@@ -144,6 +144,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           })();
           break;
         case 'goHome':
+          this.post({ type: 'toast', text: 'Home' });
           this.currentSessionId = '';
           await this.sendInit();
           break;
