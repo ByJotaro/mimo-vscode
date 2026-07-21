@@ -3411,3 +3411,26 @@ select#model {
 .message.bot .mimo-text-seg + .mimo-part {
   margin-top: 6px !important;
 }
+
+/* beta.176 denser streaming rail + FINAL strip */
+.message.is-streaming.bot {
+  border-left: 2px solid #FF6A00 !important;
+  padding-left: 8px !important;
+}
+.message.is-streaming.bot > .message-content {
+  border-left: none !important;
+}
+/* tool strip FINAL after streaming denser */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+  border-bottom: 1px solid #242424 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}

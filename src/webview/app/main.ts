@@ -578,6 +578,7 @@ function renderMessages(
     // soft resync after streamDone — keep viewport, no pin jump
     const delta = chat.scrollHeight - prevH;
     chat.scrollTop = Math.max(0, prevT + delta);
+    if (typeof ensureJumpBottom === 'function') ensureJumpBottom();
   } else if (opts.pinBottom !== false) {
     pinBottomUntilSettled(chat, 'sessionData');
   }
