@@ -1010,6 +1010,23 @@ function handleLocalSlash(full: string): boolean {
     showToast('models…');
     post({ type: 'refreshModels' });
     if (statusLabel) statusLabel.textContent = 'models…';
+    const models = modelSelect
+      ? Array.from(modelSelect.options).map((o) => o.value || o.textContent || '').filter(Boolean)
+      : [];
+    if (models.length) {
+      appendOrUpdateMessage({
+        id: 'sys_models_' + Date.now(),
+        role: 'assistant',
+        text:
+          '**Models** (refreshing…)\n' +
+          models
+            .slice(0, 30)
+            .map((m) => '- `' + m + '`' + (m === selectedModel ? ' ← current' : ''))
+            .join('\n') +
+          (models.length > 30 ? '\n- … +' + (models.length - 30) + ' more' : '') +
+          '\n\nSwitch: `/model <id>` or header select.',
+      });
+    }
     return true;
   }
   if (cmd === 'model' && rest) {
