@@ -160,7 +160,7 @@ export function formatPartForDisplay(part: any): string {
       : '';
     const isBashTool = /^(bash|shell|cmd|powershell|pwsh)$/i.test(toolName);
     const bashHint =
-      isBashTool && cmd ? cmd.split('\n')[0].replace(/\s+/g, ' ').slice(0, 60) : '';
+      isBashTool && cmd ? cmd.split('\n')[0].replace(/\s+/g, ' ').slice(0, 88) : '';
     const meta =
       baseName || bashHint || (status && status !== 'completed' ? String(status) : '');
     const title = isEdit

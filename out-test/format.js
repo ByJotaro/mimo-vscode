@@ -196,7 +196,7 @@ ${fallback}`;
     const open = status === "running" || status === "pending";
     const baseName = path ? String(path).replace(/\\/g, "/").split("/").pop() || String(path) : "";
     const isBashTool = /^(bash|shell|cmd|powershell|pwsh)$/i.test(toolName);
-    const bashHint = isBashTool && cmd ? cmd.split("\n")[0].replace(/\s+/g, " ").slice(0, 60) : "";
+    const bashHint = isBashTool && cmd ? cmd.split("\n")[0].replace(/\s+/g, " ").slice(0, 88) : "";
     const meta = baseName || bashHint || (status && status !== "completed" ? String(status) : "");
     const title = isEdit ? "edit" : isWrite && /^write$/i.test(toolName) ? "write" : toolName;
     const hasMetaDiff = Boolean(metaDiff.trim() || metaPatch.trim());
