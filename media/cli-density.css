@@ -1825,3 +1825,11 @@ a.mimo-ext-link:hover {
 .message.is-streaming .message-content::after {
   margin-left: 6px !important;
 }
+
+.slash-overlay {
+  border-left: 2px solid #FF6A00 !important;
+}
+.slash-item.active {
+  border-left: 2px solid #FF6A00 !important;
+  padding-left: 8px !important;
+}
