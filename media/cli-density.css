@@ -946,3 +946,87 @@ body.mimo-busy #status-label {
   background: #1a140f !important;
   border-left: 2px solid #FF6A00 !important;
 }
+
+/* Permission / question overlays — CLI modal density */
+.permission-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 10050 !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  padding: 12px !important;
+  background: rgba(0, 0, 0, 0.45) !important;
+  animation: mimo-rise 0.14s ease both;
+}
+.permission-card {
+  width: min(480px, 100%) !important;
+  background: #121212 !important;
+  border: 1px solid #3a3a3a !important;
+  border-top: 2px solid #FF6A00 !important;
+  border-radius: 8px !important;
+  padding: 12px 14px !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55) !important;
+}
+.permission-title {
+  color: #FF6A00 !important;
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  margin-bottom: 6px !important;
+}
+.permission-body {
+  color: #d0d0d0 !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  margin-bottom: 10px !important;
+  word-break: break-word;
+}
+.permission-pats {
+  margin-top: 6px !important;
+  color: #888 !important;
+  font-family: Consolas, monospace !important;
+  font-size: 11px !important;
+}
+.permission-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+}
+.permission-actions button {
+  border: 1px solid #333 !important;
+  background: #1a1a1a !important;
+  color: #e0e0e0 !important;
+  border-radius: 4px !important;
+  padding: 6px 10px !important;
+  font-size: 11px !important;
+  cursor: pointer;
+}
+.permission-actions button:hover {
+  border-color: #FF6A00 !important;
+}
+.permission-actions button.danger {
+  border-color: #5a2020 !important;
+  color: #f0a0a0 !important;
+}
+.question-block {
+  margin-bottom: 12px !important;
+  padding-bottom: 10px !important;
+  border-bottom: 1px solid #222 !important;
+}
+.question-block:last-child {
+  border-bottom: none !important;
+  margin-bottom: 0 !important;
+}
+/* Message density closer to CLI TUI */
+.message {
+  margin: 0 0 6px !important;
+}
+.message.bot {
+  margin-bottom: 8px !important;
+}
+.message.user {
+  margin: 4px 0 8px !important;
+  padding: 7px 9px !important;
+}
