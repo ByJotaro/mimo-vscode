@@ -1,7 +1,14 @@
-import * as vscode from 'vscode';
+﻿import * as vscode from 'vscode';
 import { SidebarProvider } from '../host/SidebarProvider';
 
 export function activate(context: vscode.ExtensionContext): void {
+  const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
+  status.text = '$(chip) MiMo';
+  status.tooltip = 'MiMo Code — open chat (Ctrl+Shift+M)';
+  status.command = 'mimo.openSidebar';
+  status.show();
+  context.subscriptions.push(status);
+
   const provider = new SidebarProvider(context.extensionUri, context);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider('mimo.sidebar', provider, {
