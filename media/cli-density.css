@@ -2610,3 +2610,19 @@ textarea::placeholder {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* Session title denser mono */
+#sessionTitle,
+.header-title {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  max-width: 55% !important;
+}
+/* Usage toast short */
+.mimo-toast {
+  max-width: 280px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}

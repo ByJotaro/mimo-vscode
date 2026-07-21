@@ -1491,6 +1491,7 @@ if (Array.isArray(message.modes) && message.modes.length) {
         if (t) {
           statusLabel.dataset.server = t;
           statusLabel.textContent = t;
+          showToast(t, 1600);
         }
       }
       break;
@@ -1509,7 +1510,7 @@ if (Array.isArray(message.modes) && message.modes.length) {
         if (!busy) {
           statusLabel.textContent = t || 'v2';
           statusLabel.classList.toggle('is-reconnect', st === 'reconnecting');
-        if (st === 'reconnecting') statusLabel.classList.add('is-flash');
+          if (st === 'reconnecting') statusLabel.classList.add('is-flash');
           else statusLabel.classList.remove('is-flash');
         }
       }
