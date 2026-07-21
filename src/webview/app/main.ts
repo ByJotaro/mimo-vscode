@@ -713,6 +713,17 @@ function handleLocalSlash(full: string): boolean {
     post({ type: 'setModel', model: selectedModel });
     return true;
   }
+  if (cmd === 'undo' || cmd === 'redo') {
+    // Full git undo engine still to port; route slash to agent so CLI-compatible intent works
+    post({
+      type: 'sendPrompt',
+      text: '/' + cmd + (rest ? ' ' + rest : ''),
+      sessionId: activeSessionId || undefined,
+      mode: selectedMode,
+      model: selectedModel || undefined,
+    });
+    return true;
+  }
   if (cmd === 'help') {
     appendOrUpdateMessage({
       id: 'sys_help_' + Date.now(),

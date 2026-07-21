@@ -153,7 +153,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const t0 = Date.now();
     // Home always clears active session so webview shows logo + recent
     this.currentSessionId = '';
-    const raw = dbAvailable() ? listSessionsFromSqlite(12) : [];
+    const raw = dbAvailable() ? listSessionsFromSqlite(HOME_RECENT_CAP, { includeForks: false }) : [];
     const sessions = pickHomeRecent(raw, HOME_RECENT_CAP);
     const storedMode = this.context.globalState.get<string>('mimo.mode');
     const storedModel = this.context.globalState.get<string>('mimo.model');
