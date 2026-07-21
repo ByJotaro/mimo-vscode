@@ -90,9 +90,14 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
     bodyHtml += `<div class="mimo-io"><div class="mimo-io-k">IN</div><pre class="mimo-io-v">${escHtml(inn)}</pre></div>`;
   if (out) {
     const isDiff = looksLikeDiff(out);
-    bodyHtml += `<div class="mimo-io"><div class="mimo-io-k">OUT</div><pre class="mimo-io-v${
-      isDiff ? ' mimo-io-v--diff' : ''
-    }">${isDiff ? colorDiff(out) : escHtml(out)}</pre></div>`;
+    const wide = (chat?.clientWidth || window.innerWidth || 0) >= 520;
+    if (isDiff && wide) {
+      bodyHtml += `<div class="mimo-io"><div class="mimo-io-k">OUT</div>${renderSideBySideDiff(out)}</div>`;
+    } else {
+      bodyHtml += `<div class="mimo-io"><div class="mimo-io-k">OUT</div><pre class="mimo-io-v${
+        isDiff ? ' mimo-io-v--diff' : ''
+      }">${isDiff ? colorDiff(out) : escHtml(out)}</pre></div>`;
+    }
   }
   det.innerHTML = `<summary><span class="mimo-part-title">${title}</span>${
     meta ? `<span class="mimo-part-meta">${meta}</span>` : ''
@@ -131,6 +136,29 @@ function colorDiff(t: string): string {
       return e;
     })
     .join('\n');
+}
+
+/** Side-by-side when sidebar is wide enough (CLI-style left del / right add). */
+function renderSideBySideDiff(t: string): string {
+  const lines = String(t || '').replace(/\r\n/g, '\n').split('\n');
+  const left: string[] = [];
+  const right: string[] = [];
+  for (const line of lines) {
+    if (line.startsWith('+') && !line.startsWith('+++')) {
+      right.push(`<div class="mimo-diff-add">${escHtml(line)}</div>`);
+      left.push(`<div class="mimo-diff-pad">&nbsp;</div>`);
+    } else if (line.startsWith('-') && !line.startsWith('---')) {
+      left.push(`<div class="mimo-diff-del">${escHtml(line)}</div>`);
+      right.push(`<div class="mimo-diff-pad">&nbsp;</div>`);
+    } else {
+      const e = `<div class="mimo-diff-ctx">${escHtml(line)}</div>`;
+      left.push(e);
+      right.push(e);
+    }
+  }
+  return `<div class="mimo-diff-sbs"><div class="mimo-diff-col mimo-diff-col--del">${left.join(
+    ''
+  )}</div><div class="mimo-diff-col mimo-diff-col--add">${right.join('')}</div></div>`;
 }
 
 function formatMarkdownLite(text: string): string {
@@ -265,6 +293,31 @@ function appendOrUpdateMessage(msg: DisplayMessage): void {
   if (autoScroll || isNearBottom(chat)) scrollToBottom(chat, true);
 }
 
+
+function showHistoryPanel(sessions: Array<{ id: string; title: string; updated?: string }>): void {
+  document.getElementById('mimo-history-panel')?.remove();
+  const panel = document.createElement('div');
+  panel.id = 'mimo-history-panel';
+  panel.className = 'mimo-history-panel';
+  panel.innerHTML = `<button type="button" class="mimo-history-close" id="hist-close">Close</button><h3>SESSION HISTORY</h3>`;
+  const list = document.createElement('div');
+  list.className = 'mimo-startup-list';
+  for (const s of sessions.slice(0, 40)) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mimo-session-card';
+    btn.innerHTML = `<div class="mimo-session-title">${escHtml(s.title)}</div><div class="mimo-session-id">${escHtml(s.id)}</div>`;
+    btn.addEventListener('click', () => {
+      panel.remove();
+      showLoading(s.title);
+      post({ type: 'selectSession', sessionId: s.id });
+    });
+    list.appendChild(btn);
+  }
+  panel.appendChild(list);
+  chat.appendChild(panel);
+  panel.querySelector('#hist-close')?.addEventListener('click', () => panel.remove());
+}
 function showStartup(sessions: Array<{ id: string; title: string; updated?: string }>): void {
   activeSessionId = '';
   titleEl.textContent = 'MiMo Code';
@@ -299,6 +352,7 @@ function showStartup(sessions: Array<{ id: string; title: string; updated?: stri
   const actions = document.createElement('div');
   actions.className = 'mimo-startup-actions';
   actions.innerHTML = `
+    <button type="button" id="btn-history">Show history</button>
     <button type="button" id="btn-refresh">Refresh</button>
     <button type="button" id="btn-new" class="primary">New session</button>`;
   listWrap.appendChild(actions);
@@ -310,6 +364,7 @@ function showStartup(sessions: Array<{ id: string; title: string; updated?: stri
     post({ type: 'fetchSessions' })
   );
   listWrap.querySelector('#btn-new')?.addEventListener('click', () => post({ type: 'newSession' }));
+  listWrap.querySelector('#btn-history')?.addEventListener('click', () => post({ type: 'fetchSessions', history: true }));
 }
 
 function showLoading(title: string): void {
@@ -446,8 +501,11 @@ if (Array.isArray(message.modes) && message.modes.length) {
       break;
     }
     case 'sessionsList':
-      if (!activeSessionId)
+      if (message.historyPanel) {
+        showHistoryPanel(Array.isArray(message.sessions) ? message.sessions : []);
+      } else if (!activeSessionId) {
         showStartup(Array.isArray(message.sessions) ? message.sessions : []);
+      }
       break;
     case 'sessionData': {
       hideLoading();

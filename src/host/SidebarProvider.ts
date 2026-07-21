@@ -69,7 +69,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           await this.sendInit();
           break;
         case 'fetchSessions':
-          await this.sendSessionsList();
+          await this.sendSessionsList(msg.history === true);
           break;
         case 'selectSession':
           if (typeof msg.sessionId === 'string' && msg.sessionId) {
@@ -191,10 +191,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     })();
   }
 
-  private async sendSessionsList(): Promise<void> {
-    const raw = dbAvailable() ? listSessionsFromSqlite(12) : [];
-    const sessions = pickHomeRecent(raw, HOME_RECENT_CAP);
-    this.post({ type: 'sessionsList', sessions });
+  private async sendSessionsList(historyPanel = false): Promise<void> {
+    const cap = historyPanel ? 40 : 12;
+    const raw = dbAvailable() ? listSessionsFromSqlite(cap) : [];
+    const sessions = historyPanel
+      ? pickHomeRecent(raw, 40)
+      : pickHomeRecent(raw, HOME_RECENT_CAP);
+    this.post({ type: 'sessionsList', sessions, historyPanel });
   }
 
   private async newSession(): Promise<void> {

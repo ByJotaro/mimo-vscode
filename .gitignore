@@ -13,3 +13,8 @@ scripts/ref/ocgui2/
 out-test/
 *.vsix
 
+
+.mimocode/
+.opencode/
+*.vsix
+

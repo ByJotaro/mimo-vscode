@@ -396,3 +396,47 @@ body.vscode-dark, body.vscode-light {
 }
 .slash-name { color: #FF6A00; min-width: 100px; font-weight: 500; }
 .slash-desc { color: #808080; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.mimo-diff-sbs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  max-height: 420px;
+  overflow: auto;
+  font-size: 11px;
+  line-height: 1.2;
+  background: #141414;
+}
+.mimo-diff-col { padding: 4px 6px; min-width: 0; }
+.mimo-diff-col--del { background: #37222c; border-right: 1px solid #3c3c3c; }
+.mimo-diff-col--add { background: #20303b; }
+.mimo-diff-col .mimo-diff-del { color: #e26a75; }
+.mimo-diff-col .mimo-diff-add { color: #b8db87; }
+.mimo-diff-col .mimo-diff-ctx { color: #808080; }
+.mimo-diff-pad { min-height: 1.2em; opacity: 0.15; }
+.mimo-history-panel {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: rgba(10,10,10,0.96);
+  overflow-y: auto;
+  padding: 12px;
+}
+.mimo-history-panel h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #808080;
+  letter-spacing: 0.1em;
+}
+.mimo-history-close {
+  float: right;
+  background: transparent;
+  border: 1px solid #3c3c3c;
+  color: #eeeeee;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
