@@ -1971,6 +1971,12 @@ function showPermission(req: {
       statusLabel.classList.add('is-flash');
       setTimeout(() => statusLabel?.classList.remove('is-flash'), 800);
     }
+    // soft resync so tool cards update after allow/reject
+    if (activeSessionId) {
+      setTimeout(() => {
+        post({ type: 'selectSession', sessionId: activeSessionId, soft: true });
+      }, 400);
+    }
   };
   ov.querySelectorAll('button[data-r]').forEach((b) => {
     b.addEventListener('click', () => reply((b as HTMLElement).dataset.r || 'once'));
