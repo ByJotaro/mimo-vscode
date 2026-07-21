@@ -1154,6 +1154,12 @@ window.addEventListener('message', (event: MessageEvent) => {
   switch (message.type) {
     case 'init': {
       if (Array.isArray(message.slashCommands)) slashCatalog = message.slashCommands;
+      if (message.version && statusLabel && !busy) {
+        statusLabel.dataset.server = String(message.version);
+        if (!statusLabel.textContent || statusLabel.textContent === 'v2') {
+          statusLabel.textContent = String(message.version);
+        }
+      }
 if (Array.isArray(message.modes) && message.modes.length) {
         fillSelect(
           modeSelect,
