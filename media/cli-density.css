@@ -2626,3 +2626,18 @@ textarea::placeholder {
   overflow: hidden !important;
   text-overflow: ellipsis !important;
 }
+
+.mimo-part > summary .mimo-chev {
+  transition: transform 0.12s ease !important;
+  display: inline-block !important;
+  width: 12px !important;
+  text-align: center !important;
+  color: #808080 !important;
+}
+.mimo-part[open] > summary .mimo-chev {
+  color: #FF6A00 !important;
+}
+/* Subtle hover on closed tool strip */
+.mimo-part:not([open]) > summary:hover .mimo-part-title {
+  color: #d0d0d0 !important;
+}

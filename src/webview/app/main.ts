@@ -1019,7 +1019,9 @@ function handleLocalSlash(full: string): boolean {
     const parts = Array.from(document.querySelectorAll('details.mimo-part')) as HTMLDetailsElement[];
     const anyClosed = parts.some((p) => !p.open);
     parts.forEach((p) => { p.open = anyClosed; });
-    if (statusLabel) statusLabel.textContent = anyClosed ? 'details open' : 'details closed';
+    const msg = anyClosed ? 'details open' : 'details closed';
+    showToast(msg);
+    if (statusLabel) statusLabel.textContent = msg;
     return true;
   }
   if (cmd === 'export' || cmd === 'copy' || cmd === 'share') {
