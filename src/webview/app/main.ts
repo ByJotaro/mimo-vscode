@@ -976,6 +976,7 @@ function handleLocalSlash(full: string): boolean {
     return true;
   }
   if (cmd === 'models' || (cmd === 'model' && !rest)) {
+    showToast('models…');
     post({ type: 'refreshModels' });
     if (statusLabel) statusLabel.textContent = 'models…';
     return true;
@@ -996,9 +997,11 @@ function handleLocalSlash(full: string): boolean {
       }
     }
     post({ type: 'setModel', model: selectedModel });
+    showToast('model · ' + selectedModel);
     return true;
   }
   if (cmd === 'undo' || cmd === 'redo') {
+    showToast(cmd + '…');
     post({ type: cmd === 'undo' ? 'undoLast' : 'redoLast' });
     // Also inform agent for session-aware undo when git engine incomplete
     if (activeSessionId) {
