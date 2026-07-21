@@ -431,6 +431,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         },
       });
 
+      void this.gitUndo?.ensureBaselineReady(sid, this.liveAssistantId || undefined).catch((e) => this.log.appendLine('[undo] baseline ' + String(e).slice(0, 80)));
       await this.client.promptAsync(sid, prompt, {
         mode: mode || this.selectedMode,
         model: model || this.selectedModel || undefined,
@@ -497,6 +498,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         messageId: this.liveAssistantId,
         text: this.liveBuffer,
       });
+      if (sid && this.liveAssistantId && this.gitUndo) {
+        void this.gitUndo
+          .finalizeBinding(sid, this.liveAssistantId, this.liveAssistantId, undefined, { allowNoCommitTerminal: true })
+          .catch((e) => this.log.appendLine('[undo] finalize ' + String(e).slice(0, 100)));
+      }
       // refresh from DB for full tool fidelity
       if (sid) {
         setTimeout(() => {
