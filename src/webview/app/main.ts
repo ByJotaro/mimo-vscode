@@ -1472,10 +1472,16 @@ if (Array.isArray(message.modes) && message.modes.length) {
     }
     case 'error':
       setBusy(false);
-      if (statusLabel) {
-        statusLabel.textContent = String(message.error || 'error').slice(0, 40);
-        statusLabel.classList.add('is-flash');
-        setTimeout(() => statusLabel?.classList.remove('is-flash'), 900);
+      {
+        const err = String(message.error || 'error');
+        showToast(err.slice(0, 80), 2200);
+        if (statusLabel) {
+          statusLabel.textContent = err.slice(0, 40);
+          statusLabel.classList.add('is-flash', 'is-error');
+          setTimeout(() => {
+            statusLabel?.classList.remove('is-flash', 'is-error');
+          }, 900);
+        }
       }
       break;
     case 'permissionRequest':
