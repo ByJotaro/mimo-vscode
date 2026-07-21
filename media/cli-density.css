@@ -2653,3 +2653,24 @@ textarea::placeholder {
 .message .mimo-part + .mimo-part {
   margin-top: 1px !important;
 }
+
+/* beta.154: soft resync no-jump; denser closed tool strip title */
+.mimo-part:not([open]) > summary .mimo-part-title {
+  color: #eeeeee !important;
+}
+.mimo-part:not([open]).mimo-part--bash > summary .mimo-part-title {
+  color: #a8d4b8 !important;
+}
+.mimo-part:not([open]).mimo-part--edit > summary .mimo-part-title {
+  color: #e8c89a !important;
+}
+.mimo-part:not([open]).mimo-part--read > summary .mimo-part-title {
+  color: #a8c4e8 !important;
+}
+.mimo-part:not([open]).mimo-part--skill > summary .mimo-part-title {
+  color: #c5b3e8 !important;
+}
+/* After stream, strip stays solid when body closed */
+.mimo-part:not([open]) > .mimo-part-body {
+  display: none !important;
+}

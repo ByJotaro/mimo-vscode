@@ -501,7 +501,7 @@ function fillAssistantContent(content: HTMLElement, text: string): void {
 
 function renderMessages(
   messages: DisplayMessage[],
-  opts: { loadMore?: boolean; olderCount?: number; pinBottom?: boolean }
+  opts: { loadMore?: boolean; olderCount?: number; pinBottom?: boolean; soft?: boolean }
 ): void {
   const prevH = chat.scrollHeight;
   const prevT = chat.scrollTop;
@@ -525,7 +525,7 @@ function renderMessages(
           void navigator.clipboard.writeText(msg.text || '');
           if (statusLabel) {
             showToast('copied');
-        statusLabel.textContent = 'copied';
+            statusLabel.textContent = 'copied';
             statusLabel.classList.add('is-flash');
             setTimeout(() => statusLabel?.classList.remove('is-flash'), 500);
           }
@@ -562,6 +562,10 @@ function renderMessages(
 
   if (opts.loadMore) {
     preserveScrollOnPrepend(chat, prevH, prevT);
+  } else if (opts.soft) {
+    // soft resync after streamDone — keep viewport, no pin jump
+    const delta = chat.scrollHeight - prevH;
+    chat.scrollTop = Math.max(0, prevT + delta);
   } else if (opts.pinBottom !== false) {
     pinBottomUntilSettled(chat, 'sessionData');
   }
@@ -1323,16 +1327,17 @@ if (Array.isArray(message.modes) && message.modes.length) {
       const older = Number(meta.olderCount || 0);
       (window as any).__mimoOlderCount = older;
       (window as any).__mimoLoadMoreExhausted = older <= 0;
+      const soft = meta.source === 'db-soft' || meta.soft === true;
       renderMessages(message.messages || [], {
         loadMore: meta.loadMore === true || meta.source === 'loadMore',
         olderCount: older,
-        pinBottom: meta.pinBottom !== false && meta.source !== 'loadMore',
+        pinBottom: !soft && meta.pinBottom !== false && meta.source !== 'loadMore',
+        soft,
       });
       loadMoreInFlight = false;
-      // focus after sessionData
-      setTimeout(() => promptEl?.focus(), 50);
       setInputEnabled(true);
-      setTimeout(() => promptEl?.focus(), 40);
+      // focus after full load only (soft resync keeps caret/focus)
+      if (!soft) setTimeout(() => promptEl?.focus(), 40);
       break;
     }
     case 'appendMessage':
@@ -1352,11 +1357,13 @@ if (Array.isArray(message.modes) && message.modes.length) {
       document
         .querySelector(`.message[data-id="${CSS.escape(String(message.messageId || 'live'))}"]`)
         ?.classList.add('is-streaming');
-        // last-open-tool-scroll
+      // last-open-tool-scroll
+      {
         const lastOpen = document.querySelector(
           '.message.is-streaming .mimo-part[open]:last-of-type'
         ) as HTMLElement | null;
         lastOpen?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
       if (busy && statusLabel) {
         const n = document.querySelectorAll('.message.is-streaming .mimo-part').length;
         statusLabel.textContent = n > 0 ? 'running · ' + n + ' tools' : 'running…';
@@ -1374,6 +1381,10 @@ if (Array.isArray(message.modes) && message.modes.length) {
       }
       document.querySelectorAll('.message.is-streaming').forEach((el) => {
         el.classList.remove('is-streaming');
+        // clear running tool chrome
+        el.querySelectorAll('.mimo-part--running').forEach((p) => {
+          p.classList.remove('mimo-part--running');
+        });
         // Collapse thoughts after turn ends (CLI collapses finished thought)
         el.querySelectorAll('details.mimo-thinking[open]').forEach((d) => {
           (d as HTMLDetailsElement).open = false;
