@@ -2495,3 +2495,21 @@ textarea::placeholder {
 .mimo-error-actions button.primary {
   border-left-color: #FF6A00 !important;
 }
+
+.mimo-loading,
+#mimo-loading,
+.loading-overlay {
+  background: rgba(10,10,10,0.72) !important;
+  backdrop-filter: blur(3px);
+}
+.mimo-loading-card {
+  border-left: 2px solid #FF6A00 !important;
+  background: #141414 !important;
+  border-radius: 0 4px 4px 0 !important;
+  padding: 10px 14px !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+}
+/* beta.145 tool strip health */
+.mimo-part.mimo-part--flat > summary .mimo-part-title {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+}
