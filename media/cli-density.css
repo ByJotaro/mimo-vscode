@@ -2302,3 +2302,30 @@ a.mimo-ext-link:hover {
   top: 0 !important;
   z-index: 5 !important;
 }
+
+/* Tool body denser CLI max height under title strip */
+.mimo-part-body .mimo-io-v {
+  max-height: 280px !important;
+  overflow: auto !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: #3c3c3c transparent !important;
+}
+.mimo-part-body .mimo-io-v::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+.mimo-part-body .mimo-io-v::-webkit-scrollbar-thumb {
+  background: #3c3c3c !important;
+  border-radius: 3px !important;
+}
+/* Open tool body top separator under strip */
+.mimo-part[open] > .mimo-part-body {
+  border-top: 1px solid #1e1e1e !important;
+  background: rgba(12, 12, 12, 0.55) !important;
+}
+
+.header-bar,
+#header {
+  border-bottom: 1px solid #2a2a2a !important;
+  background: #0c0c0c !important;
+}
