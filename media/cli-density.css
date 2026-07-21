@@ -1315,10 +1315,10 @@ body.mimo-busy #btn-abort {
   letter-spacing: 0.12em !important;
   margin: 4px 0 8px !important;
 }
-/* Soft fade at top of chat when scrolled */
+/* Soft top edge only — don't mask bottom (clips last line) */
 .chat-area {
-  mask-image: linear-gradient(to bottom, transparent 0, #000 8px, #000 calc(100% - 8px), transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 6px, #000 calc(100% - 4px), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 10px, #000 100%);
 }
 /* User bubble less heavy */
 .message.user {
