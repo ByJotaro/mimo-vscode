@@ -1166,8 +1166,14 @@ btnHome?.addEventListener('click', () => {
   showStartup([]);
   post({ type: 'goHome' });
 });
-btnUndo?.addEventListener('click', () => post({ type: 'undoLast' }));
-btnFork?.addEventListener('click', () => post({ type: 'forkSession' }));
+btnUndo?.addEventListener('click', () => {
+  showToast('undo…');
+  post({ type: 'undoLast' });
+});
+btnFork?.addEventListener('click', () => {
+  showToast('forking…');
+  post({ type: 'forkSession' });
+});
 btnHistoryTop?.addEventListener('click', () => {
   // Instant feedback so History never feels "dead"
   showHistoryPanel([{ id: '_loading', title: 'Loading…' }]);

@@ -3109,3 +3109,30 @@ select#model {
   border-left-color: #FF6A00 !important;
   outline: none !important;
 }
+
+/* beta.167 denser header row */
+.header,
+#header,
+.header-bar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 4px 8px !important;
+  min-height: 32px !important;
+  border-bottom: 1px solid #2a2a2a !important;
+  background: #0c0c0c !important;
+}
+.header-actions {
+  display: flex !important;
+  gap: 4px !important;
+  margin-left: auto !important;
+  flex-shrink: 0 !important;
+}
+/* Tool strip kind: patch treated as edit accent already via class */
+/* denser empty meta spacer fix when only title+chev+dur */
+.mimo-part > summary {
+  gap: 6px !important;
+}
+.mimo-part > summary .mimo-part-meta {
+  min-width: 0 !important;
+}
