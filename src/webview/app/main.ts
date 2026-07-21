@@ -1200,6 +1200,7 @@ window.addEventListener('keydown', (e) => {
   // Ctrl/Cmd+Shift+H → history
   if (e.shiftKey && k === 'h') {
     e.preventDefault();
+    showToast('history');
     showHistoryPanel([{ id: '_loading', title: 'Loading…' }]);
     post({ type: 'fetchSessions', history: true });
     return;
@@ -1207,6 +1208,7 @@ window.addEventListener('keydown', (e) => {
   // Ctrl/Cmd+Shift+N → new session
   if (e.shiftKey && k === 'n') {
     e.preventDefault();
+    showToast('new session');
     post({ type: 'newSession' });
     return;
   }
@@ -1218,12 +1220,27 @@ window.addEventListener('keydown', (e) => {
   }
   if (e.shiftKey && k === 'u') {
     e.preventDefault();
+    showToast('home');
     activeSessionId = '';
     titleEl.textContent = 'MiMo Code';
     document.getElementById('mimo-history-panel')?.remove();
     chat.innerHTML = '';
     showStartup([]);
     post({ type: 'goHome' });
+    return;
+  }
+  // Ctrl/Cmd+Shift+Z → undo last file changes
+  if (e.shiftKey && k === 'z') {
+    e.preventDefault();
+    showToast('undo…');
+    post({ type: 'undoLast' });
+    return;
+  }
+  // Ctrl/Cmd+Shift+Y → redo
+  if (e.shiftKey && k === 'y') {
+    e.preventDefault();
+    showToast('redo…');
+    post({ type: 'redoLast' });
     return;
   }
   // Ctrl/Cmd+. → abort when busy
