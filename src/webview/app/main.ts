@@ -983,7 +983,7 @@ function handleLocalSlash(full: string): boolean {
     if (statusLabel) statusLabel.textContent = anyClosed ? 'details open' : 'details closed';
     return true;
   }
-  if (cmd === 'export' || cmd === 'copy') {
+  if (cmd === 'export' || cmd === 'copy' || cmd === 'share') {
     const parts: string[] = [];
     document.querySelectorAll('.message').forEach((el) => {
       const role = el.classList.contains('user') ? 'user' : 'assistant';

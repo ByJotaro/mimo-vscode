@@ -1618,3 +1618,23 @@ a.mimo-ext-link:hover {
   pointer-events: none;
   max-width: 90%;
 }
+
+/* Tool IO rows under title strip — slight indent from left bar */
+.mimo-part-body .mimo-io-line,
+.mimo-part--flat .mimo-io-line {
+  padding: 3px 10px !important;
+}
+.mimo-part-body .mimo-io-hr {
+  margin-left: 10px !important;
+  margin-right: 10px !important;
+}
+/* Duration pill on tool summary stays compact */
+.mimo-part > summary .mimo-dur {
+  margin-left: 4px !important;
+  flex-shrink: 0 !important;
+}
+/* Open tool: keep strip darker */
+.mimo-part[open] > summary {
+  background: #121212 !important;
+  border-bottom-color: #2a2a2a !important;
+}
