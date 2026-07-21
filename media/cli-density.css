@@ -2560,3 +2560,21 @@ textarea::placeholder {
   border-left-color: #FF6A00 !important;
 }
 /* Closed kind accents remain (bash/edit/read/skill) */
+
+.mimo-thinking-body {
+  border-top: 1px solid #1e1e1e !important;
+  background: rgba(12,12,12,0.45) !important;
+  padding: 6px 10px !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  color: #a8a8a8 !important;
+  max-height: 220px !important;
+  overflow: auto !important;
+}
+.mimo-thinking-title {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  color: #c0c0c0 !important;
+}
+.mimo-thinking[open] > summary .mimo-thinking-title {
+  color: #eeeeee !important;
+}
