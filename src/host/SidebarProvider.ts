@@ -634,6 +634,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     <div class="session-title" id="session-title">MiMo Code</div>
     <div class="header-actions">
       <button type="button" id="btn-history-top" title="Session history">History</button>
+      <button type="button" id="btn-undo" title="Undo last file changes">Undo</button>
       <button type="button" id="btn-home" title="Home">⌂</button>
       <button type="button" id="btn-abort" title="Abort" hidden>■</button>
     </div>
