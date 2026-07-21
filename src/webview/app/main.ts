@@ -857,7 +857,10 @@ function setBusy(on: boolean): void {
     } else if (statusLabel.dataset.server) {
       statusLabel.textContent = statusLabel.dataset.server;
     } else {
-      statusLabel.textContent = 'v2';
+      statusLabel.textContent =
+        statusLabel.dataset.version
+          ? 'mimo · ' + statusLabel.dataset.version
+          : 'mimo';
     }
   }
 }
