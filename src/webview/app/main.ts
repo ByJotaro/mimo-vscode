@@ -780,7 +780,10 @@ function showStartup(sessions: Array<{ id: string; title: string; updated?: stri
   listWrap.querySelector('#btn-refresh')?.addEventListener('click', () =>
     post({ type: 'fetchSessions' })
   );
-  listWrap.querySelector('#btn-new')?.addEventListener('click', () => post({ type: 'newSession' }));
+  listWrap.querySelector('#btn-new')?.addEventListener('click', () => {
+    showToast('new session');
+    post({ type: 'newSession' });
+  });
   listWrap.querySelector('#btn-history')?.addEventListener('click', () => {
     showHistoryPanel([{ id: '_loading', title: 'Loading…' }]);
     post({ type: 'fetchSessions', history: true });
@@ -874,6 +877,7 @@ function handleLocalSlash(full: string): boolean {
     return true;
   }
   if (cmd === 'new') {
+    showToast('new session');
     post({ type: 'newSession' });
     return true;
   }
@@ -1140,8 +1144,27 @@ function ensureLoadOlderButton(olderCount: number): void {
   if (btn) btn.textContent = `↑ Load older · ${olderCount}`;
 }
 
+function ensureJumpBottom(): void {
+  let btn = document.getElementById('mimo-jump-bottom') as HTMLButtonElement | null;
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'mimo-jump-bottom';
+    btn.className = 'mimo-jump-bottom';
+    btn.textContent = '↓ bottom';
+    btn.hidden = true;
+    btn.addEventListener('click', () => {
+      autoScroll = true;
+      scrollToBottom(chat, true);
+      btn!.hidden = true;
+    });
+    document.body.appendChild(btn);
+  }
+  btn.hidden = autoScroll || isNearBottom(chat);
+}
 function onScroll(): void {
   autoScroll = isNearBottom(chat);
+  ensureJumpBottom();
   if (!activeSessionId) return;
   // Near top of chat → fetch older messages (CLI-style history)
   if (chat.scrollTop < 360) requestLoadMore(false);

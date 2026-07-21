@@ -3168,3 +3168,29 @@ select#model {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.169 jump-to-bottom denser strip */
+.mimo-jump-bottom {
+  position: fixed !important;
+  right: 14px !important;
+  bottom: 72px !important;
+  z-index: 40 !important;
+  border-left: 2px solid #FF6A00 !important;
+  background: #141414 !important;
+  color: #eeeeee !important;
+  border: 1px solid #2a2a2a !important;
+  border-left-width: 2px !important;
+  border-left-color: #FF6A00 !important;
+  border-radius: 0 4px 4px 0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  padding: 4px 10px !important;
+  cursor: pointer !important;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.4) !important;
+}
+.mimo-jump-bottom:hover {
+  background: #1a1a1a !important;
+}
+.mimo-jump-bottom[hidden] {
+  display: none !important;
+}
