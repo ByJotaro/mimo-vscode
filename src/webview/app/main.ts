@@ -204,6 +204,10 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
       }
     });
   });
+  if (det.open && !String(out || '').trim()) det.classList.add('mimo-part--running');
+  if (/error|failed|denied/i.test(String((seg as any).status || metaText || ''))) {
+    det.classList.add('mimo-part--error');
+  }
   const chev = det.querySelector('.mimo-chev');
   if (chev) chev.textContent = det.open ? '▾' : '▸';
   det.addEventListener('toggle', () => {
