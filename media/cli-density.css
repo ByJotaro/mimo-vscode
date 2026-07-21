@@ -1849,3 +1849,11 @@ a.mimo-ext-link:hover {
   border-bottom: 1px solid #242424 !important;
   padding: 4px 8px !important;
 }
+
+.mimo-history-list .mimo-session-card {
+  border-left: 2px solid #2a2a2a !important;
+  background: #141414 !important;
+}
+.mimo-history-list .mimo-session-card:hover {
+  border-left-color: #FF6A00 !important;
+}
