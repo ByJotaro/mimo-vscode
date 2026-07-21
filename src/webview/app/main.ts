@@ -432,6 +432,10 @@ function inlineMd(s: string): string {
   let t = escHtml(s);
   t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
   t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  t = t.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+  t = t.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+  t = t.replace(/(?<!_)_([^_]+)_(?!_)/g, '<em>$1</em>');
+  t = t.replace(/~~([^~]+)~~/g, '<s>$1</s>');
   t = t.replace(
     /\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,
     '<a href="$2" rel="noopener noreferrer" class="mimo-ext-link">$1</a>'
@@ -967,6 +971,24 @@ function handleLocalSlash(full: string): boolean {
     const anyClosed = parts.some((p) => !p.open);
     parts.forEach((p) => { p.open = anyClosed; });
     if (statusLabel) statusLabel.textContent = anyClosed ? 'details open' : 'details closed';
+    return true;
+  }
+  if (cmd === 'export' || cmd === 'copy') {
+    const parts: string[] = [];
+    document.querySelectorAll('.message').forEach((el) => {
+      const role = el.classList.contains('user') ? 'user' : 'assistant';
+      const text = (el.querySelector('.message-content') as HTMLElement)?.innerText || '';
+      if (text.trim()) parts.push('## ' + role + '\n' + text.trim());
+    });
+    const blob = parts.join('\n\n---\n\n');
+    if (blob && navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(blob);
+      if (statusLabel) {
+        statusLabel.textContent = 'exported';
+        statusLabel.classList.add('is-flash');
+        setTimeout(() => statusLabel?.classList.remove('is-flash'), 700);
+      }
+    } else if (statusLabel) statusLabel.textContent = 'nothing to export';
     return true;
   }
   if (cmd === 'help') {
