@@ -1673,3 +1673,18 @@ a.mimo-ext-link:hover {
   border-left: 2px solid #FF6A00 !important;
   border-radius: 0 4px 4px 0 !important;
 }
+
+/* Thought row — light left bar to match tool chrome family */
+.mimo-thinking {
+  border-left: 2px solid #2a2a2a !important;
+  padding-left: 6px !important;
+  margin: 4px 0 8px !important;
+}
+.mimo-thinking[open] {
+  border-left-color: #505050 !important;
+}
+/* Tool title strip full-bleed under message padding */
+.message.bot .mimo-part {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
