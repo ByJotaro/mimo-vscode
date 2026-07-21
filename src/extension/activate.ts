@@ -1,7 +1,10 @@
-﻿import * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import { SidebarProvider } from '../host/SidebarProvider';
 
 export function activate(context: vscode.ExtensionContext): void {
+  const cfg = vscode.workspace.getConfiguration('mimo');
+  const cliPath = String(cfg.get('cliPath') || '').trim();
+  if (cliPath) process.env.MIMO_BIN = cliPath;
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
   status.text = '$(chip) MiMo';
   status.tooltip = 'MiMo Code — open chat (Ctrl+Shift+M)';

@@ -3,7 +3,7 @@
   "displayName": "MiMo Code",
   "publisher": "mimo",
   "description": "MiMo Code VS Code sidebar — modular rewrite (v2). Fast DB-first history, CLI-faithful tools & theme.",
-  "version": "1.0.0-beta.246",
+  "version": "1.0.0-beta.247",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -108,6 +108,22 @@
       ]
     }
 ,
+,
+    "configuration": {
+      "title": "MiMo Code",
+      "properties": {
+        "mimo.cliPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to mimo executable (empty = auto-detect / PATH / MIMO_BIN)."
+        },
+        "mimo.servePort": {
+          "type": "number",
+          "default": 0,
+          "description": "Preferred loopback port for mimo serve (0 = hash from workspace)."
+        }
+      }
+    },
     "keybindings": [
       {
         "command": "mimo.openSidebar",
