@@ -483,7 +483,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       if (sid) {
         setTimeout(() => {
           if (this.currentSessionId === sid) void this.selectSession(sid);
-        }, 800);
+        }, 400);
       }
       return;
     }
