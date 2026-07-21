@@ -970,6 +970,14 @@ function handleLocalSlash(full: string): boolean {
     }
     return true;
   }
+  if (cmd === 'mcp') {
+    showToast('MCP: tavily + playwright + windows-mcp');
+    return true;
+  }
+  if (cmd === 'tasks') {
+    showToast('tasks: full tree in CLI');
+    return true;
+  }
   if (cmd === 'cost' || cmd === 'status' || cmd === 'usage') {
     if (activeSessionId) post({ type: 'refreshUsage', sessionId: activeSessionId });
     const tools = document.querySelectorAll('.mimo-part').length;
