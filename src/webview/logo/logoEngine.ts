@@ -3,6 +3,7 @@
  * OOM-safe: MAX_PARTICLES, gather throttle, single instance, destroyable.
  */
 
+// Exact CLI logoThin (packages/opencode logo-data.ts) — keep leading spaces on right
 const LOGO_LEFT = [
   '                  ',
   '                  ',
@@ -11,11 +12,11 @@ const LOGO_LEFT = [
   '▀   ▀ ▀ ▀   ▀ ▀▀▀▀',
 ];
 const LOGO_RIGHT = [
-  '            Xiaomi',
-  '                  ',
-  '█▀▀ █▀▀█ █▀▀▄ █▀▀▀',
-  '█   █  █ █  █ █▀▀ ',
-  '▀▀▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀',
+  '              Xiaomi',
+  '                    ',
+  '  █▀▀ █▀▀█ █▀▀▄ █▀▀▀',
+  '  █   █  █ █  █ █▀▀ ',
+  '  ▀▀▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀',
 ];
 
 const MIMO_ORANGE = { r: 255, g: 106, b: 0 };

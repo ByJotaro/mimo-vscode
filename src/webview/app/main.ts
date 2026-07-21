@@ -35,6 +35,7 @@ type DisplayMessage = {
 const chat = document.getElementById('chat') as HTMLElement;
 const titleEl = document.getElementById('session-title') as HTMLElement;
 const btnHome = document.getElementById('btn-home') as HTMLButtonElement;
+const btnHistoryTop = document.getElementById('btn-history-top') as HTMLButtonElement | null;
 const btnSend = document.getElementById('btn-send') as HTMLButtonElement;
 const btnAbort = document.getElementById('btn-abort') as HTMLButtonElement | null;
 const promptEl = document.getElementById('prompt') as HTMLTextAreaElement;
@@ -74,11 +75,33 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
     const det = document.createElement('details');
     det.className = 'mimo-thinking';
     det.open = false;
-    det.innerHTML = `<summary><span class="mimo-thinking-title">thinking</span>${
-      (seg as any).duration
-        ? `<span class="mimo-dur">${escHtml((seg as any).duration)}</span>`
-        : ''
-    }</summary><div class="mimo-thinking-body">${escHtml((seg as any).body)}</div>`;
+    const bodyText = String((seg as any).body || '').trim();
+    const words = bodyText ? bodyText.split(/\s+/).filter(Boolean).length : 0;
+    const dur =
+      String((seg as any).duration || '').trim() ||
+      (words ? `~${Math.max(1, Math.round(words / 40))}s` : '');
+    const summary = document.createElement('summary');
+    const title = document.createElement('span');
+    title.className = 'mimo-thinking-title';
+    title.textContent = (seg as any).title || 'thinking';
+    summary.appendChild(title);
+    if (dur) {
+      const d = document.createElement('span');
+      d.className = 'mimo-dur';
+      d.textContent = dur;
+      summary.appendChild(d);
+    }
+    if (words) {
+      const w = document.createElement('span');
+      w.className = 'mimo-thinking-hint';
+      w.textContent = words + ' words';
+      summary.appendChild(w);
+    }
+    det.appendChild(summary);
+    const body = document.createElement('div');
+    body.className = 'mimo-thinking-body';
+    body.textContent = bodyText;
+    det.appendChild(body);
     return det;
   }
   const det = document.createElement('details');
@@ -164,19 +187,62 @@ function renderSideBySideDiff(t: string): string {
   )}</div><div class="mimo-diff-col mimo-diff-col--add">${right.join('')}</div></div>`;
 }
 
+function isTableSep(line: string): boolean {
+  return /^\s*\|?[\s:\-|]+\|[\s:\-|\|]+\|?\s*$/.test(line) && /[-:]/.test(line);
+}
+function isTableRow(line: string): boolean {
+  return /^\s*\|.+\|\s*$/.test(line) || (/^\s*[^|]+\|.+/.test(line) && line.includes('|'));
+}
+function renderTable(rows: string[]): string {
+  if (rows.length < 2) return rows.map((r) => `<p>${inlineMd(r)}</p>`).join('');
+  const parseRow = (line: string) =>
+    line
+      .trim()
+      .replace(/^\|/, '')
+      .replace(/\|$/, '')
+      .split('|')
+      .map((c) => c.trim());
+  const head = parseRow(rows[0]);
+  let bodyStart = 1;
+  if (isTableSep(rows[1])) bodyStart = 2;
+  let html = '<table class="mimo-md-table"><thead><tr>';
+  for (const h of head) html += `<th>${inlineMd(h)}</th>`;
+  html += '</tr></thead><tbody>';
+  for (let i = bodyStart; i < rows.length; i++) {
+    if (isTableSep(rows[i])) continue;
+    const cells = parseRow(rows[i]);
+    html += '<tr>';
+    for (let c = 0; c < head.length; c++) {
+      html += `<td>${inlineMd(cells[c] || '')}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
 function formatMarkdownLite(text: string): string {
   const lines = String(text || '').split(/\n/);
   const blocks: string[] = [];
   let buf: string[] = [];
   let inCode = false;
   let codeBuf: string[] = [];
+  let tableBuf: string[] = [];
   const flush = () => {
     if (!buf.length) return;
     blocks.push(`<p>${inlineMd(buf.join('\n'))}</p>`);
     buf = [];
   };
+  const flushTable = () => {
+    if (tableBuf.length >= 2) blocks.push(renderTable(tableBuf));
+    else if (tableBuf.length) {
+      for (const r of tableBuf) blocks.push(`<p>${inlineMd(r)}</p>`);
+    }
+    tableBuf = [];
+  };
   for (const line of lines) {
     if (/^```/.test(line)) {
+      flushTable();
       if (inCode) {
         blocks.push(`<pre><code>${escHtml(codeBuf.join('\n'))}</code></pre>`);
         codeBuf = [];
@@ -191,6 +257,13 @@ function formatMarkdownLite(text: string): string {
       codeBuf.push(line);
       continue;
     }
+    // GFM table rows
+    if (isTableRow(line) || (tableBuf.length && isTableSep(line))) {
+      flush();
+      tableBuf.push(line);
+      continue;
+    }
+    if (tableBuf.length) flushTable();
     if (line.trim() === '') {
       flush();
       continue;
@@ -210,6 +283,7 @@ function formatMarkdownLite(text: string): string {
     buf.push(line);
   }
   if (inCode) blocks.push(`<pre><code>${escHtml(codeBuf.join('\n'))}</code></pre>`);
+  flushTable();
   flush();
   let html = blocks.join('\n');
   html = html.replace(/(?:<li>[\s\S]*?<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`);
@@ -432,22 +506,26 @@ function doSend(): void {
 function onScroll(): void {
   autoScroll = isNearBottom(chat);
   if (!activeSessionId) return;
-  if (chat.scrollTop < 120 && !loadMoreInFlight) {
+  const older = Number((window as any).__mimoOlderCount || 0);
+  // Trigger near top — spacer height or plain scrollTop
+  const nearTop = chat.scrollTop < 160;
+  if (nearTop && !loadMoreInFlight && older > 0) {
     const now = Date.now();
-    if (now - loadMoreCooldown < 800) return;
+    if (now - loadMoreCooldown < 600) return;
     loadMoreCooldown = now;
     loadMoreInFlight = true;
-    updateHistoryTopSpacer(chat, (window as any).__mimoOlderCount || 0, true);
+    updateHistoryTopSpacer(chat, older, true);
     post({
       type: 'loadMoreSession',
       sessionId: activeSessionId,
-      count: loadedCount + 40,
+      count: Math.max(loadedCount, 24) + 40,
     });
   }
 }
 
 chat.addEventListener('scroll', onScroll, { passive: true });
 btnHome?.addEventListener('click', () => post({ type: 'newSession' }));
+btnHistoryTop?.addEventListener('click', () => post({ type: 'fetchSessions', history: true }));
 btnSend?.addEventListener('click', doSend);
 btnAbort?.addEventListener('click', () => post({ type: 'abort' }));
 promptEl?.addEventListener('input', onPromptInput);
