@@ -12,7 +12,7 @@ const STAR_MASKS = [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80];
 /** Multi-dot “hot” twinkles */
 const HOT_MASKS = [0x15, 0x2a, 0x3f, 0x55, 0xaa, 0x5a];
 const HOT_THRESHOLD = 0.88;
-const MAX_STARS = 160;
+const MAX_STARS = 200;
 const TWINKLE_MS = 240;
 const METEOR_INTERVAL = 8000;
 const METEOR_DURATION = 2800;
@@ -97,7 +97,7 @@ export function startStarfield(canvas: HTMLCanvasElement | null): StarfieldHandl
     cols = Math.max(8, Math.floor(W / cell));
     rows = Math.max(8, Math.floor(H / (cell * 1.2)));
     // denser field than before but still OOM-capped
-    const target = Math.min(MAX_STARS, Math.floor(cols * rows * 0.028));
+    const target = Math.min(MAX_STARS, Math.floor(cols * rows * 0.036));
     stars = [];
     for (let i = 0; i < target; i++) {
       stars.push({
