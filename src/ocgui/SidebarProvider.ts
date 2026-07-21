@@ -4043,15 +4043,22 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                         // DB first — keeps tools when expanding history
                         let messages: any[] = [];
                         let title = msId;
+                        let olderCount = 0;
+                        let totalMessages = 0;
                         try {
                             const dbData = await this.client.querySessionFromDb(msId, moreCt);
                             messages = this.formatDbMessages(dbData?.messages ?? []);
                             title = dbData?.session?.title || title;
+                            olderCount = typeof (dbData as any)?.meta?.olderCount === 'number'
+                                ? (dbData as any).meta.olderCount : 0;
+                            totalMessages = typeof (dbData as any)?.meta?.totalMessages === 'number'
+                                ? (dbData as any).meta.totalMessages : messages.length;
                         } catch {
                             const moreData = await this.client.exportSessionRecent(msId, moreCt);
                             const formatted = this.formatSession(moreData);
                             messages = formatted.messages;
                             title = formatted.title || title;
+                            totalMessages = messages.length;
                         }
                         this._loadedSessions.set(msId, messages as any);
                         if (wv) {
@@ -4066,6 +4073,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                                     loadMore: true,
                                     limit: moreCt,
                                     pinBottom: false,
+                                    olderCount,
+                                    totalMessages,
+                                    loadedCount: messages.length,
                                     hasToolCards: messages.some((m: any) =>
                                         typeof m?.text === 'string' && m.text.includes('%%MIMO_PART')
                                     ),
@@ -4077,6 +4087,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                                 loading: false,
                                 limit: moreCt,
                                 count: messages.length,
+                                olderCount,
                             });
                         }
                     } catch (e) {
@@ -5094,15 +5105,23 @@ ${attachmentLines.join('\n')}`
                             let source = 'db';
                             let messages: SessionMessage[] = [];
                             let title = baseTitle;
+                            let olderCount = 0;
+                            let totalMessages = 0;
+                            let dbExportMeta: any = null;
 
                             // 1) DB first — has tool/old_string/new_string/metadata.diff
                             try {
                                 const dbExport = await this.client.querySessionFromDb(targetSessionId, limit);
+                                dbExportMeta = dbExport;
                                 const dbMsgs = this.formatDbMessages(dbExport?.messages ?? []);
                                 if (dbMsgs.length) {
                                     messages = dbMsgs;
                                     title = dbExport?.session?.title || title;
                                     source = 'db';
+                                    olderCount = typeof (dbExport as any)?.meta?.olderCount === 'number'
+                                        ? (dbExport as any).meta.olderCount : 0;
+                                    totalMessages = typeof (dbExport as any)?.meta?.totalMessages === 'number'
+                                        ? (dbExport as any).meta.totalMessages : dbMsgs.length;
                                 }
                             } catch (dbErr) {
                                 this.uiDebugChannel.appendLine(
@@ -5157,6 +5176,11 @@ ${attachmentLines.join('\n')}`
                                 typeof m?.text === 'string' && m.text.includes('%%MIMO_PART')
                             ).length;
 
+                            if (!totalMessages) totalMessages = finalMessages.length;
+                            if (!olderCount && totalMessages > finalMessages.length) {
+                                olderCount = totalMessages - finalMessages.length;
+                            }
+
                             const sessionPayload = {
                                 type: 'sessionData',
                                 sessionId: targetSessionId,
@@ -5171,6 +5195,9 @@ ${attachmentLines.join('\n')}`
                                     hasToolCards: toolMsgsFinal > 0,
                                     toolMsgs: toolMsgsFinal,
                                     limit,
+                                    olderCount,
+                                    totalMessages,
+                                    loadedCount: finalMessages.length,
                                     loadMs: Date.now() - recentStart,
                                 }
                             };
@@ -9361,6 +9388,12 @@ ${attachmentLines.join('\n')}`
                     typeof m.text === 'string' && m.text.includes('%%MIMO_PART')
                 ).length;
                 this._loadedSessions.set(sessionId, dbData?.messages ?? []);
+                const olderCount = typeof (dbData as any)?.meta?.olderCount === 'number'
+                    ? (dbData as any).meta.olderCount
+                    : 0;
+                const totalMessages = typeof (dbData as any)?.meta?.totalMessages === 'number'
+                    ? (dbData as any).meta.totalMessages
+                    : dbMsgs.length;
                 liveWebview.postMessage({
                     type: 'sessionData',
                     sessionId,
@@ -9372,13 +9405,16 @@ ${attachmentLines.join('\n')}`
                         limit,
                         hasToolCards: dbToolMsgs > 0,
                         toolMsgs: dbToolMsgs,
+                        olderCount,
+                        totalMessages,
+                        loadedCount: dbMsgs.length,
                         loadMs: dbMs,
                         pinBottom: true,
                     },
                 });
-                rtLog(`LOAD_SESSION db_ms=${dbMs} msgs=${dbMsgs.length} toolMsgs=${dbToolMsgs}`);
+                rtLog(`LOAD_SESSION db_ms=${dbMs} msgs=${dbMsgs.length} toolMsgs=${dbToolMsgs} older=${olderCount}`);
                 this.uiDebugChannel.appendLine(
-                    `[EXT][LOAD_SESSION] source=db ms=${dbMs} msgs=${dbMsgs.length} toolMsgs=${dbToolMsgs}`
+                    `[EXT][LOAD_SESSION] source=db ms=${dbMs} msgs=${dbMsgs.length} toolMsgs=${dbToolMsgs} older=${olderCount}`
                 );
                 // Only try API if DB had zero tool cards
                 void this.enrichFromApiIfRicher(sessionId, limit, dbMsgs.length, dbToolMsgs);

@@ -30,17 +30,26 @@ html, body {
     height: 100%;
     width: 100%;
     color: var(--mimo-fg);
-    /* MiMo Code CLI / PowerShell density */
+    /* MiMo Code CLI density — TUI ~13px mono, tight leading */
     font-family: "Cascadia Mono", "Cascadia Code", Consolas, "Courier New", ui-monospace, monospace;
-    font-size: 12px;
-    line-height: 1.35;
+    font-size: 13px;
+    line-height: 1.2;
     letter-spacing: 0;
     display: flex;
     flex-direction: column;
-    background: var(--mimo-bg) !important;
-    background-color: var(--mimo-bg) !important;
+    background: #0a0a0a !important;
+    background-color: #0a0a0a !important;
     position: relative;
     overflow: hidden;
+}
+/* Lock VS Code webview theme leaks */
+body, body.vscode-dark, body.vscode-light, body.vscode-high-contrast {
+    background: #0a0a0a !important;
+    background-color: #0a0a0a !important;
+    color: #eeeeee !important;
+}
+#bg, .starfield, canvas#bg {
+    background: transparent !important;
 }
 
 /* Only lift normal UI above starfield. NEVER force position on overlays —
@@ -136,18 +145,24 @@ body > .slash-palette {
     margin-left: 2px;
 }
 .mimo-thinking-body {
-    margin: 4px 0 0 18px;
-    padding: 0 0 4px;
+    margin: 2px 0 0 14px;
+    padding: 0 0 2px;
     color: var(--mimo-muted);
     font-style: italic;
-    font-size: 0.9em;
-    line-height: 1.55;
+    font-size: 0.92em;
+    line-height: 1.2;
     white-space: pre-wrap;
     word-break: break-word;
     max-height: 260px;
     overflow: auto;
     border-left: 1px solid var(--mimo-border);
-    padding-left: 10px;
+    padding-left: 8px;
+}
+/* Thinking sits closer to previous tool stack */
+.mimo-part + .mimo-thinking,
+.mimo-text-seg + .mimo-thinking,
+.message.bot .mimo-thinking {
+    margin-top: 1px !important;
 }
 
 .mimo-dur {
@@ -781,8 +796,14 @@ body > .slash-palette {
     white-space: pre;
     text-align: left;
 }
-.mimo-logo-orange { color: #fb8147; } /* MIMO_ORANGE */
+.mimo-logo-orange { color: #FF6A00; } /* darkStep9 primary */
 .mimo-logo-gray { color: #a0a0a0; }   /* MIMO_GRAY */
+.mimo-welcome-pre {
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0, "calt" 0;
+  letter-spacing: 0 !important;
+  line-height: 1 !important;
+}
 .mimo-welcome--compact {
     min-height: 0;
     padding: 8px 0;
@@ -3549,6 +3570,30 @@ select#mode-select {
   border-radius: 4px;
   flex-shrink: 0;
 }
+/* Unloaded older history: empty scroll region (no real text) */
+.mimo-history-spacer {
+  flex-shrink: 0;
+  width: 100%;
+  box-sizing: border-box;
+  background: transparent;
+  border: none;
+  position: relative;
+  pointer-events: none;
+}
+.mimo-history-spacer-label {
+  position: sticky;
+  top: 8px;
+  text-align: center;
+  color: #555;
+  font-size: 10px;
+  font-family: "Cascadia Mono", Consolas, monospace;
+  padding: 6px;
+  opacity: 0.7;
+}
+.mimo-history-spacer.is-loading .mimo-history-spacer-label {
+  color: #808080;
+  opacity: 1;
+}
 .mimo-startup-list {
   max-height: none !important;
   overflow: visible !important;
@@ -3557,7 +3602,8 @@ select#mode-select {
 /* Chat layout density — match MiMo Code CLI terminal */
 .chat-area {
   gap: 0 !important;
-  padding: 6px 8px !important;
+  padding: 4px 8px !important;
+  background: transparent !important;
 }
 /* Prevent flex shrink from collapsing messages during hydrate (scrollHeight race) */
 .chat-area > .message,
@@ -3566,27 +3612,28 @@ select#mode-select {
   flex-shrink: 0 !important;
 }
 .message {
-  padding: 1px 4px !important;
+  padding: 0 2px !important;
   margin: 0 !important;
 }
 .message.user {
-  padding: 6px 10px !important;
-  margin: 4px 0 !important;
+  padding: 4px 8px !important;
+  margin: 2px 0 !important;
   background: #141414 !important;
   border: 1px solid #3c3c3c !important;
   color: #eeeeee !important;
 }
 
-/* Markdown baseline — 12px mono like PowerShell / MiMo TUI */
+/* Markdown baseline — CLI-like 13px mono, tight line-height */
 .message .message-content{
   white-space: normal;
-  line-height: 1.35;
-  font-size: 12px !important;
+  line-height: 1.2 !important;
+  font-size: 13px !important;
   font-family: "Cascadia Mono", Consolas, ui-monospace, monospace !important;
-  color: var(--mimo-fg, #eeeeee);
+  color: #eeeeee !important;
 }
 .message.bot .message-content {
-  color: #eeeeee;
+  color: #eeeeee !important;
+  line-height: 1.2 !important;
 }
 
 /* Diff like CLI: full contrast fg on tinted bg */
@@ -3614,44 +3661,45 @@ select#mode-select {
   white-space: normal;
 }
 
-/* ---- Global block spacing (the main knob) ---- */
+/* ---- Global block spacing — CLI-tight (blank lines must stay visible) ---- */
 .message .message-content :where(
   p, ul, ol, pre, blockquote, hr, table,
   h1, h2, h3, h4, h5, h6
 ){
-  margin: 0.22em 0;
+  margin: 0.12em 0;
 }
 
 /* ---- Headings ---- */
 .message .message-content :where(h1,h2,h3,h4,h5,h6){
   font-weight: 600;
-  line-height: 1.18;
-  margin: 0.38em 0 0.10em;
+  line-height: 1.15;
+  margin: 0.28em 0 0.06em;
+  color: #818CF8; /* darkAccent */
 }
-.message .message-content h1 { font-size: 1.08em; }
-.message .message-content h2 { font-size: 1.03em; }
+.message .message-content h1 { font-size: 1.06em; }
+.message .message-content h2 { font-size: 1.02em; }
 .message .message-content :where(h3,h4,h5,h6) { font-size: 1.00em; }
 
 /* Headings + following block: tighten */
 .message .message-content :where(h1,h2,h3,h4,h5,h6) + :where(p, ul, ol){
-  margin-top: 0.06em;
+  margin-top: 0.04em;
 }
 
 /* ---- Lists ---- */
 .message .message-content :where(ul, ol){
-  padding-left: 1.2em;
+  padding-left: 1.15em;
   list-style-position: outside;
-  margin: 0.12em 0;
+  margin: 0.08em 0;
 }
 .message .message-content li{
-  margin: 0.10em 0;
-  line-height: 1.28;
+  margin: 0.04em 0;
+  line-height: 1.2;
 }
 /* markdown-it: li > p is the “empty line” culprit */
 .message .message-content li > p{ margin: 0; }
 /* Nested lists: keep compact */
 .message .message-content li > :where(ul, ol){
-  margin: 0.18em 0 0.08em;
+  margin: 0.08em 0 0.04em;
 }
 
 /* ---- Code ---- */

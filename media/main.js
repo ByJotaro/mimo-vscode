@@ -6211,6 +6211,45 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (_) {}
     }
+
+    /**
+     * Empty spacer ABOVE loaded history so user can scroll into "unloaded" region
+     * without seeing real older text. Height ≈ olderCount * estimate; loadMore fills
+     * it in place (scrollTop adjusted by delta — no jump).
+     */
+    function updateHistoryTopSpacer(olderCount, loading) {
+        try {
+            const chat = document.getElementById('chat') || chatContainer;
+            if (!chat) return;
+            let sp = document.getElementById('mimo-history-spacer');
+            const n = Math.max(0, Number(olderCount) || 0);
+            if (n <= 0 && !loading) {
+                if (sp) sp.remove();
+                return;
+            }
+            if (!sp) {
+                sp = document.createElement('div');
+                sp.id = 'mimo-history-spacer';
+                sp.className = 'mimo-history-spacer';
+                sp.setAttribute('aria-hidden', 'true');
+                chat.insertBefore(sp, chat.firstChild);
+            }
+            // ~72px per unloaded message (mono density) — empty, not text
+            const h = Math.min(12000, Math.max(120, n * 72));
+            sp.style.height = h + 'px';
+            sp.style.minHeight = h + 'px';
+            sp.dataset.older = String(n);
+            if (loading) {
+                sp.classList.add('is-loading');
+                sp.innerHTML = '<div class="mimo-history-spacer-label">Loading older messages…</div>';
+            } else {
+                sp.classList.remove('is-loading');
+                sp.innerHTML = n > 0
+                    ? '<div class="mimo-history-spacer-label">↑ scroll for older history</div>'
+                    : '';
+            }
+        } catch (_) {}
+    }
     window.__mimoShowStartupChooser = showStartupChooser;
     window.__mimoShowSessionLoadingBar = showSessionLoadingBar;
     window.__mimoShowSessionLoadingOverlay = showSessionLoadingOverlay;
@@ -10467,6 +10506,7 @@ function appendMessageImages(parentEl, message) {
     // Physics/constants from packages/opencode/.../logo.tsx + sound.ts wavs
     (function initMimoWelcome() {
         // logoThin from packages/opencode/src/cli/logo.ts
+        // Exact CLI logoThin rows — fixed-width monospaced cells (no proportional gaps)
         const LOGO_LEFT = [
             '                  ',
             '                  ',
@@ -10474,14 +10514,16 @@ function appendMessageImages(parentEl, message) {
             '█ ▀ █ █ █ ▀ █ █  █',
             '▀   ▀ ▀ ▀   ▀ ▀▀▀▀',
         ];
+        // Trim leading double-space on block rows so gap between MIMO|CODE is 1 cell only
         const LOGO_RIGHT = [
-            '              Xiaomi',
-            '                    ',
-            '  █▀▀ █▀▀█ █▀▀▄ █▀▀▀',
-            '  █   █  █ █  █ █▀▀ ',
-            '  ▀▀▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀',
+            '            Xiaomi',
+            '                  ',
+            '█▀▀ █▀▀█ █▀▀▄ █▀▀▀',
+            '█   █  █ █  █ █▀▀ ',
+            '▀▀▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀',
         ];
-        const MIMO_ORANGE = { r: 251, g: 129, b: 71 };   // #fb8147
+        // Official theme primary + muted gray (CLI logo.tsx)
+        const MIMO_ORANGE = { r: 255, g: 106, b: 0 };    // #FF6A00 darkStep9
         const MIMO_GRAY = { r: 160, g: 160, b: 160 };    // #a0a0a0
         const PEAK = { r: 255, g: 255, b: 255 };
         const CHARGE_MS = 3000;
@@ -10641,30 +10683,34 @@ function appendMessageImages(parentEl, message) {
             let fxW = 0, fxH = 0, logoOffX = 0, logoOffY = 0;
 
             function layout() {
-                // Logo canvas = TEXT ONLY (tight, no particle pad → no huge gap before tips)
+                // Glyph-to-glyph squares: cellW === cellH from mono advance of █ only
+                // (no *0.96 shrink — that created uneven gaps vs CLI)
                 const stage = canvas.parentElement;
                 const outer = stage && stage.parentElement ? stage.parentElement : stage;
-                const avail = Math.max(220, (outer ? outer.clientWidth : 360) - 4);
+                const avail = Math.max(220, (outer ? outer.clientWidth : 360) - 8);
                 const probe = canvas.getContext('2d');
                 const FONT = '"Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
                 let fs = Math.floor(avail / Math.max(1, grid.cols));
-                fs = Math.max(18, Math.min(40, fs));
-                probe.font = '600 ' + fs + 'px ' + FONT;
-                let pair = probe.measureText('██').width;
-                let advance = pair > 0 ? pair / 2 : probe.measureText('█').width;
-                if (!advance || advance < 4) advance = fs * 0.6;
+                fs = Math.max(16, Math.min(36, fs));
+                let advance = fs;
                 let guard = 0;
-                while (advance * grid.cols > avail && fs > 16 && guard++ < 40) {
-                    fs -= 1;
+                while (guard++ < 48) {
                     probe.font = '600 ' + fs + 'px ' + FONT;
-                    pair = probe.measureText('██').width;
-                    advance = pair > 0 ? pair / 2 : (probe.measureText('█').width || fs * 0.6);
+                    // Prefer pair half; fallback full block width
+                    const pair = probe.measureText('██').width;
+                    advance = pair > 0 ? pair / 2 : probe.measureText('█').width;
+                    if (!advance || advance < 4) advance = fs * 0.55;
+                    // Snap to integer CSS pixels for crisp abutting squares
+                    advance = Math.max(1, Math.round(advance));
+                    if (advance * grid.cols <= avail || fs <= 14) break;
+                    fs -= 1;
                 }
-                fontSize = fs;
-                cellW = Math.max(1, advance * 0.96);
-                cellH = fontSize;
-                padX = 2;
-                padY = 2;
+                // Font size = cell size so █ fills its square edge-to-edge
+                fontSize = advance;
+                cellW = advance;
+                cellH = advance; // square cell → block edges touch like TUI
+                padX = 0;
+                padY = 0;
                 const textW = grid.cols * cellW;
                 const textH = grid.rows * cellH;
                 W = Math.ceil(padX * 2 + textW);
@@ -10675,6 +10721,7 @@ function appendMessageImages(parentEl, message) {
                 canvas.style.height = H + 'px';
                 canvas.style.margin = '0 auto';
                 canvas.style.display = 'block';
+                canvas.style.imageRendering = 'pixelated';
                 if (stage) {
                     stage.style.width = '100%';
                     stage.style.height = H + 'px';
@@ -10687,9 +10734,12 @@ function appendMessageImages(parentEl, message) {
                 }
                 const ctx = canvas.getContext('2d');
                 ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                // Integer pixel centers so blocks don't shift half-px
                 grid.cells.forEach(function (c) {
-                    c.px = Math.round((padX + c.gx * cellW + cellW * 0.5) * dpr) / dpr;
-                    c.py = Math.round((padY + c.gy * cellH + cellH * 0.5) * dpr) / dpr;
+                    c.px = padX + c.gx * cellW + cellW * 0.5;
+                    c.py = padY + c.gy * cellH + cellH * 0.5;
                 });
                 // Full-viewport FX layer
                 fxW = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 400);
@@ -10935,10 +10985,11 @@ function appendMessageImages(parentEl, message) {
             }
 
             function draw(t) {
-                // 1) Logo text canvas (tight)
+                // 1) Logo text canvas — monospaced grid, font = cellW so blocks abut
                 const ctx = canvas.getContext('2d');
                 ctx.clearRect(0, 0, W, H);
-                ctx.font = '600 ' + fontSize + 'px "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
+                const drawFs = Math.max(1, Math.round(cellW));
+                ctx.font = '600 ' + drawFs + 'px "Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.imageSmoothingEnabled = false;
@@ -10952,16 +11003,20 @@ function appendMessageImages(parentEl, message) {
                     }
                     if (!hold && !rings.length) {
                         const sh = 0.5 + 0.5 * Math.sin(t * 0.0015 + c.gx * 0.4 + c.gy);
-                        col = tint(c.base, PEAK, sh * 0.05);
+                        col = tint(c.base, PEAK, sh * 0.04);
                     }
                     ctx.fillStyle = css(col, 1);
-                    if (f.boost > 0.3) {
-                        ctx.shadowColor = css(tint(c.base, PEAK, 0.55), 0.65);
-                        ctx.shadowBlur = 6 + f.boost * 14;
+                    // No shadow blur on idle — soft glow was making glyphs look gapped
+                    if (f.boost > 0.35) {
+                        ctx.shadowColor = css(tint(c.base, PEAK, 0.55), 0.55);
+                        ctx.shadowBlur = 4 + f.boost * 10;
                     } else {
                         ctx.shadowBlur = 0;
                     }
-                    ctx.fillText(c.ch, c.px, c.py);
+                    // Snap to device pixels to avoid subpixel seams
+                    const px = Math.round(c.px * dpr) / dpr;
+                    const py = Math.round(c.py * dpr) / dpr;
+                    ctx.fillText(c.ch, px, py);
                 }
                 ctx.shadowBlur = 0;
 
@@ -11130,7 +11185,7 @@ function appendMessageImages(parentEl, message) {
                 let html = '';
                 for (let i = 0; i < LOGO_LEFT.length; i++) {
                     html += '<span class="mimo-logo-orange">' + LOGO_LEFT[i].replace(/</g, '&lt;') +
-                        '</span>  <span class="mimo-logo-gray">' + (LOGO_RIGHT[i] || '').replace(/</g, '&lt;') +
+                        '</span> <span class="mimo-logo-gray">' + (LOGO_RIGHT[i] || '').replace(/</g, '&lt;') +
                         '</span>\n';
                 }
                 pre.innerHTML = html;
@@ -12603,6 +12658,12 @@ window.addEventListener('message', (event) => {
                     // Preserve scroll anchor when older history expands the list
                     const prevScrollH = isLoadMore && chatContainer ? chatContainer.scrollHeight : 0;
                     const prevScrollT = isLoadMore && chatContainer ? chatContainer.scrollTop : 0;
+                    const olderCountMeta = typeof message?.meta?.olderCount === 'number'
+                        ? message.meta.olderCount
+                        : (typeof message?.meta?.totalMessages === 'number' && Array.isArray(message.messages)
+                            ? Math.max(0, message.meta.totalMessages - message.messages.length)
+                            : 0);
+                    try { window.__mimoOlderCount = olderCountMeta; } catch (_) {}
                     
                     const hasSegments = Array.isArray(message.segments);
                     // Always rebuild from payload (loadMore sends a larger full slice)
@@ -12953,14 +13014,21 @@ window.addEventListener('message', (event) => {
                         forceScroll: true
                     });
                     refreshSendButtonState();
+                    // Virtual older region: empty spacer, not real text
+                    if (shouldActivateSession) {
+                        updateHistoryTopSpacer(olderCountMeta, false);
+                    }
                     if (isLoadMore && chatContainer && prevScrollH > 0) {
-                        // Preserve viewport when older history expands
+                        // Preserve viewport when older history expands (fill spacer in place)
                         hydratingSession = true;
-                        hydratePinUntil = Date.now() + 600;
+                        hydratePinUntil = Date.now() + 800;
+                        window.__mimoLoadMoreInFlight = false;
+                        showTopLoadMoreHint(false);
                         requestAnimationFrame(() => {
                             const el = document.getElementById('chat') || chatContainer;
                             const delta = el.scrollHeight - prevScrollH;
                             el.scrollTop = prevScrollT + Math.max(0, delta);
+                            updateHistoryTopSpacer(olderCountMeta, false);
                             setTimeout(() => {
                                 hydratingSession = false;
                                 hydratePinUntil = 0;
@@ -13029,6 +13097,12 @@ window.addEventListener('message', (event) => {
                 const loading = message.loading === true;
                 window.__mimoLoadMoreInFlight = loading;
                 showTopLoadMoreHint(loading);
+                if (typeof message.olderCount === 'number') {
+                    window.__mimoOlderCount = message.olderCount;
+                    updateHistoryTopSpacer(message.olderCount, loading);
+                } else {
+                    updateHistoryTopSpacer(window.__mimoOlderCount || 0, loading);
+                }
                 if (!loading && typeof message.count === 'number') {
                     window.__mimoLoadedMsgCount = message.count;
                 }

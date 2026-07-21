@@ -9363,60 +9363,110 @@ export class OpenCodeClient {
         try {
             const safeLimit = Math.max(1, Math.floor(Number.isFinite(limit) ? limit : 60));
             const esc = (s: string) => s.replace(/'/g, "''");
-            // Cap large text fields (8–12k) so format stays fast; full content not needed in sidebar.
+            // Cap large text fields so format stays fast; sidebar doesn't need full multi-MB outputs.
             const sql =
-                "SELECT json_group_array(json_object(" +
-                "'mid', p.message_id, 'role', json_extract(m.data,'$.role'), 'type', json_extract(p.data,'$.type'), " +
-                "'text', substr(COALESCE(json_extract(p.data,'$.text'),''),1,12000), " +
-                "'tool', json_extract(p.data,'$.tool'), " +
-                "'cmd', substr(COALESCE(json_extract(p.data,'$.state.input.command'),''),1,6000), " +
-                "'path', json_extract(p.data,'$.state.input.file_path'), " +
-                "'old_string', substr(COALESCE(json_extract(p.data,'$.state.input.old_string'),''),1,8000), " +
-                "'new_string', substr(COALESCE(json_extract(p.data,'$.state.input.new_string'),''),1,8000), " +
-                "'content', substr(COALESCE(json_extract(p.data,'$.state.input.content'),''),1,8000), " +
-                "'meta_diff', substr(COALESCE(json_extract(p.data,'$.state.metadata.diff'),''),1,12000), " +
-                "'meta_patch', substr(COALESCE(json_extract(p.data,'$.state.metadata.filediff.patch'),''),1,12000), " +
-                "'result', substr(COALESCE(json_extract(p.data,'$.state.output'),''),1,8000), " +
-                "'callID', json_extract(p.data,'$.callID'), " +
-                "'hash', json_extract(p.data,'$.hash'), 'files', json_extract(p.data,'$.files'), " +
-                "'time', p.time_created)) " +
-                "FROM part p JOIN (SELECT message_id, MAX(time_created) as mt FROM part WHERE session_id = '" + esc(sessionId) + "' GROUP BY message_id ORDER BY mt DESC LIMIT " + safeLimit + ") sm ON p.message_id = sm.message_id " +
-                "JOIN message m ON m.id = p.message_id WHERE p.session_id = '" + esc(sessionId) + "' ORDER BY p.time_created;";
-            const out = this.runMimoDb(sql);
-            const arr = JSON.parse(out) as any[];
-            // group by message_id preserving order
+                "SELECT p.message_id as mid, json_extract(m.data,'$.role') as role, " +
+                "json_extract(p.data,'$.type') as type, " +
+                "substr(COALESCE(json_extract(p.data,'$.text'),''),1,12000) as text, " +
+                "json_extract(p.data,'$.tool') as tool, " +
+                "substr(COALESCE(json_extract(p.data,'$.state.input.command'),''),1,6000) as cmd, " +
+                "json_extract(p.data,'$.state.input.file_path') as path, " +
+                "substr(COALESCE(json_extract(p.data,'$.state.input.old_string'),''),1,8000) as old_string, " +
+                "substr(COALESCE(json_extract(p.data,'$.state.input.new_string'),''),1,8000) as new_string, " +
+                "substr(COALESCE(json_extract(p.data,'$.state.input.content'),''),1,8000) as content, " +
+                "substr(COALESCE(json_extract(p.data,'$.state.metadata.diff'),''),1,12000) as meta_diff, " +
+                "substr(COALESCE(json_extract(p.data,'$.state.metadata.filediff.patch'),''),1,12000) as meta_patch, " +
+                "substr(COALESCE(json_extract(p.data,'$.state.output'),''),1,8000) as result, " +
+                "json_extract(p.data,'$.callID') as callID, " +
+                "json_extract(p.data,'$.hash') as hash, " +
+                "json_extract(p.data,'$.files') as files, " +
+                "p.time_created as time " +
+                "FROM part p JOIN (" +
+                "  SELECT id as message_id FROM message WHERE session_id = '" + esc(sessionId) + "' " +
+                "  ORDER BY time_created DESC LIMIT " + safeLimit +
+                ") sm ON p.message_id = sm.message_id " +
+                "JOIN message m ON m.id = p.message_id " +
+                "WHERE p.session_id = '" + esc(sessionId) + "' " +
+                "ORDER BY m.time_created ASC, p.time_created ASC;";
+
+            const t0 = Date.now();
+            // Prefer raw sqlite3 (~10x faster than `mimo db` on large sessions)
+            let arr = this.runSqliteJson(sql);
+            if (!arr) {
+                const out = this.runMimoDb(sql);
+                arr = JSON.parse(out) as any[];
+            }
+            if (!Array.isArray(arr)) arr = [];
+
             const byMsg = new Map<string, any>();
             const order: string[] = [];
             for (const row of arr) {
+                if (!row || !row.mid) continue;
                 if (!byMsg.has(row.mid)) {
                     byMsg.set(row.mid, { id: row.mid, role: row.role, parts: [] });
                     order.push(row.mid);
                 }
-                // files may arrive as JSON string from sqlite json_extract
                 if (typeof row.files === 'string' && row.files.startsWith('[')) {
-                    try { row.files = JSON.parse(row.files); } catch { /* keep string */ }
+                    try { row.files = JSON.parse(row.files); } catch { /* keep */ }
                 }
                 byMsg.get(row.mid).parts.push(row);
             }
             const messages = order.map((id) => byMsg.get(id));
-            const titleRow = this.runMimoDb(
-                "SELECT title FROM session WHERE id = '" + sessionId + "' LIMIT 1;"
-            );
+
             let title = sessionId;
+            let totalMessages = messages.length;
             try {
-                const t = JSON.parse(titleRow);
-                if (Array.isArray(t) && t[0] && t[0].title) title = t[0].title;
+                const meta = this.runSqliteJson(
+                    "SELECT title, " +
+                    "(SELECT count(*) FROM message WHERE session_id = '" + esc(sessionId) + "') as total " +
+                    "FROM session WHERE id = '" + esc(sessionId) + "' LIMIT 1;"
+                );
+                if (Array.isArray(meta) && meta[0]) {
+                    if (meta[0].title) title = String(meta[0].title);
+                    if (typeof meta[0].total === 'number') totalMessages = meta[0].total;
+                    else if (typeof meta[0].total === 'string') totalMessages = parseInt(meta[0].total, 10) || totalMessages;
+                }
             } catch { /* ignore */ }
-            return { session: { id: sessionId, title }, messages };
+
+            const olderCount = Math.max(0, totalMessages - messages.length);
+            rtLog(
+                `DB_QUERY_OK id=${sessionId} msgs=${messages.length} total=${totalMessages} older=${olderCount} ms=${Date.now() - t0}`
+            );
+            return {
+                session: { id: sessionId, title },
+                messages,
+                meta: { totalMessages, olderCount, loaded: messages.length, limit: safeLimit },
+            };
         } catch (e) {
             rtLog(`DB_QUERY_FAIL id=${sessionId} err=${String(e).slice(0, 120)}`);
-            // Fallback to API
             return this.exportSessionRecent(sessionId, limit);
         }
     }
 
+    /** Run SQL via sqlite3 -json; returns parsed array or null if bin missing/fail. */
+    private runSqliteJson(sql: string): any[] | null {
+        const dbPath = this.getMimoDbPath();
+        const sqliteBin = this.findSqlite3Bin();
+        if (!dbPath || !sqliteBin || !fs.existsSync(dbPath)) return null;
+        try {
+            const out = cp.execFileSync(sqliteBin, ['-json', dbPath, sql], {
+                encoding: 'utf8',
+                maxBuffer: 80 * 1024 * 1024,
+                windowsHide: true,
+                timeout: 30000,
+            });
+            const text = String(out || '').trim();
+            if (!text) return [];
+            const parsed = JSON.parse(text);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch (e) {
+            rtLog(`SQLITE3_JSON_ERR ${String(e).slice(0, 100)}`);
+            return null;
+        }
+    }
+
     private runMimoDb(sql: string): string {
-        // Prefer native PE binary (fast). npm `mimo` shim can be multi-second per call.
+        // Fallback only — prefer runSqliteJson. Native PE binary when needed.
         const bin = this.getMimoBin();
         const res = cp.execFileSync(bin, ['db', sql], {
             encoding: 'utf8',
@@ -9424,7 +9474,6 @@ export class OpenCodeClient {
             windowsHide: true,
             timeout: 60000,
         });
-        // `mimo db` echoes the query line, then the result; take the JSON array portion.
         const idx = res.indexOf('[');
         const end = res.lastIndexOf(']');
         if (idx >= 0 && end > idx) return res.substring(idx, end + 1);
