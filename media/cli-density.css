@@ -1662,3 +1662,14 @@ a.mimo-ext-link:hover {
 .mimo-part--edit[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+.mimo-part[open] > summary .mimo-part-meta {
+  opacity: 0.55 !important;
+}
+/* Load older button matches tool strip chrome */
+.mimo-load-older-btn {
+  background: #141414 !important;
+  border: 1px solid #3c3c3c !important;
+  border-left: 2px solid #FF6A00 !important;
+  border-radius: 0 4px 4px 0 !important;
+}
