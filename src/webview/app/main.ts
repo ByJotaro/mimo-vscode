@@ -1035,6 +1035,13 @@ if (Array.isArray(message.modes) && message.modes.length) {
     case 'questionCleared':
       document.getElementById('question-overlay')?.remove();
       break;
+    case 'sessionTitle': {
+      const t = String(message.title || '').trim();
+      if (t && (!message.sessionId || message.sessionId === activeSessionId)) {
+        titleEl.textContent = t;
+      }
+      break;
+    }
     case 'sessionUsage': {
       if (statusLabel && !busy) {
         const used = Number(message.used || 0);

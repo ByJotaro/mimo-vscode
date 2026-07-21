@@ -25,6 +25,7 @@ export type ChatEvent =
   | { type: 'error'; error: string; sessionId?: string }
   | { type: 'status'; status: string; detail?: string }
   | { type: 'usage'; sessionId?: string; used?: number; size?: number; amount?: number }
+  | { type: 'sessionTitle'; sessionId?: string; title: string }
   | {
       type: 'permission';
       sessionId?: string;
@@ -493,6 +494,13 @@ export class MimoClient {
           : props.text;
         if (text) this.emit({ type: 'text', text: String(text), messageId, sessionId });
         return;
+      }
+      if (/session\.updated|session\.title|session\.renamed/i.test(type)) {
+        const title = String(
+          props.title || props.name || props.session?.title || props.info?.title || ''
+        ).trim();
+        if (title && sessionId) this.emit({ type: 'sessionTitle', sessionId, title });
+        // fall through — may also carry status
       }
       if (/session\.idle|session\.status|turn\.complete|message\.complete/i.test(type)) {
         const st = props.type || props.status || type;
