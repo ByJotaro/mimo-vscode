@@ -1986,3 +1986,18 @@ a.mimo-ext-link:hover {
   font-size: 12px !important;
   letter-spacing: 0.01em !important;
 }
+
+.mimo-part > summary .mimo-part-meta {
+  cursor: copy !important;
+}
+.mimo-part > summary .mimo-part-meta:hover {
+  color: #c0c0c0 !important;
+  text-decoration: underline dotted #555 !important;
+}
+/* Diff under title strip denser */
+.mimo-part-body .mimo-diff,
+.mimo-io--flat .mimo-diff {
+  margin: 0 8px !important;
+  border-left: 2px solid #3c3c3c !important;
+  padding-left: 6px !important;
+}

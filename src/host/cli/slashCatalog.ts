@@ -23,6 +23,7 @@ export function getSlashCommandCatalog(): SlashCommand[] {
     { name: 'clear', description: 'Clear the current chat view' },
     { name: 'sessions', description: 'Open session history' },
     { name: 'model', description: 'Switch model' },
+    { name: 'models', description: 'Refresh / list models' },
     { name: 'agent', description: 'Switch agent / mode' },
     { name: 'undo', description: 'Undo last file changes' },
     { name: 'redo', description: 'Redo last undo' },
