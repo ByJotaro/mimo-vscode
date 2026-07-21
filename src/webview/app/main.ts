@@ -614,7 +614,11 @@ function showHistoryPanel(sessions: Array<{ id: string; title: string; updated?:
       const title = (s.title || s.id).replace(/\s+/g, ' ').trim();
       btn.title = s.id;
       const when = relTime(s.updated);
-      btn.innerHTML = `<div class="mimo-session-title">${escHtml(title)}</div><div class="mimo-session-meta"><span class="mimo-session-id">${escHtml(s.id)}</span>${when ? <span class="mimo-session-when">${escHtml(when)}</span> : ''}</div>`;
+      btn.innerHTML =
+        `<div class="mimo-session-title">${escHtml(title)}</div>` +
+        `<div class="mimo-session-meta"><span class="mimo-session-id">${escHtml(s.id)}</span>` +
+        (when ? `<span class="mimo-session-when">${escHtml(when)}</span>` : '') +
+        `</div>`;
       btn.addEventListener('click', () => {
         panel.remove();
         showLoading(title);
@@ -670,7 +674,9 @@ function showStartup(sessions: Array<{ id: string; title: string; updated?: stri
     const title = (s.title || s.id).replace(/\s+/g, ' ').trim();
     btn.title = s.id;
     const when = relTime(s.updated);
-    btn.innerHTML = `<div class="mimo-session-title">${escHtml(title)}</div>${when ? <div class="mimo-session-when">${escHtml(when)}</div> : ''}`;
+    btn.innerHTML =
+      `<div class="mimo-session-title">${escHtml(title)}</div>` +
+      (when ? `<div class="mimo-session-when">${escHtml(when)}</div>` : '');
     btn.addEventListener('click', () => {
       showLoading(title);
       post({ type: 'selectSession', sessionId: s.id });
