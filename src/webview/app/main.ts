@@ -1340,15 +1340,32 @@ function hideSlash(): void {
 function showSlash(filter: string): void {
   const el = ensureSlashOverlay();
   const q = filter.toLowerCase();
-  const items = (slashCatalog || [])
-    .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.description || '').toLowerCase().includes(q))
-    .slice(0, 24);
-  if (!items.length) {
+  // Prefer prefix matches, then substring; de-dupe by name
+  const seen = new Set<string>();
+  const ranked = (slashCatalog || [])
+    .filter((c) => {
+      const n = c.name.toLowerCase();
+      if (seen.has(n)) return false;
+      seen.add(n);
+      if (!q) return true;
+      return n.startsWith(q) || n.includes(q) || (c.description || '').toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      if (!q) return a.name.localeCompare(b.name);
+      const an = a.name.toLowerCase();
+      const bn = b.name.toLowerCase();
+      const ap = an.startsWith(q) ? 0 : 1;
+      const bp = bn.startsWith(q) ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      return an.length - bn.length || an.localeCompare(bn);
+    })
+    .slice(0, 28);
+  if (!ranked.length) {
     el.hidden = true;
     return;
   }
-  if (slashIndex >= items.length) slashIndex = 0;
-  el.innerHTML = items
+  if (slashIndex >= ranked.length) slashIndex = 0;
+  el.innerHTML = ranked
     .map(
       (c, i) =>
         `<div class="slash-item${i === slashIndex ? ' active' : ''}" data-name="${escHtml(c.name)}"><span class="slash-name">/${escHtml(c.name)}</span><span class="slash-desc">${escHtml(c.description || '')}</span></div>`
@@ -1362,6 +1379,8 @@ function showSlash(filter: string): void {
       applySlash(name);
     });
   });
+  // Keep active item visible
+  el.querySelector('.slash-item.active')?.scrollIntoView({ block: 'nearest' });
 }
 
 function applySlash(name: string): void {
