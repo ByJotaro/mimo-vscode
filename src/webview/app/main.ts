@@ -1308,6 +1308,10 @@ if (Array.isArray(message.modes) && message.modes.length) {
         statusLabel.classList.add('is-flash');
         setTimeout(() => statusLabel?.classList.remove('is-flash'), 600);
       }
+      if (typeof showToast === 'function') {
+        const n = document.querySelectorAll('.message .mimo-part').length;
+        /* soft */ showToast(n ? ('turn done · ' + n + ' tools') : 'turn done', 1200);
+      }
       document.querySelectorAll('.message.is-streaming').forEach((el) => {
         el.classList.remove('is-streaming');
         // Collapse thoughts after turn ends (CLI collapses finished thought)
