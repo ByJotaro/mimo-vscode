@@ -22,6 +22,13 @@ describe('session list junk filter', () => {
     assert.equal(isJunkSessionTitle('Делегирование работы другой сессии'), false);
   });
 
+  it('drops greeting and math stubs', () => {
+    assert.equal(isJunkSessionTitle('Quick one-word greeting'), true);
+    assert.equal(isJunkSessionTitle('Math question: 2+2 result'), true);
+    assert.equal(isJunkSessionTitle('Приветствие'), true);
+    assert.equal(isJunkSessionTitle('Read-only final review of the CURRENT working'), true);
+  });
+
   it('pickHomeRecent never returns junk', () => {
     const out = pickHomeRecent(
       [
