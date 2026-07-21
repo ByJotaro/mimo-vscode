@@ -1049,7 +1049,7 @@ function handleLocalSlash(full: string): boolean {
       `- session: \`${activeSessionId || '(home)'}\``,
       `- mode: \`${selectedMode || '—'}\` · model: \`${selectedModel || '—'}\``,
       `- messages: ${msgs} · tools: ${tools} · busy: ${busy ? 'yes' : 'no'}`,
-      `- version: \`${statusLabel?.dataset.version || statusLabel?.dataset.server || 'v2'}\`,
+      `- version: \`${statusLabel?.dataset.version || statusLabel?.dataset.server || 'v2'}\``,
     ];
     appendOrUpdateMessage({
       id: 'sys_status_' + Date.now(),
