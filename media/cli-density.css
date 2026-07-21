@@ -2329,3 +2329,16 @@ a.mimo-ext-link:hover {
   border-bottom: 1px solid #2a2a2a !important;
   background: #0c0c0c !important;
 }
+
+.mimo-welcome-hint,
+.welcome-hint {
+  border-left: 2px solid #3c3c3c !important;
+  padding-left: 8px !important;
+  color: #808080 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+}
+/* Chat spacer denser bottom for sticky composer */
+#chat {
+  padding-bottom: 12px !important;
+}
