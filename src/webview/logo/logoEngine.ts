@@ -3,7 +3,7 @@
  * OOM-safe: MAX_PARTICLES, gather throttle, single instance, destroyable.
  */
 
-// Exact CLI logoThin (packages/opencode logo-data.ts) — keep leading spaces on right
+// CLI logoThin — fixed mono cells; gap MIMO|CODE = 1 col only (no leading pad on right blocks)
 const LOGO_LEFT = [
   '                  ',
   '                  ',
@@ -12,12 +12,14 @@ const LOGO_LEFT = [
   '▀   ▀ ▀ ▀   ▀ ▀▀▀▀',
 ];
 const LOGO_RIGHT = [
-  '              Xiaomi',
-  '                    ',
-  '  █▀▀ █▀▀█ █▀▀▄ █▀▀▀',
-  '  █   █  █ █  █ █▀▀ ',
-  '  ▀▀▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀',
+  '            Xiaomi',
+  '                  ',
+  '█▀▀ █▀▀█ █▀▀▄ █▀▀▀',
+  '█   █  █ █  █ █▀▀ ',
+  '▀▀▀ ▀▀▀▀ ▀▀▀  ▀▀▀▀',
 ];
+const LOGO_FONT =
+  '"Cascadia Mono", Consolas, "Courier New", ui-monospace, monospace';
 
 const MIMO_ORANGE = { r: 255, g: 106, b: 0 };
 const MIMO_GRAY = { r: 160, g: 160, b: 160 };
@@ -165,8 +167,10 @@ export function paintLogo(host: HTMLElement): LogoHandle {
   host.appendChild(wrap);
 
   const grid = buildCells();
-  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
   let cellW = 12;
+  let cellH = 12;
+  let fontSize = 12;
   let W = 0;
   let H = 0;
   let hold: { at: number; cx: number; cy: number; vx: number; vy: number } | null =
@@ -221,7 +225,10 @@ export function paintLogo(host: HTMLElement): LogoHandle {
     let best: Cell | null = null;
     let bestD = 1e9;
     for (const c of grid.cells) {
-      const d = (c.px - px) ** 2 + (c.py - py) ** 2;
+      // c.px is left edge; hit-test against cell center
+      const cx = c.px + cellW * 0.5;
+      const cy = c.py;
+      const d = (cx - px) ** 2 + (cy - py) ** 2;
       if (d < bestD) {
         bestD = d;
         best = c;
@@ -242,25 +249,35 @@ export function paintLogo(host: HTMLElement): LogoHandle {
 
   function layout(): void {
     if (!alive) return;
-    const avail = Math.max(200, (host.clientWidth || 320) - 8);
+    // Pixel-perfect mono grid: measure █ at fontSize fs, cell = that advance.
+    // NEVER set fontSize = advance (that shrinks glyphs and opens seams).
+    const avail = Math.max(220, (host.clientWidth || 360) - 8);
     const probe = canvas.getContext('2d')!;
-    const FONT = '"Cascadia Mono", Consolas, monospace';
     let fs = Math.floor(avail / Math.max(1, grid.cols));
-    fs = Math.max(12, Math.min(32, fs));
+    fs = Math.max(14, Math.min(36, fs));
     let advance = fs;
     let guard = 0;
-    while (guard++ < 40) {
-      probe.font = `600 ${fs}px ${FONT}`;
+    while (guard++ < 48) {
+      probe.font = `600 ${fs}px ${LOGO_FONT}`;
+      // Prefer pair half so we get true mono pitch (avoids side bearings)
       const pair = probe.measureText('██').width;
-      advance = pair > 0 ? pair / 2 : probe.measureText('█').width;
-      if (!advance || advance < 4) advance = fs * 0.55;
+      const single = probe.measureText('█').width;
+      advance = pair > 0 ? pair / 2 : single;
+      if (!advance || advance < 4) advance = fs * 0.6;
       advance = Math.max(1, Math.round(advance));
-      if (advance * grid.cols <= avail || fs <= 11) break;
+      if (advance * grid.cols <= avail || fs <= 12) break;
       fs -= 1;
     }
+    // Keep draw font = measurement font. Cell pitch = measured █ advance so neighbors abut.
+    fontSize = fs;
     cellW = advance;
+    cellH = advance; // square TUI cell
+    // Re-measure after snap: ensure pitch matches actual glyph advance at fontSize
+    probe.font = `600 ${fontSize}px ${LOGO_FONT}`;
+    const verify = probe.measureText('██').width / 2 || probe.measureText('█').width;
+    if (verify > 0) cellW = cellH = Math.max(1, Math.round(verify));
     W = grid.cols * cellW;
-    H = grid.rows * cellW;
+    H = grid.rows * cellH;
     canvas.width = Math.floor(W * dpr);
     canvas.height = Math.floor(H * dpr);
     canvas.style.width = W + 'px';
@@ -276,20 +293,22 @@ export function paintLogo(host: HTMLElement): LogoHandle {
       stage.style.justifyContent = 'center';
       stage.style.alignItems = 'center';
       stage.style.overflow = 'visible';
+      stage.style.margin = '0';
+      stage.style.padding = '0';
     }
     const ctx = canvas.getContext('2d')!;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Left-edge grid (not center): fillText left-aligned at integer cell origin → no seam
     for (const c of grid.cells) {
-      c.px = c.gx * cellW + cellW * 0.5;
-      c.py = c.gy * cellW + cellW * 0.5;
+      c.px = c.gx * cellW;
+      c.py = c.gy * cellH + cellH * 0.5;
     }
     fxW = Math.max(1, window.innerWidth || 400);
     fxH = Math.max(1, window.innerHeight || 600);
-    // Cap FX canvas size (sidebar is small; full 4K * dpr kills memory)
     const maxFx = 1600;
     const fxScale = Math.min(1, maxFx / Math.max(fxW, fxH));
-    const drawW = Math.floor(fxW * Math.min(dpr, 1.25) * fxScale);
-    const drawH = Math.floor(fxH * Math.min(dpr, 1.25) * fxScale);
+    const drawW = Math.floor(fxW * Math.min(dpr, 1.5) * fxScale);
+    const drawH = Math.floor(fxH * Math.min(dpr, 1.5) * fxScale);
     fxCanvas!.width = Math.max(1, drawW);
     fxCanvas!.height = Math.max(1, drawH);
     fxCanvas!.style.width = fxW + 'px';
@@ -366,7 +385,8 @@ export function paintLogo(host: HTMLElement): LogoHandle {
     if (hold) {
       const age = t - hold.at;
       const rise = ramp(age, HOLD_MS, CHARGE_MS);
-      const dist = Math.hypot(c.px - hold.cx, c.py - hold.cy) / cellW;
+      const dist =
+        Math.hypot(c.px + cellW * 0.5 - hold.cx, c.py - hold.cy) / cellW;
       const core = Math.exp(-(dist * dist) / Math.max(0.35, lerp(0.5, 12, rise)));
       const shell = Math.exp(-Math.pow((dist - lerp(0.4, 5, rise)) / 1.4, 2));
       boost += (core * 2.2 + shell * 1.1) * rise + rise * 0.3;
@@ -377,7 +397,7 @@ export function paintLogo(host: HTMLElement): LogoHandle {
       const age = t - r.at;
       if (age < 0 || age > LIFE_MS) continue;
       const p = age / LIFE_MS;
-      const dist = Math.hypot(c.px - r.x, c.py - r.y) / cellW;
+      const dist = Math.hypot(c.px + cellW * 0.5 - r.x, c.py - r.y) / cellW;
       const radius =
         Math.max(grid.cols, grid.rows) * 1.1 * (1 - Math.pow(1 - p, EXPAND));
       const fade = Math.pow(1 - p, 1.15);
@@ -471,11 +491,16 @@ export function paintLogo(host: HTMLElement): LogoHandle {
     if (!alive) return;
     const ctx = canvas.getContext('2d')!;
     ctx.clearRect(0, 0, W, H);
-    const drawFs = Math.max(1, Math.round(cellW));
-    ctx.font = `600 ${drawFs}px "Cascadia Mono", Consolas, monospace`;
-    ctx.textAlign = 'center';
+    // Draw at measurement font; left-align at cell origin so █ edges touch
+    ctx.font = `600 ${fontSize}px ${LOGO_FONT}`;
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     ctx.imageSmoothingEnabled = false;
+    try {
+      (ctx as any).letterSpacing = '0px';
+    } catch {
+      /* */
+    }
     for (const c of grid.cells) {
       const f = fieldBoost(c, t);
       let col = c.base;
@@ -487,9 +512,16 @@ export function paintLogo(host: HTMLElement): LogoHandle {
         col = tint(c.base, PEAK, sh * 0.04);
       }
       ctx.fillStyle = css(col, 1);
-      ctx.shadowBlur = f.boost > 0.4 ? 3 + f.boost * 8 : 0;
-      if (f.boost > 0.4) ctx.shadowColor = css(tint(c.base, PEAK, 0.5), 0.45);
-      ctx.fillText(c.ch, Math.round(c.px * dpr) / dpr, Math.round(c.py * dpr) / dpr);
+      // No idle shadow — blur made blocks look gapped
+      if (f.boost > 0.35) {
+        ctx.shadowColor = css(tint(c.base, PEAK, 0.55), 0.55);
+        ctx.shadowBlur = 4 + f.boost * 10;
+      } else {
+        ctx.shadowBlur = 0;
+      }
+      const px = Math.round(c.px * dpr) / dpr;
+      const py = Math.round(c.py * dpr) / dpr;
+      ctx.fillText(c.ch, px, py);
     }
     ctx.shadowBlur = 0;
 
@@ -582,7 +614,8 @@ export function paintLogo(host: HTMLElement): LogoHandle {
     const t = performance.now();
     if (hold) doBurst(hold.cx, hold.cy, t);
     const cell = cellAt(px, py);
-    const cx = cell ? cell.px : px;
+    // hold coords = cell center (px is left edge in left-align layout)
+    const cx = cell ? cell.px + cellW * 0.5 : px;
     const cy = cell ? cell.py : py;
     const vt = localToViewport(cx, cy);
     hold = { at: t, cx, cy, vx: vt.x, vy: vt.y };
