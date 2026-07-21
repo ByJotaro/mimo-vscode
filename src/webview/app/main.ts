@@ -50,6 +50,7 @@ let loadedCount = 0;
 let loadMoreInFlight = false;
 let loadMoreCooldown = 0;
 let busy = false;
+let lastUserPrompt = '';
 let selectedMode = 'plan';
 let selectedModel = '';
 let autoScroll = true;
@@ -852,6 +853,21 @@ function handleLocalSlash(full: string): boolean {
     post({ type: 'fetchSessions', history: true });
     return true;
   }
+  if (cmd === 'retry') {
+    const t = lastUserPrompt || rest;
+    if (!t) {
+      if (statusLabel) statusLabel.textContent = 'nothing to retry';
+      return true;
+    }
+    post({
+      type: 'sendPrompt',
+      text: t,
+      sessionId: activeSessionId || undefined,
+      mode: selectedMode,
+      model: selectedModel || undefined,
+    });
+    return true;
+  }
   if (cmd === 'stop' || cmd === 'abort') {
     post({ type: 'abort' });
     return true;
@@ -928,7 +944,7 @@ function handleLocalSlash(full: string): boolean {
         '**Local commands**\n' +
         '- `/home` `/new` `/fork` `/clear` `/sessions` `/history` `/stop`\n' +
         '- `/plan` `/build` `/compose` `/agent <mode>` `/model` `/models`\n' +
-        '- `/undo` `/details` `/cost` `/status` `/usage` `/help`\n' +
+        '- `/undo` `/retry` `/details` `/cost` `/status` `/usage` `/help`\n' +
         '- Hotkeys: `Ctrl+Shift+H` history · `Ctrl+Shift+N` new · `Ctrl+Shift+U` home · `Ctrl+.` abort\n\n' +
         '**Agent skills:** type `/` for full catalog (arxiv, deep-research, …).',
     });
