@@ -141,13 +141,16 @@ body {
   display: flex !important;
   align-items: center !important;
   gap: 6px !important;
-  padding: 3px 6px !important;
-  min-height: 22px !important;
-  background: transparent !important;
+  padding: 4px 8px !important;
+  min-height: 24px !important;
+  background: #141414 !important;
   border: none !important;
+  border-bottom: 1px solid #1e1e1e !important;
   border-radius: 0 !important;
-  color: var(--mimo-muted) !important;
+  color: #808080 !important;
   font-size: 12px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 .mimo-part > summary::-webkit-details-marker {
   display: none;
@@ -156,9 +159,10 @@ body {
   color: var(--mimo-fg) !important;
 }
 .mimo-part-title {
-  color: var(--mimo-primary) !important;
-  font-weight: 600 !important;
+  color: #eeeeee !important;
+  font-weight: 500 !important;
   font-size: 12px !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
 }
 .mimo-part-meta {
   color: #505050 !important;
