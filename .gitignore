@@ -1,0 +1,9 @@
+node_modules/
+out/
+media/app.js
+media/app.js.map
+*.vsix
+.DS_Store
+_tmp*
+_probe*
+.opencode

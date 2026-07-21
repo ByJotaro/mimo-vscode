@@ -1,0 +1,64 @@
+{
+  "name": "mimo-vscode",
+  "displayName": "MiMo Code",
+  "publisher": "mimo",
+  "description": "MiMo Code VS Code sidebar — modular rewrite (v2). Fast DB-first history, CLI-faithful tools & theme.",
+  "version": "1.0.0-alpha.2",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByJotaro/mimo-vscode.git"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["AI", "Other"],
+  "keywords": ["MiMo Code", "AI coding", "code agent"],
+  "activationEvents": [
+    "onView:mimo.sidebar",
+    "onCommand:mimo.checkVersion",
+    "onStartupFinished"
+  ],
+  "main": "./out/extension/activate.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mimo-activitybar",
+          "title": "MiMo Code",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "mimo-activitybar": [
+        {
+          "type": "webview",
+          "id": "mimo.sidebar",
+          "name": "Chat"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "mimo.checkVersion",
+        "title": "MiMo Code: Check Version"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "tsc -p ./ && node scripts/build-webview.mjs",
+    "watch": "tsc -watch -p ./",
+    "test": "node --test tests/unit/*.test.mjs tests/e2e/*.test.mjs",
+    "test:unit": "node --test tests/unit/*.test.mjs",
+    "test:e2e": "node --test tests/e2e/*.test.mjs",
+    "package": "npm run compile && npx --yes @vscode/vsce package --no-dependencies",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.80.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.4.0"
+  }
+}

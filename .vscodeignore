@@ -1,0 +1,16 @@
+src/**
+tests/**
+scripts/**
+docs/**
+**/*.ts
+**/*.map
+tsconfig.json
+node_modules/**
+.git/**
+*.vsix
+**/*.test.mjs
+**/.DS_Store
+
+out-test/**
+*.test.mjs
+

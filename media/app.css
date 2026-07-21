@@ -1,0 +1,340 @@
+/* MiMo Code v2 — CLI density + official palette */
+:root {
+  --mimo-bg: #0a0a0a;
+  --mimo-bg-panel: #141414;
+  --mimo-fg: #eeeeee;
+  --mimo-muted: #808080;
+  --mimo-border: #484848;
+  --mimo-border-subtle: #3c3c3c;
+  --mimo-primary: #FF6A00;
+  --mimo-accent: #818CF8;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #0a0a0a !important;
+  color: #eeeeee;
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+body.vscode-dark, body.vscode-light {
+  background: #0a0a0a !important;
+  color: #eeeeee !important;
+}
+
+.bg {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 0;
+  pointer-events: none;
+  background: #0a0a0a !important;
+}
+.bg__canvas { width: 100%; height: 100%; display: block; }
+
+.session-header, .chat-area, .input-area {
+  position: relative;
+  z-index: 1;
+}
+
+.session-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--mimo-border-subtle);
+  background: rgba(10,10,10,0.85);
+  flex-shrink: 0;
+}
+.session-title {
+  font-size: 12px;
+  color: var(--mimo-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 70%;
+}
+.header-actions button {
+  background: transparent;
+  border: 1px solid var(--mimo-border-subtle);
+  color: var(--mimo-muted);
+  cursor: pointer;
+  font-family: inherit;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.chat-area {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 8px;
+  gap: 0;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
+
+.message {
+  padding: 0 2px;
+  margin: 0;
+  flex-shrink: 0;
+}
+.message.user {
+  padding: 4px 8px;
+  margin: 2px 0;
+  background: #141414;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  align-self: flex-end;
+  max-width: 92%;
+}
+.message-content {
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+  color: #eeeeee;
+  word-break: break-word;
+}
+.message-content p { margin: 0.12em 0; }
+.message-content ul { margin: 0.08em 0; padding-left: 1.15em; }
+.message-content li { margin: 0.04em 0; line-height: 1.2; }
+.message-content code {
+  color: #FF6A00;
+  background: #1e1e1e;
+  padding: 0 3px;
+  border-radius: 2px;
+}
+.message-content a { color: #FF8A3C; }
+
+.mimo-part {
+  display: block;
+  width: 100%;
+  margin: 2px 0;
+  border-left: 2px solid #3c3c3c;
+  background: transparent;
+}
+.mimo-part > summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 8px;
+  background: #141414;
+  color: #808080;
+  font-size: 12px;
+  min-height: 22px;
+}
+.mimo-part-title { color: #eeeeee; font-weight: 500; }
+.mimo-part-meta { color: #606060; font-size: 11px; }
+.mimo-part-body { padding: 4px 8px 6px; }
+.mimo-io-k {
+  font-size: 10px;
+  color: #606060;
+  letter-spacing: 0.08em;
+  margin-top: 4px;
+}
+.mimo-io-v {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.2;
+  max-height: 280px;
+  overflow: auto;
+  background: #141414;
+  border: 1px solid #3c3c3c;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+.mimo-io-v--diff { max-height: 420px; }
+.mimo-diff-add { color: #4fd6be; }
+.mimo-diff-del { color: #c53b53; }
+.mimo-diff-hunk { color: #828bb8; }
+
+.mimo-thinking { margin: 1px 0; }
+.mimo-thinking > summary {
+  cursor: pointer;
+  color: #808080;
+  font-style: italic;
+  font-size: 0.92em;
+}
+.mimo-thinking-body {
+  margin: 2px 0 0 14px;
+  padding-left: 8px;
+  border-left: 1px solid #484848;
+  color: #808080;
+  font-style: italic;
+  font-size: 0.92em;
+  line-height: 1.2;
+  white-space: pre-wrap;
+  max-height: 220px;
+  overflow: auto;
+}
+.mimo-dur {
+  font-size: 0.72em;
+  border: 1px solid #2a2a2a;
+  border-radius: 999px;
+  padding: 0 6px;
+  color: #6a6a6a;
+  margin-left: 4px;
+}
+
+.mimo-history-spacer {
+  flex-shrink: 0;
+  width: 100%;
+  pointer-events: none;
+}
+.mimo-history-spacer-label {
+  position: sticky;
+  top: 8px;
+  text-align: center;
+  color: #555;
+  font-size: 10px;
+  padding: 6px;
+}
+
+.mimo-startup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px 24px;
+  gap: 16px;
+  flex-shrink: 0;
+}
+.mimo-welcome { text-align: center; width: 100%; }
+.mimo-welcome-logo { display: flex; justify-content: center; overflow: visible; }
+.mimo-logo-canvas { display: block; margin: 0 auto; image-rendering: pixelated; }
+.mimo-welcome-sub {
+  margin-top: 8px;
+  color: #808080;
+  font-size: 11px;
+  font-style: italic;
+}
+.mimo-startup-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #606060;
+  margin-bottom: 8px;
+}
+.mimo-startup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(420px, 100%);
+}
+.mimo-session-card {
+  text-align: left;
+  background: #141414;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  color: #eeeeee;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-family: inherit;
+  width: 100%;
+}
+.mimo-session-card:hover { border-color: #FF6A00; }
+.mimo-session-title { font-size: 12px; font-weight: 500; }
+.mimo-session-id { font-size: 10px; color: #606060; margin-top: 2px; }
+.mimo-startup-actions { margin-top: 10px; text-align: center; }
+.mimo-startup-actions button {
+  background: transparent;
+  border: 1px solid #3c3c3c;
+  color: #FF6A00;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.session-load-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10,10,10,0.72);
+  z-index: 5;
+  gap: 6px;
+}
+.session-load-overlay-text { color: #eeeeee; font-weight: 500; }
+.session-load-overlay-sub { color: #808080; font-size: 11px; }
+
+.input-area {
+  flex-shrink: 0;
+  border-top: 1px solid #3c3c3c;
+  padding: 8px;
+  background: rgba(10,10,10,0.92);
+}
+.input-row { display: flex; gap: 6px; }
+#prompt {
+  flex: 1;
+  resize: none;
+  background: #141414;
+  border: 1px solid #3c3c3c;
+  color: #eeeeee;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+#btn-send {
+  background: #FF6A00;
+  border: none;
+  color: #0a0a0a;
+  font-weight: 600;
+  padding: 0 14px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+#btn-send:disabled, #prompt:disabled { opacity: 0.45; cursor: default; }
+.input-meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 10px;
+  color: #606060;
+}
+.muted { color: #606060; }
+.error { color: #FB7185; padding: 12px; }
+
+#mode-select, #model-select {
+  background: #141414;
+  border: 1px solid #3c3c3c;
+  color: #eeeeee;
+  font-family: inherit;
+  font-size: 10px;
+  max-width: 140px;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+#btn-abort {
+  background: transparent;
+  border: 1px solid #c53b53;
+  color: #c53b53;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.mimo-startup-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.mimo-startup-actions button.primary {
+  background: #FF6A00;
+  color: #0a0a0a;
+  border-color: #FF6A00;
+  font-weight: 600;
+}
