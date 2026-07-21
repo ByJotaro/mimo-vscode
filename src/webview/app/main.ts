@@ -1820,6 +1820,14 @@ if (Array.isArray(message.modes) && message.modes.length) {
             statusLabel?.classList.remove('is-flash', 'is-error');
           }, 900);
         }
+        // surface error in chat (CLI shows failure in stream)
+        appendOrUpdateMessage({
+          id: 'sys_error_' + Date.now(),
+          role: 'assistant',
+          text: '**Error**\n```\n' + err.slice(0, 2000) + '\n```',
+        });
+        const last = chat.querySelector('.message:last-child');
+        last?.classList.add('is-error');
       }
       break;
     case 'permissionRequest':
