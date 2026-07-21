@@ -4016,3 +4016,27 @@ canvas#starfield {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.194 denser status sys card + FINAL strip */
+.message.bot[data-id^="sys_status"] .message-content,
+.message.bot[data-id^="sys_help"] .message-content {
+  border-left: 2px solid #3c3c3c !important;
+  background: #141414 !important;
+  padding: 8px 10px !important;
+  border-radius: 0 4px 4px 0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}

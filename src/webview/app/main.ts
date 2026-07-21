@@ -1049,7 +1049,7 @@ function handleLocalSlash(full: string): boolean {
       `- session: \`${activeSessionId || '(home)'}\``,
       `- mode: \`${selectedMode || '—'}\` · model: \`${selectedModel || '—'}\``,
       `- messages: ${msgs} · tools: ${tools} · busy: ${busy ? 'yes' : 'no'}`,
-      `- version: \`${statusLabel?.dataset.server || 'v2'}\``,
+      `- version: \`${statusLabel?.dataset.version || statusLabel?.dataset.server || 'v2'}\`,
     ];
     appendOrUpdateMessage({
       id: 'sys_status_' + Date.now(),
@@ -1057,6 +1057,7 @@ function handleLocalSlash(full: string): boolean {
       text: lines.join('\n'),
     });
     if (statusLabel) statusLabel.textContent = 'usage…';
+    showToast(msgs + ' msgs · ' + tools + ' tools', 1400);
     return true;
   }
   if (cmd === 'details') {
