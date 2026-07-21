@@ -639,7 +639,7 @@ function showHistoryPanel(sessions: Array<{ id: string; title: string; updated?:
 
   const head = document.createElement('div');
   head.className = 'mimo-history-head';
-  head.innerHTML = `<h3>SESSION HISTORY</h3><button type="button" class="mimo-history-close" id="hist-close">Close</button>`;
+  head.innerHTML = `<span class="mimo-history-title">SESSION HISTORY</span><span class="mimo-history-hint">Esc</span><button type="button" class="mimo-history-close" id="hist-close">Close</button>`;
   panel.appendChild(head);
 
   const search = document.createElement('input');

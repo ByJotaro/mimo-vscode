@@ -3300,3 +3300,51 @@ select#model {
 .mimo-part[open] > summary .mimo-chev {
   color: #FF6A00 !important;
 }
+
+/* beta.173 history panel denser CLI */
+.mimo-history-panel,
+#mimo-history-panel {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 60 !important;
+  background: rgba(8,8,8,0.88) !important;
+  backdrop-filter: blur(8px);
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 10px 12px !important;
+}
+.mimo-history-head {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-bottom: 8px !important;
+  border-left: 2px solid #FF6A00 !important;
+  padding: 6px 10px !important;
+  background: #141414 !important;
+  border-radius: 0 4px 4px 0 !important;
+}
+.mimo-history-head .mimo-history-title {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  color: #eeeeee !important;
+  font-size: 12px !important;
+  letter-spacing: 0.04em !important;
+}
+.mimo-history-hint {
+  margin-left: auto !important;
+  color: #707070 !important;
+  font-size: 10px !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+}
+/* FINAL tool strip after history denser */
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
