@@ -2765,3 +2765,46 @@ textarea::placeholder {
   padding: 4px 10px !important;
   color: #eeeeee !important;
 }
+
+/* beta.157 denser slash palette */
+.slash-overlay {
+  max-height: 240px !important;
+  overflow: auto !important;
+  background: #101010 !important;
+  border: 1px solid #2a2a2a !important;
+  border-left: 2px solid #FF6A00 !important;
+  border-radius: 0 4px 4px 0 !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45) !important;
+}
+.slash-item {
+  display: flex !important;
+  gap: 10px !important;
+  align-items: baseline !important;
+  padding: 4px 10px !important;
+  border-left: 2px solid transparent !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+  cursor: pointer !important;
+}
+.slash-item:hover,
+.slash-item.active {
+  background: #1a1a1a !important;
+  border-left-color: #FF6A00 !important;
+}
+.slash-item--skill .slash-name {
+  color: #c5b3e8 !important;
+}
+.slash-empty {
+  padding: 8px 12px !important;
+  color: #808080 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+  border-left: 2px solid #3c3c3c !important;
+}
+.slash-empty-q {
+  color: #FF6A00 !important;
+}
+/* Tool strip: slightly denser closed row */
+.mimo-part:not([open]) > summary {
+  min-height: 22px !important;
+}

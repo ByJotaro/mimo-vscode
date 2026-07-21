@@ -1584,15 +1584,24 @@ function showSlash(filter: string): void {
     })
     .slice(0, 28);
   if (!ranked.length) {
-    el.hidden = true;
+    el.innerHTML =
+      '<div class="slash-empty">No matches for <span class="slash-empty-q">/' +
+      escHtml(filter || '') +
+      '</span></div>';
+    el.hidden = false;
     return;
   }
   if (slashIndex >= ranked.length) slashIndex = 0;
   el.innerHTML = ranked
-    .map(
-      (c, i) =>
-        `<div class="slash-item${i === slashIndex ? ' active' : ''}" data-name="${escHtml(c.name)}"><span class="slash-name">/${escHtml(c.name)}</span><span class="slash-desc">${escHtml(c.description || '')}</span></div>`
-    )
+    .map((c, i) => {
+      const isSkill = /^(Skill:|skill:)/i.test(c.description || '') || false;
+      const desc = escHtml(c.description || '');
+      return (
+        `<div class="slash-item${i === slashIndex ? ' active' : ''}${isSkill ? ' slash-item--skill' : ''}" data-name="${escHtml(c.name)}">` +
+        `<span class="slash-name">/${escHtml(c.name)}</span>` +
+        `<span class="slash-desc">${desc}</span></div>`
+      );
+    })
     .join('');
   el.hidden = false;
   el.querySelectorAll('.slash-item').forEach((node) => {
