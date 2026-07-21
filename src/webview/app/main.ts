@@ -908,9 +908,11 @@ function handleLocalSlash(full: string): boolean {
   if (cmd === 'retry') {
     const t = lastUserPrompt || rest;
     if (!t) {
+      showToast('nothing to retry');
       if (statusLabel) statusLabel.textContent = 'nothing to retry';
       return true;
     }
+    showToast('retrying…');
     post({
       type: 'sendPrompt',
       text: t,
@@ -926,6 +928,7 @@ function handleLocalSlash(full: string): boolean {
   }
   if (cmd === 'plan' || cmd === 'build' || cmd === 'compose') {
     selectedMode = cmd;
+    showToast(cmd + ' mode');
     if (modeSelect) modeSelect.value = cmd;
     post({ type: 'setMode', mode: cmd });
     if (rest) {
@@ -1024,6 +1027,7 @@ function handleLocalSlash(full: string): boolean {
     const blob = parts.join('\n\n---\n\n');
     if (blob && navigator.clipboard?.writeText) {
       void navigator.clipboard.writeText(blob);
+      showToast('exported');
       if (statusLabel) {
         statusLabel.textContent = 'exported';
         statusLabel.classList.add('is-flash');

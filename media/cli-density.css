@@ -2240,3 +2240,10 @@ a.mimo-ext-link:hover {
   font-family: "Cascadia Mono", Consolas, monospace !important;
   color: #eeeeee !important;
 }
+
+/* Streaming bot left rail denser CLI orange */
+.message.is-streaming.bot,
+.message.bot.is-streaming {
+  border-left: 2px solid #FF6A00 !important;
+  padding-left: 6px !important;
+}
