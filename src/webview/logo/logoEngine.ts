@@ -173,7 +173,7 @@ export function paintLogo(host: HTMLElement): LogoHandle {
   wrap.appendChild(sub);
   const hint = document.createElement('div');
   hint.className = 'mimo-welcome-hint';
-  hint.textContent = 'Hold the logo to charge · release to burst · / commands';
+  hint.textContent = 'Hold logo to charge · / for commands · Ctrl+Shift+H history';
   wrap.appendChild(hint);
   host.appendChild(wrap);
 

@@ -1487,3 +1487,17 @@ a.mimo-ext-link:hover {
   backdrop-filter: blur(6px);
   background: rgba(10,10,10,0.92) !important;
 }
+
+/* Live running tool indicator */
+.message.is-streaming .mimo-part:last-of-type > summary::after {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  border: 1.5px solid #333;
+  border-top-color: #FF6A00;
+  border-radius: 50%;
+  animation: mimo-spin 0.7s linear infinite;
+  vertical-align: middle;
+}
