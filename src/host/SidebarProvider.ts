@@ -179,6 +179,24 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             void vscode.env.openExternal(vscode.Uri.parse(msg.url));
           }
           break;
+                case 'insertEditorSelection': {
+          const ed = vscode.window.activeTextEditor;
+          if (!ed) {
+            this.post({ type: 'toast', text: 'no active editor' });
+            break;
+          }
+          const sel = ed.document.getText(ed.selection);
+          if (!sel.trim()) {
+            this.post({ type: 'toast', text: 'empty selection' });
+            break;
+          }
+          const file = ed.document.uri.fsPath;
+          const start = ed.selection.start.line + 1;
+          const end = ed.selection.end.line + 1;
+          const header = '' + file + ':' + start + (end !== start ? '-' + end : '') + '';
+          this.post({ type: 'insertPromptText', text: header + '\n`\n' + sel + '\n`\n' });
+          break;
+        }
         case 'openFilePath':
           if (typeof msg.path === 'string' && msg.path.trim()) {
             try {
@@ -359,7 +377,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         },
       });
       this.post({ type: 'toast', text: 'New session' });
-      this.log.appendLine(`[NEW_SESSION] ${s.id}`);this.log.appendLine(`[NEW_SESSION] ${s.id}`);
+      this.log.appendLine(`[NEW_SESSION] ${s.id}`);
     } catch (e) {
       this.post({ type: 'error', error: `newSession: ${String(e).slice(0, 200)}` });
       // still show home

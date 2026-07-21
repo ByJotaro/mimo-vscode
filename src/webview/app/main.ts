@@ -1114,6 +1114,11 @@ function handleLocalSlash(full: string): boolean {
     post({ type: 'selectSession', sessionId: rest, soft: false });
     return true;
   }
+  if (cmd === 'sel' || cmd === 'selection' || cmd === 'paste-selection') {
+    showToast('selection…');
+    post({ type: 'insertEditorSelection' });
+    return true;
+  }
   if (cmd === 'open') {
     if (!rest) {
       showToast('usage: /open <path>');
@@ -1481,10 +1486,25 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   // Ctrl/Cmd+. → abort when busy
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && (k === 's' || k === 'S')) {
+    e.preventDefault();
+    post({ type: 'insertEditorSelection' });
+    return;
+  }
   if (k === '.' && busy) {
     e.preventDefault();
     showToast('stopping…');
     post({ type: 'abort' });
+  }
+});
+
+titleEl?.addEventListener('dblclick', () => {
+  const id = activeSessionId || '';
+  const t = (titleEl.textContent || '').trim();
+  const payload = id ? id + (t ? ' · ' + t : '') : t;
+  if (payload && navigator.clipboard?.writeText) {
+    void navigator.clipboard.writeText(payload);
+    showToast(id ? 'session id copied' : 'title copied');
   }
 });
 modeSelect?.addEventListener('change', () => {
@@ -1762,6 +1782,15 @@ if (Array.isArray(message.modes) && message.modes.length) {
       }
       break;
     }
+    case 'insertPromptText':
+      if (typeof message.text === 'string' && promptEl) {
+        const cur = promptEl.value || '';
+        promptEl.value = cur ? cur + (cur.endsWith('\n') ? '' : '\n') + message.text : message.text;
+        autoResizePrompt();
+        promptEl.focus();
+        showToast('selection inserted');
+      }
+      break;
     case 'toast':
       if (message.text) showToast(String(message.text));
       break;
