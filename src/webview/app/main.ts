@@ -1465,7 +1465,8 @@ if (Array.isArray(message.modes) && message.modes.length) {
         statusLabel.dataset.server = t;
         if (!busy) {
           statusLabel.textContent = t || 'v2';
-          if (st === 'reconnecting') statusLabel.classList.add('is-flash');
+          statusLabel.classList.toggle('is-reconnect', st === 'reconnecting');
+        if (st === 'reconnecting') statusLabel.classList.add('is-flash');
           else statusLabel.classList.remove('is-flash');
         }
       }

@@ -2055,3 +2055,20 @@ a.mimo-ext-link:hover {
   border-left: 2px solid #FF6A00 !important;
   color: #FF6A00 !important;
 }
+
+.message a,
+.message.bot a {
+  color: #FF6A00 !important;
+  text-decoration: none !important;
+  border-bottom: 1px dotted rgba(255,106,0,0.45) !important;
+}
+.message a:hover {
+  border-bottom-color: #FF6A00 !important;
+}
+/* SSE reconnect banner strip */
+.mimo-reconnect,
+.status-label.is-reconnect {
+  color: #e8c89a !important;
+  border-left: 2px solid #e8c89a !important;
+  padding-left: 6px !important;
+}
