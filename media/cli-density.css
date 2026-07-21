@@ -2072,3 +2072,38 @@ a.mimo-ext-link:hover {
   border-left: 2px solid #e8c89a !important;
   padding-left: 6px !important;
 }
+
+.mimo-logo-host,
+#logoHost,
+.logo-wrap {
+  min-height: 140px !important;
+}
+.mimo-welcome,
+.welcome-block {
+  border-left: 2px solid #3c3c3c !important;
+  padding-left: 12px !important;
+  margin: 8px 12px !important;
+}
+.mimo-welcome:hover {
+  border-left-color: #FF6A00 !important;
+}
+/* Recent cards denser strip */
+.mimo-recent .mimo-session-card,
+#recent .mimo-session-card {
+  border-left: 2px solid #2a2a2a !important;
+  background: #121212 !important;
+  margin: 4px 0 !important;
+  padding: 6px 10px !important;
+}
+.mimo-recent .mimo-session-card:hover {
+  border-left-color: #FF6A00 !important;
+}
+
+.message.user .message-content {
+  background: #141414 !important;
+  border-left: 2px solid #3c3c3c !important;
+  padding: 6px 10px !important;
+}
+.message.user .message-content:hover {
+  border-left-color: #FF6A00 !important;
+}
