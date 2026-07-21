@@ -839,7 +839,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   <main class="chat-area" id="chat"></main>
   <footer class="input-area">
     <div class="input-row">
-      <textarea id="prompt" rows="2" placeholder="Ask MiMo…  Enter send · Shift+Enter newline · / commands"></textarea>
+      <textarea id="prompt" rows="2" placeholder="Message MiMo…  Enter send · Shift+Enter newline · / for commands"></textarea>
       <button type="button" id="btn-send">→</button>
     </div>
     <div class="input-meta">
