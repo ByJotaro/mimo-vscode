@@ -2247,3 +2247,38 @@ a.mimo-ext-link:hover {
   border-left: 2px solid #FF6A00 !important;
   padding-left: 6px !important;
 }
+
+.permission-overlay {
+  backdrop-filter: blur(4px);
+  background: rgba(0,0,0,0.55) !important;
+}
+.permission-card {
+  max-width: 420px !important;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55) !important;
+}
+.permission-actions button {
+  border-left: 2px solid #3c3c3c !important;
+  background: #121212 !important;
+  border-radius: 0 3px 3px 0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  margin: 4px 6px 4px 0 !important;
+}
+.permission-actions button:hover {
+  border-left-color: #FF6A00 !important;
+}
+.permission-actions button.danger {
+  border-left-color: #c44 !important;
+}
+.permission-actions button kbd {
+  margin-left: 6px !important;
+  color: #FF6A00 !important;
+}
+
+.slash-item .slash-desc {
+  opacity: 0.75 !important;
+}
+.slash-item:hover,
+.slash-item.active {
+  background: #1a1a1a !important;
+  border-left: 2px solid #FF6A00 !important;
+}
