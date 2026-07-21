@@ -5491,3 +5491,38 @@ body.is-busy #send-btn {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.223 denser title copy cursor + tool focus + FINAL strip */
+.mimo-part.mimo-part--flat > summary .mimo-part-title {
+  cursor: copy !important;
+  user-select: text !important;
+}
+.mimo-part.mimo-part--flat > summary .mimo-part-meta {
+  cursor: copy !important;
+  user-select: text !important;
+}
+.mimo-part.mimo-part--flat:focus-within {
+  outline: none !important;
+}
+.mimo-part.mimo-part--flat[open]:focus-within {
+  border-left-color: #FF6A00 !important;
+}
+/* denser pending tool (not yet result) */
+.mimo-part.mimo-part--flat.is-pending > summary,
+.mimo-part.mimo-part--flat[data-status="pending"] > summary {
+  background: #121212 !important;
+  color: #a0a0a0 !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
