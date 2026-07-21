@@ -4277,3 +4277,66 @@ body.is-busy #busy-rail,
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.199 denser MD tables + toast stack + FINAL strip */
+.message.bot table {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 6px 0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  border-left: 2px solid #3c3c3c !important;
+}
+.message.bot th,
+.message.bot td {
+  border: 1px solid #2a2a2a !important;
+  padding: 4px 8px !important;
+  text-align: left !important;
+  color: #c0c0c0 !important;
+  background: #0e0e0e !important;
+}
+.message.bot th {
+  background: #141414 !important;
+  color: #eeeeee !important;
+  border-bottom-color: #3c3c3c !important;
+}
+.message.bot tr:hover td {
+  background: #121212 !important;
+}
+.mimo-toast-stack,
+#toast-host {
+  bottom: 64px !important;
+  right: 10px !important;
+  left: auto !important;
+  display: flex !important;
+  flex-direction: column-reverse !important;
+  gap: 6px !important;
+  z-index: 50 !important;
+  pointer-events: none !important;
+}
+.mimo-toast {
+  border-left: 2px solid #FF6A00 !important;
+  background: #141414 !important;
+  color: #eeeeee !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  padding: 6px 10px !important;
+  border-radius: 0 3px 3px 0 !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.45) !important;
+  pointer-events: auto !important;
+  max-width: 280px !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
