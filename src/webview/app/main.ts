@@ -418,11 +418,35 @@ function inlineMd(s: string): string {
   return t;
 }
 
+function enhanceCodeBlocks(root: HTMLElement): void {
+  root.querySelectorAll('pre').forEach((pre) => {
+    if (pre.querySelector('.mimo-pre-copy')) return;
+    if ((pre as HTMLElement).classList.contains('mimo-io-v')) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mimo-pre-copy';
+    btn.textContent = 'copy';
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const t = pre.textContent || '';
+      if (t && navigator.clipboard?.writeText) {
+        void navigator.clipboard.writeText(t);
+        btn.textContent = 'ok';
+        setTimeout(() => { btn.textContent = 'copy'; }, 700);
+      }
+    });
+    (pre as HTMLElement).style.position = 'relative';
+    pre.appendChild(btn);
+  });
+}
+
 function fillAssistantContent(content: HTMLElement, text: string): void {
   content.innerHTML = '';
   for (const seg of splitMimoParts(text)) {
     content.appendChild(renderPartCard(seg));
   }
+  enhanceCodeBlocks(content);
 }
 
 function renderMessages(
@@ -443,6 +467,7 @@ function renderMessages(
     content.className = 'message-content';
     if (msg.role === 'user') {
       content.innerHTML = formatMarkdownLite(msg.text);
+      enhanceCodeBlocks(content);
     } else {
       fillAssistantContent(content, msg.text);
     }

@@ -1179,3 +1179,41 @@ body.mimo-busy #btn-abort {
   font-size: 11px !important;
   font-weight: 700 !important;
 }
+
+/* Code blocks denser CLI */
+.message-content pre {
+  position: relative !important;
+  max-height: 320px !important;
+  overflow: auto !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  tab-size: 2 !important;
+}
+.message-content pre code {
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace !important;
+  color: #d8d8d8 !important;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+.mimo-pre-copy {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  border: 1px solid #333;
+  background: #1a1a1a;
+  color: #aaa;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.message-content pre:hover .mimo-pre-copy {
+  opacity: 1;
+}
+.mimo-pre-copy:hover {
+  border-color: #FF6A00;
+  color: #fff;
+}
