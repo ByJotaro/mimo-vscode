@@ -2390,3 +2390,31 @@ a.mimo-ext-link:hover {
   margin-bottom: 4px !important;
   font-family: "Cascadia Mono", Consolas, monospace !important;
 }
+
+/* History search strip family */
+.mimo-history-search,
+#historySearch,
+.history-search input {
+  border-left: 2px solid #3c3c3c !important;
+  background: #141414 !important;
+  border-radius: 0 3px 3px 0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  color: #eeeeee !important;
+}
+.mimo-history-search:focus,
+#historySearch:focus {
+  border-left-color: #FF6A00 !important;
+  outline: none !important;
+}
+.mimo-history-head {
+  background: rgba(14,14,14,0.95) !important;
+  border-bottom: 1px solid #2a2a2a !important;
+  backdrop-filter: blur(8px);
+}
+
+.mimo-rel-time,
+.session-when {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 10px !important;
+  color: #707070 !important;
+}
