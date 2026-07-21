@@ -98,18 +98,49 @@ export type SessionListItem = {
   updated: string;
 };
 
-const JUNK_TITLE = /^(One-word greeting|New session\s*-|Untitled)/i;
+/**
+ * Internal/agent sessions that must never appear in Home or History.
+ * checkpoint-writer floods the DB as titled forks of real chats.
+ */
+export function isJunkSessionTitle(title: string): boolean {
+  const t = String(title || '').trim();
+  if (!t || t.length < 2) return true;
+  if (/^untitled(\s+session)?$/i.test(t)) return true;
+  if (/^new session(\s|$|-)/i.test(t)) return true;
+  if (/^one-word greeting/i.test(t)) return true;
+  // Agent internals / checkpoint fleet
+  if (/checkpoint[- ]?writer/i.test(t)) return true;
+  if (/previous checkpoint/i.test(t)) return true;
+  if (/^summary(\s|$|:)/i.test(t)) return true;
+  if (/^title(\s|$|:)/i.test(t)) return true;
+  if (/^compaction(\s|$|:)/i.test(t)) return true;
+  if (/^explore-\d+/i.test(t)) return true;
+  if (/^general-\d+/i.test(t)) return true;
+  // Bare session ids as titles
+  if (/^ses_[a-zA-Z0-9]+$/i.test(t)) return true;
+  return false;
+}
 
-export function listSessionsFromSqlite(limit = 12, opts?: { includeForks?: boolean }): SessionListItem[] {
-  const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
-  // History panel shows forks too; home Recent stays roots-only
+export function listSessionsFromSqlite(
+  limit = 12,
+  opts?: { includeForks?: boolean }
+): SessionListItem[] {
+  // Over-fetch then filter — junk (checkpoint-writer) often fills LIMIT first
+  const want = Math.max(1, Math.min(80, Math.floor(limit)));
+  const fetchN = Math.min(400, Math.max(want * 8, 40));
+  // User-facing lists = root sessions only (forks are agent/checkpoint noise)
   const where = opts?.includeForks
-    ? ''
+    ? `WHERE 1=1 `
     : `WHERE (parent_id IS NULL OR parent_id = '') `;
+  // SQL pre-filter for the worst offenders
   const sql =
     `SELECT id, COALESCE(title,''), COALESCE(time_updated,0), COALESCE(time_created,0) ` +
     `FROM session ${where}` +
-    `ORDER BY COALESCE(time_updated, time_created, 0) DESC LIMIT ${safeLimit};`;
+    `AND COALESCE(title,'') NOT LIKE '%checkpoint-writer%' ` +
+    `AND COALESCE(title,'') NOT LIKE '%Previous checkpoint%' ` +
+    `AND COALESCE(title,'') NOT LIKE 'Untitled%' ` +
+    `AND COALESCE(title,'') NOT LIKE 'New session%' ` +
+    `ORDER BY COALESCE(time_updated, time_created, 0) DESC LIMIT ${fetchN};`;
   const out = runSqliteTsv(sql);
   const lines = String(out || '')
     .split(/\r?\n/)
@@ -120,29 +151,30 @@ export function listSessionsFromSqlite(limit = 12, opts?: { includeForks?: boole
     const cols = line.split('\t');
     if (!cols[0]) continue;
     const id = cols[0];
-    const title = cols[1] || 'Untitled Session';
+    if (id === '_loading') continue;
+    const title = cols[1] || '';
+    if (isJunkSessionTitle(title)) continue;
     const updatedMs = Number(cols[2] || cols[3] || 0) || 0;
     result.push({
       id,
-      title,
+      title: title || id,
       updated: updatedMs
         ? new Date(updatedMs < 1e12 ? updatedMs * 1000 : updatedMs).toLocaleString()
         : '',
     });
+    if (result.length >= want) break;
   }
   return result;
 }
 
-/** Home Recent: few real sessions, drop stubs. */
+/** Home Recent / History: real user sessions only. */
 export function pickHomeRecent(sessions: SessionListItem[], cap = 6): SessionListItem[] {
   const real = sessions.filter((s) => {
-    const t = String(s.title || '').trim();
-    if (!t || t.length < 2) return false;
-    if (JUNK_TITLE.test(t)) return false;
-    return Boolean(s.id);
+    if (!s?.id || s.id === '_loading') return false;
+    return !isJunkSessionTitle(s.title);
   });
-  const base = real.length ? real : sessions.filter((s) => s.id);
-  return base.slice(0, Math.max(1, Math.min(40, cap)));
+  // Never fall back to junk — empty is better than checkpoint-writer spam
+  return real.slice(0, Math.max(1, Math.min(80, cap)));
 }
 
 export function dbAvailable(): boolean {

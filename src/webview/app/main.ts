@@ -428,6 +428,16 @@ function appendOrUpdateMessage(msg: DisplayMessage): void {
 }
 
 
+function isJunkClientTitle(title: string): boolean {
+  const t = String(title || '').trim();
+  if (!t || t.length < 2) return true;
+  if (/checkpoint[- ]?writer|previous checkpoint/i.test(t)) return true;
+  if (/^untitled|^new session|^one-word greeting/i.test(t)) return true;
+  if (/^ses_[a-zA-Z0-9]+$/i.test(t)) return true;
+  if (t === 'Loading…' || t === 'Loading...') return false; // allow loading placeholder by id
+  return false;
+}
+
 function showHistoryPanel(sessions: Array<{ id: string; title: string; updated?: string }>): void {
   document.getElementById('mimo-history-panel')?.remove();
   const panel = document.createElement('div');
@@ -443,34 +453,35 @@ function showHistoryPanel(sessions: Array<{ id: string; title: string; updated?:
 
   const list = document.createElement('div');
   list.className = 'mimo-startup-list mimo-history-list';
-  const items = sessions.filter((s) => s.id !== '_loading').slice(0, 80);
+  const loading = sessions.some((s) => s.id === '_loading');
+  const items = sessions
+    .filter((s) => s.id && s.id !== '_loading' && !isJunkClientTitle(s.title || ''))
+    .slice(0, 40);
   if (!items.length) {
     const empty = document.createElement('div');
     empty.className = 'mimo-history-empty';
-    empty.textContent =
-      sessions.some((s) => s.id === '_loading') ? 'Loading sessions…' : 'No sessions found';
+    empty.textContent = loading ? 'Loading sessions…' : 'No sessions found';
     list.appendChild(empty);
   }
   for (const s of items) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'mimo-session-card';
-    btn.innerHTML = `<div class="mimo-session-title">${escHtml(s.title || s.id)}</div><div class="mimo-session-id">${escHtml(s.id)}</div>`;
+    const title = (s.title || s.id).replace(/\s+/g, ' ').trim();
+    btn.innerHTML = `<div class="mimo-session-title">${escHtml(title)}</div><div class="mimo-session-id">${escHtml(s.id)}</div>`;
     btn.addEventListener('click', () => {
       panel.remove();
-      showLoading(s.title || s.id);
+      showLoading(title);
       post({ type: 'selectSession', sessionId: s.id });
     });
     list.appendChild(btn);
   }
   panel.appendChild(list);
-  // Fixed overlay on body — not inside scrollable chat (that hid history)
   document.body.appendChild(panel);
   panel.querySelector('#hist-close')?.addEventListener('click', () => panel.remove());
   panel.addEventListener('click', (e) => {
     if (e.target === panel) panel.remove();
   });
-  // Esc to close
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
       panel.remove();
@@ -499,16 +510,27 @@ function showStartup(sessions: Array<{ id: string; title: string; updated?: stri
   listWrap.innerHTML = '<div class="mimo-startup-label">RECENT SESSIONS</div>';
   const list = document.createElement('div');
   list.className = 'mimo-startup-list';
-  for (const s of sessions.slice(0, 6)) {
+  const recent = sessions
+    .filter((s) => s.id && s.id !== '_loading' && !isJunkClientTitle(s.title || ''))
+    .slice(0, 6);
+  for (const s of recent) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'mimo-session-card';
-    btn.innerHTML = `<div class="mimo-session-title">${escHtml(s.title)}</div><div class="mimo-session-id">${escHtml(s.id)}</div>`;
+    const title = (s.title || s.id).replace(/\s+/g, ' ').trim();
+    btn.innerHTML = `<div class="mimo-session-title">${escHtml(title)}</div><div class="mimo-session-id">${escHtml(s.id)}</div>`;
     btn.addEventListener('click', () => {
-      showLoading(s.title);
+      showLoading(title);
       post({ type: 'selectSession', sessionId: s.id });
     });
     list.appendChild(btn);
+  }
+  if (!recent.length) {
+    const empty = document.createElement('div');
+    empty.className = 'mimo-history-empty';
+    empty.style.padding = '12px';
+    empty.textContent = 'No recent sessions';
+    list.appendChild(empty);
   }
   listWrap.appendChild(list);
 

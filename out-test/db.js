@@ -34,6 +34,7 @@ __export(db_exports, {
   findSqlite3Bin: () => findSqlite3Bin,
   getMimoBin: () => getMimoBin,
   getMimoDbPath: () => getMimoDbPath,
+  isJunkSessionTitle: () => isJunkSessionTitle,
   listSessionsFromSqlite: () => listSessionsFromSqlite,
   pickHomeRecent: () => pickHomeRecent,
   querySessionFromDb: () => querySessionFromDb,
@@ -214,11 +215,27 @@ function querySessionFromDb(sessionId, limit = 24) {
     }
   };
 }
-var JUNK_TITLE = /^(One-word greeting|New session\s*-|Untitled)/i;
+function isJunkSessionTitle(title) {
+  const t = String(title || "").trim();
+  if (!t || t.length < 2) return true;
+  if (/^untitled(\s+session)?$/i.test(t)) return true;
+  if (/^new session(\s|$|-)/i.test(t)) return true;
+  if (/^one-word greeting/i.test(t)) return true;
+  if (/checkpoint[- ]?writer/i.test(t)) return true;
+  if (/previous checkpoint/i.test(t)) return true;
+  if (/^summary(\s|$|:)/i.test(t)) return true;
+  if (/^title(\s|$|:)/i.test(t)) return true;
+  if (/^compaction(\s|$|:)/i.test(t)) return true;
+  if (/^explore-\d+/i.test(t)) return true;
+  if (/^general-\d+/i.test(t)) return true;
+  if (/^ses_[a-zA-Z0-9]+$/i.test(t)) return true;
+  return false;
+}
 function listSessionsFromSqlite(limit = 12, opts) {
-  const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
-  const where = opts?.includeForks ? "" : `WHERE (parent_id IS NULL OR parent_id = '') `;
-  const sql = `SELECT id, COALESCE(title,''), COALESCE(time_updated,0), COALESCE(time_created,0) FROM session ${where}ORDER BY COALESCE(time_updated, time_created, 0) DESC LIMIT ${safeLimit};`;
+  const want = Math.max(1, Math.min(80, Math.floor(limit)));
+  const fetchN = Math.min(400, Math.max(want * 8, 40));
+  const where = opts?.includeForks ? `WHERE 1=1 ` : `WHERE (parent_id IS NULL OR parent_id = '') `;
+  const sql = `SELECT id, COALESCE(title,''), COALESCE(time_updated,0), COALESCE(time_created,0) FROM session ${where}AND COALESCE(title,'') NOT LIKE '%checkpoint-writer%' AND COALESCE(title,'') NOT LIKE '%Previous checkpoint%' AND COALESCE(title,'') NOT LIKE 'Untitled%' AND COALESCE(title,'') NOT LIKE 'New session%' ORDER BY COALESCE(time_updated, time_created, 0) DESC LIMIT ${fetchN};`;
   const out = runSqliteTsv(sql);
   const lines = String(out || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const result = [];
@@ -226,25 +243,25 @@ function listSessionsFromSqlite(limit = 12, opts) {
     const cols = line.split("	");
     if (!cols[0]) continue;
     const id = cols[0];
-    const title = cols[1] || "Untitled Session";
+    if (id === "_loading") continue;
+    const title = cols[1] || "";
+    if (isJunkSessionTitle(title)) continue;
     const updatedMs = Number(cols[2] || cols[3] || 0) || 0;
     result.push({
       id,
-      title,
+      title: title || id,
       updated: updatedMs ? new Date(updatedMs < 1e12 ? updatedMs * 1e3 : updatedMs).toLocaleString() : ""
     });
+    if (result.length >= want) break;
   }
   return result;
 }
 function pickHomeRecent(sessions, cap = 6) {
   const real = sessions.filter((s) => {
-    const t = String(s.title || "").trim();
-    if (!t || t.length < 2) return false;
-    if (JUNK_TITLE.test(t)) return false;
-    return Boolean(s.id);
+    if (!s?.id || s.id === "_loading") return false;
+    return !isJunkSessionTitle(s.title);
   });
-  const base = real.length ? real : sessions.filter((s) => s.id);
-  return base.slice(0, Math.max(1, Math.min(40, cap)));
+  return real.slice(0, Math.max(1, Math.min(80, cap)));
 }
 function dbAvailable() {
   const p = getMimoDbPath();
@@ -256,6 +273,7 @@ function dbAvailable() {
   findSqlite3Bin,
   getMimoBin,
   getMimoDbPath,
+  isJunkSessionTitle,
   listSessionsFromSqlite,
   pickHomeRecent,
   querySessionFromDb,
