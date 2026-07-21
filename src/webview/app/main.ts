@@ -510,33 +510,61 @@ function showHistoryPanel(sessions: Array<{ id: string; title: string; updated?:
   head.innerHTML = `<h3>SESSION HISTORY</h3><button type="button" class="mimo-history-close" id="hist-close">Close</button>`;
   panel.appendChild(head);
 
+  const search = document.createElement('input');
+  search.type = 'search';
+  search.id = 'hist-search';
+  search.className = 'mimo-history-search';
+  search.placeholder = 'Filter sessions…';
+  search.autocomplete = 'off';
+  panel.appendChild(search);
+
   const list = document.createElement('div');
   list.className = 'mimo-startup-list mimo-history-list';
   const loading = sessions.some((s) => s.id === '_loading');
-  const items = sessions
+  const allItems = sessions
     .filter((s) => s.id && s.id !== '_loading' && !isJunkClientTitle(s.title || ''))
     .slice(0, 40);
-  if (!items.length) {
-    const empty = document.createElement('div');
-    empty.className = 'mimo-history-empty';
-    empty.textContent = loading ? 'Loading sessions…' : 'No sessions found';
-    list.appendChild(empty);
-  }
-  for (const s of items) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'mimo-session-card';
-    const title = (s.title || s.id).replace(/\s+/g, ' ').trim();
-    btn.title = s.id;
-    btn.innerHTML = `<div class="mimo-session-title">${escHtml(title)}</div><div class="mimo-session-id">${escHtml(s.id)}</div>`;
-    btn.addEventListener('click', () => {
-      panel.remove();
-      showLoading(title);
-      post({ type: 'selectSession', sessionId: s.id });
-    });
-    list.appendChild(btn);
-  }
+
+  const renderList = (q: string) => {
+    list.innerHTML = '';
+    const qq = q.trim().toLowerCase();
+    const items = qq
+      ? allItems.filter(
+          (s) =>
+            (s.title || '').toLowerCase().includes(qq) ||
+            (s.id || '').toLowerCase().includes(qq)
+        )
+      : allItems;
+    if (!items.length) {
+      const empty = document.createElement('div');
+      empty.className = 'mimo-history-empty';
+      empty.textContent = loading
+        ? 'Loading sessions…'
+        : qq
+          ? 'No matches'
+          : 'No sessions found';
+      list.appendChild(empty);
+      return;
+    }
+    for (const s of items) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mimo-session-card';
+      const title = (s.title || s.id).replace(/\s+/g, ' ').trim();
+      btn.title = s.id;
+      btn.innerHTML = `<div class="mimo-session-title">${escHtml(title)}</div><div class="mimo-session-id">${escHtml(s.id)}</div>`;
+      btn.addEventListener('click', () => {
+        panel.remove();
+        showLoading(title);
+        post({ type: 'selectSession', sessionId: s.id });
+      });
+      list.appendChild(btn);
+    }
+  };
+  renderList('');
+  search.addEventListener('input', () => renderList(search.value));
   panel.appendChild(list);
+  setTimeout(() => search.focus(), 30);
   document.body.appendChild(panel);
   panel.querySelector('#hist-close')?.addEventListener('click', () => panel.remove());
   panel.addEventListener('click', (e) => {

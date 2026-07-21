@@ -1111,3 +1111,45 @@ body.mimo-busy #btn-abort {
   gap: 8px !important;
   align-items: flex-end !important;
 }
+
+.mimo-history-search {
+  display: block !important;
+  width: calc(100% - 24px) !important;
+  margin: 0 12px 10px !important;
+  padding: 7px 10px !important;
+  background: #141414 !important;
+  border: 1px solid #333 !important;
+  border-radius: 6px !important;
+  color: #e0e0e0 !important;
+  font-size: 12px !important;
+  outline: none !important;
+}
+.mimo-history-search:focus {
+  border-color: #FF6A00 !important;
+  box-shadow: 0 0 0 1px rgba(255,106,0,0.3) !important;
+}
+.mimo-startup-actions {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  justify-content: center !important;
+  margin-top: 12px !important;
+}
+.mimo-startup-actions button {
+  border: 1px solid #333 !important;
+  background: #141414 !important;
+  color: #d0d0d0 !important;
+  border-radius: 6px !important;
+  padding: 7px 12px !important;
+  font-size: 11px !important;
+  cursor: pointer;
+}
+.mimo-startup-actions button.primary {
+  background: #FF6A00 !important;
+  border-color: #FF6A00 !important;
+  color: #0a0a0a !important;
+  font-weight: 600 !important;
+}
+.mimo-startup-actions button:hover {
+  border-color: #FF6A00 !important;
+}
