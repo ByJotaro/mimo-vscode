@@ -493,6 +493,18 @@ function renderMessages(
     if (msg.role === 'user') {
       content.innerHTML = formatMarkdownLite(msg.text);
       enhanceCodeBlocks(content);
+      /* copy-user-msg */
+      el.title = 'Double-click to copy';
+      el.addEventListener('dblclick', () => {
+        if (navigator.clipboard?.writeText) {
+          void navigator.clipboard.writeText(msg.text || '');
+          if (statusLabel) {
+            statusLabel.textContent = 'copied';
+            statusLabel.classList.add('is-flash');
+            setTimeout(() => statusLabel?.classList.remove('is-flash'), 500);
+          }
+        }
+      });
     } else {
       fillAssistantContent(content, msg.text);
     }
@@ -530,6 +542,7 @@ function renderMessages(
 }
 
 function appendOrUpdateMessage(msg: DisplayMessage): void {
+  if (busy) autoScroll = true;
   let el = chat.querySelector(`.message[data-id="${CSS.escape(msg.id)}"]`) as HTMLElement | null;
   if (!el) {
     el = document.createElement('div');
