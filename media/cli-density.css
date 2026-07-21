@@ -3851,3 +3851,30 @@ canvas#starfield {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.189 denser focus ring composer + FINAL strip */
+#prompt:focus {
+  border-left-color: #FF6A00 !important;
+  box-shadow: inset 0 0 0 1px rgba(255,106,0,0.15) !important;
+}
+/* denser help sys message */
+.message.bot .mimo-text-seg code {
+  background: #1a1a1a !important;
+  border: 1px solid #2a2a2a !important;
+  padding: 0 4px !important;
+  border-radius: 2px !important;
+  color: #e8c89a !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}

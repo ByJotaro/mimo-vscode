@@ -1093,7 +1093,7 @@ function handleLocalSlash(full: string): boolean {
         '- `/home` `/new` `/fork` `/clear` `/sessions` `/history` `/stop`\n' +
         '- `/plan` `/build` `/compose` `/agent <mode>` `/model` `/models`\n' +
         '- `/undo` `/redo` `/retry` `/details` `/cost` `/status` `/usage` `/help`\n' +
-        '- Hotkeys: `Ctrl+Shift+H` history · `Ctrl+Shift+N` new · `Ctrl+Shift+L` clear · `Ctrl+Shift+U` home · `Ctrl+.` abort\n\n' +
+        '- Hotkeys: `Ctrl+Shift+H` history · `Ctrl+Shift+N` new · `Ctrl+Shift+L` clear · `Ctrl+Shift+U` home · `Ctrl+Shift+Z` undo · `Ctrl+Shift+Y` redo · `Ctrl+.` abort\n\n' +
         '**Agent skills:** type `/` for full catalog (arxiv, deep-research, …).',
     });
     return true;
