@@ -8996,20 +8996,20 @@ export class OpenCodeClient {
 
     public async listSessions(): Promise<SessionInfo[]> {
         await this.ensureServer();
-        // ALWAYS prefer full /session list. `?directory=` scopes to one cwd and can
-        // hide the rest of history (user saw only 1 session). Merge both if needed.
+        // Prefer full /session (fast). Only merge directory list if global is empty/sparse.
         let globalList: any[] = [];
-        let dirList: any[] = [];
         try {
             const g = await this.requestJson<any[]>('GET', '/session');
             if (Array.isArray(g)) globalList = g;
         } catch { /* ignore */ }
-        try {
-            const directory = encodeURIComponent(this.workspaceRoot || '.');
-            const d = await this.requestJson<any[]>('GET', `/session?directory=${directory}`);
-            if (Array.isArray(d)) dirList = d;
-        } catch { /* ignore */ }
-        // Prefer the larger list; merge by id if both present
+        let dirList: any[] = [];
+        if (globalList.length < 3) {
+            try {
+                const directory = encodeURIComponent(this.workspaceRoot || '.');
+                const d = await this.requestJson<any[]>('GET', `/session?directory=${directory}`);
+                if (Array.isArray(d)) dirList = d;
+            } catch { /* ignore */ }
+        }
         const byId = new Map<string, any>();
         for (const s of [...globalList, ...dirList]) {
             if (s && typeof s.id === 'string' && s.id) byId.set(s.id, s);

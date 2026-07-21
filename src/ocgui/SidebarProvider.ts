@@ -8966,7 +8966,15 @@ ${attachmentLines.join('\n')}`
                 }
                 return '';
             };
-            const cmd = pick('command', 'cmd');
+            let cmd = pick('command', 'cmd');
+            // Stored bash sometimes has literal \n from PowerShell quoting — normalize for display
+            if (cmd && cmd.includes('\\n') && !cmd.includes('\n')) {
+                cmd = cmd.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+            }
+            // Cap absurdly long commands in the card body (full still in tool meta path)
+            if (cmd && cmd.length > 8000) {
+                cmd = cmd.slice(0, 8000) + '\n…';
+            }
             // MiMo edit uses file_path; write uses path/filePath; patch may use files[]
             const path = pick(
                 'file_path', 'filePath', 'path', 'file', 'filename', 'target', 'uri'
@@ -9019,6 +9027,10 @@ ${attachmentLines.join('\n')}`
             } else if (typeof part.text === 'string' && part.text.trim() && !cmd && !path) {
                 outText = part.text;
             }
+            // Cap huge OUT (bash dumps) so cards stay usable
+            if (typeof outText === 'string' && outText.length > 16000) {
+                outText = outText.slice(0, 16000) + '\n…';
+            }
             if (outText) {
                 body += `OUT:\n${outText}`;
             } else {
@@ -9038,15 +9050,23 @@ ${attachmentLines.join('\n')}`
             const baseName = path
                 ? String(path).replace(/\\/g, '/').split('/').pop() || String(path)
                 : '';
-            const meta = baseName || (status && status !== 'completed' ? String(status) : '');
-            // Edit/write with real diff body open by default (like CLI detail view)
+            // bash meta: first line of command (short)
+            const isBashTool = /^(bash|shell|cmd|powershell|pwsh)$/i.test(toolName);
+            const bashHint = isBashTool && cmd
+                ? cmd.split('\n')[0].replace(/\s+/g, ' ').slice(0, 60)
+                : '';
+            const meta = baseName || bashHint || (status && status !== 'completed' ? String(status) : '');
+            // Edit/write with real diff open by default. Bash stays CLOSED (huge scripts).
             const title = isEdit ? 'edit' : (isWrite && /^write$/i.test(toolName) ? 'write' : toolName);
+            const hasMetaDiff = Boolean(metaDiff.trim() || metaPatch.trim());
             const hasDiffBody = typeof outText === 'string' && (
-                outText.includes('\n+') || outText.includes('\n-')
+                hasMetaDiff
+                || outText.includes('\n+') || outText.includes('\n-')
+                || /^\+/.test(outText) || /^-/.test(outText)
                 || outText.startsWith('---') || outText.startsWith('Index:')
-                || outText.startsWith('diff ')
+                || outText.startsWith('diff ') || outText.includes('\n@@')
             );
-            const openCard = open || (hasDiffBody && (isEdit || isWrite));
+            const openCard = open || ((isEdit || isWrite) && !isBashTool && (hasMetaDiff || hasDiffBody));
             return this.wrapMimoPart(isEdit ? 'patch' : 'tool', title, meta, body, openCard, duration);
         }
         if (type === 'tool_result') {

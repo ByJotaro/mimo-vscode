@@ -188,6 +188,8 @@ let hydratingSession = false;
 let hydratePinUntil = 0;
 let postPaintScrollForce = false;
 let postPaintScrollPending = false;
+let hydrateSettleTimer = null;
+let hydratePinGeneration = 0;
 let debugWebviewLivenessAckDrop = false;
 let currentWebviewLivenessPanelId = '';
 
@@ -4462,6 +4464,28 @@ function looksLikeDiffText(text) {
         || /```diff/.test(t);
 }
 
+/** Unescape literal \n \t \r that sometimes land in stored bash commands (PS quoting). */
+function normalizeToolText(s) {
+    let t = String(s || '');
+    // Only unescape when string looks like it has escaped newlines (not real ones)
+    if (t.includes('\\n') && !t.includes('\n')) {
+        t = t.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\r/g, '\n');
+    }
+    return t.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+}
+
+/** Collapse huge bash scripts for summary display (full text in title/tooltip). */
+function clampToolCommand(cmd, maxLines, maxChars) {
+    const full = normalizeToolText(cmd);
+    const lines = full.split('\n');
+    const ml = maxLines || 6;
+    const mc = maxChars || 800;
+    let shown = lines.slice(0, ml).join('\n');
+    if (shown.length > mc) shown = shown.slice(0, mc) + '…';
+    else if (lines.length > ml) shown += '\n…';
+    return { full, shown, truncated: lines.length > ml || full.length > mc };
+}
+
 function buildMimoThinking(seg) {
     const details = document.createElement('details');
     details.className = 'mimo-thinking';
@@ -4660,6 +4684,10 @@ function buildMimoPartCard(seg) {
         }
         return pre;
     }
+    // Normalize escaped newlines in bash/write payloads before display
+    if (command) command = normalizeToolText(command);
+    if (out) out = normalizeToolText(out);
+
     if (command || out) {
         const io = document.createElement('div');
         io.className = 'mimo-io mimo-io--flat';
@@ -4669,10 +4697,25 @@ function buildMimoPartCard(seg) {
             const k = document.createElement('span');
             k.className = 'mimo-io-k';
             k.textContent = kind === 'patch' ? 'file' : 'in';
-            const v = document.createElement('span');
-            v.className = 'mimo-io-v';
-            v.textContent = command;
-            v.title = command;
+            const isBash = /^(bash|shell|cmd|powershell|pwsh)$/i.test(seg.title || '');
+            const clamped = clampToolCommand(command, isBash ? 5 : 8, isBash ? 600 : 1200);
+            const v = document.createElement('pre');
+            v.className = 'mimo-io-v mimo-io-v--cmd' + (clamped.truncated ? ' is-clamped' : '');
+            v.textContent = clamped.shown;
+            v.title = clamped.full;
+            if (clamped.truncated) {
+                v.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (v.classList.contains('is-expanded')) {
+                        v.textContent = clamped.shown;
+                        v.classList.remove('is-expanded');
+                    } else {
+                        v.textContent = clamped.full;
+                        v.classList.add('is-expanded');
+                    }
+                });
+            }
             line.appendChild(k);
             line.appendChild(v);
             io.appendChild(line);
@@ -4696,7 +4739,9 @@ function buildMimoPartCard(seg) {
             if (looksLikeDiffText(out)) {
                 outNode = fillDiffPre(v, out) || v;
             } else {
-                v.textContent = out;
+                // Cap huge bash output display
+                const maxOut = 12000;
+                v.textContent = out.length > maxOut ? out.slice(0, maxOut) + '\n…' : out;
             }
             line.appendChild(k);
             line.appendChild(outNode);
@@ -5924,34 +5969,39 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showStartupChooser(sessionList) {
-        chatContainer.innerHTML = '';
-        const root = document.createElement('div');
-        root.className = 'mimo-startup';
-        root.id = 'mimo-startup';
+        // Reuse existing chooser DOM to avoid blink (logo remount / list flash)
+        let root = document.getElementById('mimo-startup');
+        let list = document.getElementById('mimo-startup-list');
+        let reused = Boolean(root && list);
+        if (!reused) {
+            chatContainer.innerHTML = '';
+            root = document.createElement('div');
+            root.className = 'mimo-startup';
+            root.id = 'mimo-startup';
 
-        // 1) Logo + tips (centered block)
-        const logoHost = document.createElement('div');
-        logoHost.id = 'chat-welcome';
-        logoHost.className = 'mimo-startup-logo';
-        root.appendChild(logoHost);
-        if (typeof window.__mimoPaintWelcome === 'function') {
-            window.__mimoPaintWelcome(logoHost, {});
-        } else {
-            logoHost.innerHTML = '<div class="mimo-welcome-sub">MiMo Code</div>';
+            // 1) Logo + tips (centered block)
+            const logoHost = document.createElement('div');
+            logoHost.id = 'chat-welcome';
+            logoHost.className = 'mimo-startup-logo';
+            root.appendChild(logoHost);
+            if (typeof window.__mimoPaintWelcome === 'function') {
+                window.__mimoPaintWelcome(logoHost, {});
+            } else {
+                logoHost.innerHTML = '<div class="mimo-welcome-sub">MiMo Code</div>';
+            }
+
+            // 2) Recent sessions — ALWAYS visible block under logo/tips
+            const title = document.createElement('div');
+            title.className = 'mimo-startup-title';
+            title.textContent = 'Recent sessions';
+            root.appendChild(title);
+
+            list = document.createElement('div');
+            list.className = 'mimo-startup-list';
+            list.id = 'mimo-startup-list';
+            list.innerHTML = '<div class="mimo-startup-empty" id="mimo-startup-empty">Loading recent sessions…</div>';
+            root.appendChild(list);
         }
-
-        // 2) Recent sessions — ALWAYS visible block under logo/tips
-        const title = document.createElement('div');
-        title.className = 'mimo-startup-title';
-        title.textContent = 'Recent sessions';
-        root.appendChild(title);
-
-        const list = document.createElement('div');
-        list.className = 'mimo-startup-list';
-        list.id = 'mimo-startup-list';
-        // Placeholder so the section is never invisible
-        list.innerHTML = '<div class="mimo-startup-empty" id="mimo-startup-empty">Loading recent sessions…</div>';
-        root.appendChild(list);
 
         // 3) Actions under list
         const actions = document.createElement('div');
@@ -5984,10 +6034,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 vscode.postMessage({ type: 'newSession' });
             }
         });
-        actions.appendChild(hist);
-        actions.appendChild(neu);
-        root.appendChild(actions);
-        chatContainer.appendChild(root);
+        if (!reused) {
+            actions.appendChild(hist);
+            actions.appendChild(neu);
+            root.appendChild(actions);
+            chatContainer.appendChild(root);
+        } else {
+            // Ensure list ref is current
+            list = document.getElementById('mimo-startup-list') || list;
+        }
 
         function fillList(src) {
             let raw = Array.isArray(src) ? src : [];
@@ -6001,6 +6056,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 sessions = raw;
             }
             const items = raw.map(normalizeSessionItem).filter(Boolean).slice(0, 30);
+            // Skip DOM rebuild if same ids already shown (stops blink)
+            const nextIds = items.map(function (s) { return s.id; }).join('|');
+            if (list.dataset.ids === nextIds && items.length) {
+                return;
+            }
+            list.dataset.ids = nextIds;
             list.innerHTML = '';
             if (!items.length) {
                 const empty = document.createElement('div');
@@ -6017,11 +6078,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (_) {}
                 return;
             }
-            items.forEach(function (s, idx) {
+            items.forEach(function (s) {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'mimo-startup-item';
-                btn.style.animationDelay = (0.04 + idx * 0.03) + 's';
                 const t = document.createElement('span');
                 t.className = 'mimo-startup-item-title';
                 t.textContent = s.title;
@@ -6053,14 +6113,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? window.__mimoSessionsCache
                 : (Array.isArray(sessions) ? sessions : []));
         fillList(seed);
-        // Always re-fetch so list is not stuck empty after late serve start
+        // Re-fetch until we have items — short backoff (not 3 minutes)
         try { vscode.postMessage({ type: 'fetchSessions' }); } catch (_) {}
-        [600, 1500, 3000].forEach(function (ms) {
-            setTimeout(function () {
-                if (!document.getElementById('mimo-startup')) return;
-                try { vscode.postMessage({ type: 'fetchSessions' }); } catch (_) {}
-            }, ms);
-        });
+        if (!seed.length) {
+            [200, 500, 1000, 2000].forEach(function (ms) {
+                setTimeout(function () {
+                    if (!document.getElementById('mimo-startup')) return;
+                    if (Array.isArray(window.__mimoSessionsCache) && window.__mimoSessionsCache.length) return;
+                    try { vscode.postMessage({ type: 'fetchSessions' }); } catch (_) {}
+                }, ms);
+            });
+        }
         window.__mimoFillStartupList = fillList;
     }
 
@@ -7985,6 +8048,11 @@ function shouldHideDcpUiMessage(message) {
                 postPaintScrollForce = false;
                 requestAnimationFrame(() => {
                     scrollToBottom(force || true);
+                    // If still hydrating, keep settling until near bottom
+                    if (hydratingSession && typeof pinBottomUntilSettled === 'function') {
+                        // don't restart full settle loop every paint — just one more pin
+                        scrollToBottom(true);
+                    }
                 });
             }
         });
@@ -8719,11 +8787,13 @@ function shouldHideDcpUiMessage(message) {
         if (!force && !autoScrollPinnedToBottom && !hydratingSession) return;
         const pin = () => {
             try {
+                // Prefer max scrollTop (latest messages). scrollIntoView can fail with flex+anim.
+                el.scrollTop = el.scrollHeight;
                 const last = el.lastElementChild;
                 if (last && typeof last.scrollIntoView === 'function') {
                     try { last.scrollIntoView({ block: 'end', behavior: 'auto' }); } catch (_) {}
                 }
-                el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight);
+                el.scrollTop = el.scrollHeight;
                 autoScrollPinnedToBottom = true;
             } catch (_) {
                 try { el.scrollTop = el.scrollHeight; } catch (__) {}
@@ -8735,6 +8805,65 @@ function shouldHideDcpUiMessage(message) {
             requestAnimationFrame(pin);
         });
     }
+
+    /** Pin to bottom until near-bottom or max attempts — used after session hydrate paint. */
+    function pinBottomUntilSettled(reason) {
+        const gen = ++hydratePinGeneration;
+        hydratingSession = true;
+        hydratePinUntil = Date.now() + 4000;
+        autoScrollPinnedToBottom = true;
+        postPaintScrollPending = true;
+        postPaintScrollForce = true;
+        if (hydrateSettleTimer) {
+            clearTimeout(hydrateSettleTimer);
+            hydrateSettleTimer = null;
+        }
+        let attempts = 0;
+        const maxAttempts = 24;
+        const tick = () => {
+            if (gen !== hydratePinGeneration) return;
+            const el = document.getElementById('chat') || chatContainer;
+            if (!el) {
+                hydratingSession = false;
+                return;
+            }
+            scrollToBottom(true);
+            attempts += 1;
+            const near = isNearBottom(el);
+            try {
+                vscode.postMessage({
+                    type: 'ui-debug',
+                    payload: [
+                        '[WV][SCROLL_PIN]',
+                        `reason=${reason || 'unknown'}`,
+                        `attempt=${attempts}`,
+                        `scrollTop=${Math.round(el.scrollTop)}`,
+                        `scrollHeight=${el.scrollHeight}`,
+                        `clientHeight=${el.clientHeight}`,
+                        `near=${near ? '1' : '0'}`,
+                        `children=${el.childElementCount}`
+                    ]
+                });
+            } catch (_) {}
+            if (near || attempts >= maxAttempts) {
+                // Keep guard briefly so loadMore doesn't fire at top during settle
+                hydrateSettleTimer = setTimeout(() => {
+                    if (gen === hydratePinGeneration) {
+                        hydratingSession = false;
+                        hydratePinUntil = 0;
+                    }
+                }, near ? 150 : 400);
+                return;
+            }
+            hydrateSettleTimer = setTimeout(tick, 40 + Math.min(attempts * 15, 120));
+        };
+        // After current paint chain
+        requestAnimationFrame(() => {
+            requestAnimationFrame(tick);
+        });
+    }
+    window.__oc = window.__oc || {};
+    window.__oc.pinBottomUntilSettled = pinBottomUntilSettled;
     window.__oc = window.__oc || {};
     window.__oc.scrollToBottom = scrollToBottom;
 
@@ -12354,20 +12483,12 @@ window.addEventListener('message', (event) => {
                     if (welcome) welcome.remove();
                     const startup = document.getElementById('mimo-startup');
                     if (startup) startup.remove();
-                    // Enter animation only on first open of a session (not enrich/loadMore)
-                    const metaSrcEarly = message?.meta?.source || '';
-                    const isPrimaryOpen = metaSrcEarly === 'select' || metaSrcEarly === 'select-db'
-                        || metaSrcEarly === 'snapshot' || !metaSrcEarly;
-                    if (chatContainer && isPrimaryOpen && !message?.meta?.loadMore
-                        && metaSrcEarly !== 'select-db-enrich' && metaSrcEarly !== 'loadMore') {
-                        chatContainer.classList.remove('mimo-session-enter');
-                        void chatContainer.offsetWidth;
-                        chatContainer.classList.add('mimo-session-enter');
-                        window.clearTimeout(chatContainer.__mimoEnterT);
-                        chatContainer.__mimoEnterT = window.setTimeout(function () {
+                    // No enter animation on hydrate — it fights scroll-to-bottom (leaves user at top)
+                    try {
+                        if (chatContainer) {
                             chatContainer.classList.remove('mimo-session-enter');
-                        }, 400);
-                    }
+                        }
+                    } catch (_) {}
                 } catch (_) {}
                 const route = resolveEventSessionId(message, 'sessionData');
                 const sessionId = route?.sessionId || null;
@@ -12762,34 +12883,63 @@ window.addEventListener('message', (event) => {
                         payload: ['[WV][SESSIONDATA_ERROR]', `sessionId=${sessionId}`, `err=${String(err)}`]
                     });
                 } finally {
-                    // Hydrate guard: block scroll-listener unpin/loadMore until pin settles
-                    if (!isLoadMore && shouldActivateSession) {
-                        hydratingSession = true;
-                        hydratePinUntil = Date.now() + 900;
-                        autoScrollPinnedToBottom = true;
-                        postPaintScrollPending = true;
-                        postPaintScrollForce = true;
-                    }
+                    // Always re-render active session after hydrate data applied
                     const didRender = renderIfActive(sessionId, 'sessionData-finally', {
-                        extra: ['phase=finally'],
+                        extra: ['phase=finally', `src=${message?.meta?.source || 'unknown'}`],
                         scroll: !isLoadMore && shouldActivateSession,
                         forceScroll: true
                     });
                     refreshSendButtonState();
                     if (isLoadMore && chatContainer && prevScrollH > 0) {
+                        // Preserve viewport when older history expands
+                        hydratingSession = true;
+                        hydratePinUntil = Date.now() + 600;
                         requestAnimationFrame(() => {
                             const el = document.getElementById('chat') || chatContainer;
                             const delta = el.scrollHeight - prevScrollH;
                             el.scrollTop = prevScrollT + Math.max(0, delta);
+                            setTimeout(() => {
+                                hydratingSession = false;
+                                hydratePinUntil = 0;
+                            }, 200);
                         });
                     } else if (!isLoadMore && shouldActivateSession) {
-                        // Pin after paint chain; end hydrate window
-                        setTimeout(() => {
+                        // P0: settle pin after full paint until near-bottom
+                        postPaintScrollPending = true;
+                        postPaintScrollForce = true;
+                        pinBottomUntilSettled(`sessionData:${message?.meta?.source || 'select'}`);
+                        // Extra hard pin after layout (no enter-anim)
+                        setTimeout(function () { scrollToBottom(true); }, 50);
+                        setTimeout(function () { scrollToBottom(true); }, 200);
+                        setTimeout(function () {
                             scrollToBottom(true);
-                            hydratingSession = false;
-                        }, 120);
-                        setTimeout(() => scrollToBottom(true), 350);
+                            try {
+                                const el = document.getElementById('chat');
+                                if (el) {
+                                    vscode.postMessage({
+                                        type: 'ui-debug',
+                                        payload: ['[WV][SCROLL_FINAL]',
+                                            `top=${Math.round(el.scrollTop)}`,
+                                            `h=${el.scrollHeight}`,
+                                            `ch=${el.clientHeight}`,
+                                            `kids=${el.childElementCount}`]
+                                    });
+                                }
+                            } catch (_) {}
+                        }, 500);
                     }
+                    // Hide load bar after primary select (enrich may follow without bar)
+                    try {
+                        if (message?.meta?.source === 'select'
+                            || message?.meta?.source === 'select-db'
+                            || message?.meta?.source === 'select-db-enrich') {
+                            const bar = document.getElementById('session-load-bar');
+                            if (bar && !isLoadMore) {
+                                // keep bar only if this was a tiny partial — otherwise remove
+                                if ((message.messages?.length || 0) > 0) bar.remove();
+                            }
+                        }
+                    } catch (_) {}
                 }
                 break;
             }

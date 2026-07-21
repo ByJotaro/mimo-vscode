@@ -400,12 +400,25 @@ body > .slash-palette {
     color: #eeeeee;
 }
 .mimo-io-line--in .mimo-io-v {
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 4;
-    max-height: calc(1.45em * 4);
+    display: block;
+    max-height: calc(1.4em * 6);
     overflow: hidden;
     color: #d0d0d0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 11px !important;
+    line-height: 1.35;
+    cursor: pointer;
+}
+.mimo-io-line--in .mimo-io-v.is-expanded {
+    max-height: 280px;
+    overflow: auto;
+}
+.mimo-io-v--cmd {
+    margin: 0;
+    padding: 0;
+    background: transparent !important;
+    border: none !important;
 }
 .mimo-io-line--out .mimo-io-v {
     color: #eeeeee;
