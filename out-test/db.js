@@ -220,7 +220,12 @@ function isJunkSessionTitle(title) {
   if (!t || t.length < 2) return true;
   if (/^untitled(\s+session)?$/i.test(t)) return true;
   if (/^new session(\s|$|-)/i.test(t)) return true;
-  if (/^one-word greeting/i.test(t)) return true;
+  if (/one[- ]?word greeting/i.test(t)) return true;
+  if (/^(quick\s+)?(one[- ]?word\s+)?greeting/i.test(t)) return true;
+  if (/single[- ]word greeting/i.test(t)) return true;
+  if (/^приветствие(\s+пользователя)?$/i.test(t)) return true;
+  if (/^(quick\s+)?math question/i.test(t)) return true;
+  if (/^2\s*\+\s*2/i.test(t)) return true;
   if (/checkpoint[- ]?writer/i.test(t)) return true;
   if (/previous checkpoint/i.test(t)) return true;
   if (/^summary(\s|$|:)/i.test(t)) return true;
@@ -228,6 +233,9 @@ function isJunkSessionTitle(title) {
   if (/^compaction(\s|$|:)/i.test(t)) return true;
   if (/^explore-\d+/i.test(t)) return true;
   if (/^general-\d+/i.test(t)) return true;
+  if (/^read-only final review/i.test(t)) return true;
+  if (/^работай автономно/i.test(t)) return true;
+  if (/^продолжи предыдущую работу/i.test(t)) return true;
   if (/^ses_[a-zA-Z0-9]+$/i.test(t)) return true;
   return false;
 }

@@ -465,9 +465,14 @@ function isJunkClientTitle(title: string): boolean {
   const t = String(title || '').trim();
   if (!t || t.length < 2) return true;
   if (/checkpoint[- ]?writer|previous checkpoint/i.test(t)) return true;
-  if (/^untitled|^new session|^one-word greeting/i.test(t)) return true;
+  if (/^untitled|^new session/i.test(t)) return true;
+  if (/one[- ]?word greeting|single[- ]word greeting/i.test(t)) return true;
+  if (/^(quick\s+)?(one[- ]?word\s+)?greeting/i.test(t)) return true;
+  if (/^приветствие(\s+пользователя)?$/i.test(t)) return true;
+  if (/math question|^2\s*\+\s*2/i.test(t)) return true;
+  if (/^read-only final review|^работай автономно|^продолжи предыдущую/i.test(t))
+    return true;
   if (/^ses_[a-zA-Z0-9]+$/i.test(t)) return true;
-  if (t === 'Loading…' || t === 'Loading...') return false; // allow loading placeholder by id
   return false;
 }
 
