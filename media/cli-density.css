@@ -1813,3 +1813,15 @@ a.mimo-ext-link:hover {
 .mimo-part[open] > summary {
   border-bottom-color: #2e2e2e !important;
 }
+
+.message.bot .message-content {
+  padding-left: 0 !important;
+}
+/* Tool strip full width of bot message */
+.message.bot .mimo-part {
+  width: 100% !important;
+}
+/* Streaming caret not overlapping tool strip */
+.message.is-streaming .message-content::after {
+  margin-left: 6px !important;
+}
