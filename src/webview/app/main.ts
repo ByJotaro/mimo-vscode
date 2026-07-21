@@ -1288,12 +1288,14 @@ function handleLocalSlash(full: string): boolean {
       role: 'assistant',
       text:
         '**Local commands**\n' +
-        '- `/home` `/new` `/fork` `/clear` `/sessions` `/history` `/stop`\n' +
-        '- `/plan` `/build` `/compose` `/agent <mode>` `/model` `/models`\n' +
-        '- `/undo` `/redo` `/retry` `/details` `/cost` `/status` `/usage` `/mcp` `/memory` `/tasks` `/export` `/help`\n' +
-        '- Hotkeys: `Ctrl+Shift+H` history · `Ctrl+Shift+N` new · `Ctrl+Shift+L` clear · `Ctrl+Shift+U` home · `Ctrl+Shift+Z` undo · `Ctrl+Shift+Y` redo · `Ctrl+.` abort\n\n' +
-        '**Agent skills:** type `/` for full catalog (arxiv, deep-research, …).\n' +
-        '**Note:** visual polish (double arrows, nested tool boxes, jump-bottom, home layout) is queued AFTER full feature port (T21).',
+        '- `/home` `/exit` `/new` `/fork` `/clear` `/sessions` `/history` `/stop`\n' +
+        '- `/plan` `/build` `/compose` `/agent` `/agents` `/model` `/models` `/skills`\n' +
+        '- `/undo` `/redo` `/retry` `/details` `/diff` `/stash` `/resume` `/rename` `/open` `/sel`\n' +
+        '- `/cost` `/status` `/usage` `/mcp` `/memory` `/tasks` `/questions` `/export` `/help`\n' +
+        '- Server-forwarded: `/compact` `/rebuild` `/goal` `/btw` `/loop` `/permissions` …\n' +
+        '- Hotkeys: `Ctrl+Shift+H` history · `Ctrl+Shift+N` new · `Ctrl+Shift+L` clear · `Ctrl+Shift+U` home · `Ctrl+Shift+Z` undo · `Ctrl+Shift+Y` redo · `Ctrl+Shift+S` selection · `Ctrl+.` abort\n\n' +
+        '**Agent skills:** type `/` for full catalog.\n' +
+        '**Note:** visual polish (T21) runs AFTER full feature port + verify.',
     });
     return true;
   }
