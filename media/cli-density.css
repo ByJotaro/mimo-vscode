@@ -3194,3 +3194,32 @@ select#model {
 .mimo-jump-bottom[hidden] {
   display: none !important;
 }
+
+/* beta.170 FINAL tool chrome reassert */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+  border-bottom: 1px solid #242424 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
+/* denser inline code */
+.message.bot code:not(pre code) {
+  background: #1a1a1a !important;
+  border: 1px solid #2a2a2a !important;
+  border-radius: 2px !important;
+  padding: 0 4px !important;
+  color: #e8c89a !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 0.92em !important;
+}
+/* jump bottom above sticky composer */
+.mimo-jump-bottom {
+  bottom: 88px !important;
+}
