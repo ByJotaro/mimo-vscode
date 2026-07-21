@@ -5395,3 +5395,35 @@ body.is-busy #send-btn {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* === beta.220 FINAL: tool title strip + left bar (user preferred «надпись в окошке с полосой слева») === */
+.mimo-part.mimo-part--flat {
+  border-top: none !important;
+  border-right: none !important;
+  border-bottom: none !important;
+  border-left: 2px solid #3c3c3c !important;
+  background: transparent !important;
+  overflow: hidden !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+  border-bottom: 1px solid #242424 !important;
+  padding: 4px 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  border-radius: 0 !important;
+}
+.mimo-part.mimo-part--flat > summary .mimo-part-title {
+  color: #eeeeee !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-weight: 500 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
