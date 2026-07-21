@@ -970,6 +970,10 @@ function handleLocalSlash(full: string): boolean {
     }
     return true;
   }
+  if (cmd === 'memory') {
+    showToast('memory: project + session checkpoints');
+    return true;
+  }
   if (cmd === 'mcp') {
     showToast('MCP: tavily + playwright + windows-mcp');
     return true;

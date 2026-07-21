@@ -1892,3 +1892,32 @@ a.mimo-ext-link:hover {
   animation: mimo-spin 0.7s linear infinite;
   flex-shrink: 0;
 }
+
+/* Permission card — title strip + left bar family (match tools) */
+.permission-card,
+.mimo-permission,
+[data-kind='permission'] {
+  border-left: 3px solid #FF6A00 !important;
+  background: #141414 !important;
+  border-top: 1px solid #2a2a2a !important;
+  border-right: 1px solid #2a2a2a !important;
+  border-bottom: 1px solid #2a2a2a !important;
+  border-radius: 0 4px 4px 0 !important;
+}
+.permission-card .permission-title,
+.mimo-permission-title {
+  background: #121212 !important;
+  border-bottom: 1px solid #2a2a2a !important;
+  padding: 6px 10px !important;
+  color: #eeeeee !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+}
+.permission-actions kbd,
+.mimo-permission kbd {
+  background: #1a1a1a !important;
+  border: 1px solid #3c3c3c !important;
+  border-radius: 3px !important;
+  padding: 1px 5px !important;
+  color: #a0a0a0 !important;
+  font-size: 10px !important;
+}
