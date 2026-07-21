@@ -100,11 +100,15 @@ export type SessionListItem = {
 
 const JUNK_TITLE = /^(One-word greeting|New session\s*-|Untitled)/i;
 
-export function listSessionsFromSqlite(limit = 12): SessionListItem[] {
+export function listSessionsFromSqlite(limit = 12, opts?: { includeForks?: boolean }): SessionListItem[] {
   const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
+  // History panel shows forks too; home Recent stays roots-only
+  const where = opts?.includeForks
+    ? ''
+    : `WHERE (parent_id IS NULL OR parent_id = '') `;
   const sql =
     `SELECT id, COALESCE(title,''), COALESCE(time_updated,0), COALESCE(time_created,0) ` +
-    `FROM session WHERE (parent_id IS NULL OR parent_id = '') ` +
+    `FROM session ${where}` +
     `ORDER BY COALESCE(time_updated, time_created, 0) DESC LIMIT ${safeLimit};`;
   const out = runSqliteTsv(sql);
   const lines = String(out || '')

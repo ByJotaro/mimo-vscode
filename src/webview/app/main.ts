@@ -433,24 +433,50 @@ function showHistoryPanel(sessions: Array<{ id: string; title: string; updated?:
   const panel = document.createElement('div');
   panel.id = 'mimo-history-panel';
   panel.className = 'mimo-history-panel';
-  panel.innerHTML = `<button type="button" class="mimo-history-close" id="hist-close">Close</button><h3>SESSION HISTORY</h3>`;
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-label', 'Session history');
+
+  const head = document.createElement('div');
+  head.className = 'mimo-history-head';
+  head.innerHTML = `<h3>SESSION HISTORY</h3><button type="button" class="mimo-history-close" id="hist-close">Close</button>`;
+  panel.appendChild(head);
+
   const list = document.createElement('div');
-  list.className = 'mimo-startup-list';
-  for (const s of sessions.slice(0, 40)) {
+  list.className = 'mimo-startup-list mimo-history-list';
+  const items = sessions.slice(0, 40);
+  if (!items.length) {
+    const empty = document.createElement('div');
+    empty.className = 'mimo-history-empty';
+    empty.textContent = 'No sessions found';
+    list.appendChild(empty);
+  }
+  for (const s of items) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'mimo-session-card';
-    btn.innerHTML = `<div class="mimo-session-title">${escHtml(s.title)}</div><div class="mimo-session-id">${escHtml(s.id)}</div>`;
+    btn.innerHTML = `<div class="mimo-session-title">${escHtml(s.title || s.id)}</div><div class="mimo-session-id">${escHtml(s.id)}</div>`;
     btn.addEventListener('click', () => {
       panel.remove();
-      showLoading(s.title);
+      showLoading(s.title || s.id);
       post({ type: 'selectSession', sessionId: s.id });
     });
     list.appendChild(btn);
   }
   panel.appendChild(list);
-  chat.appendChild(panel);
+  // Fixed overlay on body — not inside scrollable chat (that hid history)
+  document.body.appendChild(panel);
   panel.querySelector('#hist-close')?.addEventListener('click', () => panel.remove());
+  panel.addEventListener('click', (e) => {
+    if (e.target === panel) panel.remove();
+  });
+  // Esc to close
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      panel.remove();
+      window.removeEventListener('keydown', onKey);
+    }
+  };
+  window.addEventListener('keydown', onKey);
 }
 function showStartup(sessions: Array<{ id: string; title: string; updated?: string }>): void {
   activeSessionId = '';
@@ -700,6 +726,7 @@ if (Array.isArray(message.modes) && message.modes.length) {
     }
     case 'sessionsList':
       if (message.historyPanel) {
+        // Always open history overlay (even mid-session)
         showHistoryPanel(Array.isArray(message.sessions) ? message.sessions : []);
       } else if (!activeSessionId) {
         showStartup(Array.isArray(message.sessions) ? message.sessions : []);

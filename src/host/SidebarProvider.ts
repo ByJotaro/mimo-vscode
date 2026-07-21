@@ -217,11 +217,17 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   }
 
   private async sendSessionsList(historyPanel = false): Promise<void> {
-    const cap = historyPanel ? 40 : 12;
-    const raw = dbAvailable() ? listSessionsFromSqlite(cap) : [];
+    // History: larger window + forks; home: roots only, Recent ≤6
+    const fetchCap = historyPanel ? 100 : 12;
+    const raw = dbAvailable()
+      ? listSessionsFromSqlite(fetchCap, { includeForks: historyPanel })
+      : [];
     const sessions = historyPanel
-      ? pickHomeRecent(raw, 40)
+      ? pickHomeRecent(raw, 80)
       : pickHomeRecent(raw, HOME_RECENT_CAP);
+    this.log.appendLine(
+      `[SESSIONS] history=${historyPanel} raw=${raw.length} out=${sessions.length}`
+    );
     this.post({ type: 'sessionsList', sessions, historyPanel });
   }
 

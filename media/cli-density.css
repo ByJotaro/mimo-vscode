@@ -522,3 +522,86 @@ details[open] > summary .mimo-chev {
     border-bottom: 1px solid #2a2a2a !important;
   }
 }
+
+/* History overlay — fixed on body, always on top */
+.mimo-history-panel {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 100 !important;
+  background: rgba(10, 10, 10, 0.97) !important;
+  overflow-y: auto !important;
+  padding: 16px 14px 24px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  animation: mimo-history-in 0.2s ease both;
+}
+.mimo-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.mimo-history-panel h3 {
+  margin: 0 !important;
+  font-size: 11px !important;
+  color: #808080 !important;
+  letter-spacing: 0.12em !important;
+  font-weight: 600 !important;
+}
+.mimo-history-close {
+  background: transparent !important;
+  border: 1px solid #3c3c3c !important;
+  color: #eeeeee !important;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  padding: 4px 12px !important;
+  border-radius: 4px !important;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+.mimo-history-close:hover {
+  border-color: #FF6A00 !important;
+  color: #FF6A00 !important;
+}
+.mimo-history-list {
+  width: 100% !important;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: mimo-rise 0.22s ease 0.05s both;
+}
+.mimo-history-empty {
+  color: #606060;
+  text-align: center;
+  padding: 24px;
+  font-size: 12px;
+}
+.mimo-history-list .mimo-session-card {
+  animation: mimo-rise 0.18s ease both;
+}
+.mimo-history-list .mimo-session-card:nth-child(1) { animation-delay: 0.02s; }
+.mimo-history-list .mimo-session-card:nth-child(2) { animation-delay: 0.04s; }
+.mimo-history-list .mimo-session-card:nth-child(3) { animation-delay: 0.06s; }
+.mimo-history-list .mimo-session-card:nth-child(4) { animation-delay: 0.08s; }
+.mimo-history-list .mimo-session-card:nth-child(5) { animation-delay: 0.1s; }
+
+/* Tool open body expand */
+.mimo-part-body {
+  animation: mimo-expand 0.15s ease;
+}
+.mimo-part[open] {
+  transition: border-color 0.15s ease;
+}
+
+@keyframes mimo-history-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes mimo-expand {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}

@@ -215,9 +215,10 @@ function querySessionFromDb(sessionId, limit = 24) {
   };
 }
 var JUNK_TITLE = /^(One-word greeting|New session\s*-|Untitled)/i;
-function listSessionsFromSqlite(limit = 12) {
+function listSessionsFromSqlite(limit = 12, opts) {
   const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
-  const sql = `SELECT id, COALESCE(title,''), COALESCE(time_updated,0), COALESCE(time_created,0) FROM session WHERE (parent_id IS NULL OR parent_id = '') ORDER BY COALESCE(time_updated, time_created, 0) DESC LIMIT ${safeLimit};`;
+  const where = opts?.includeForks ? "" : `WHERE (parent_id IS NULL OR parent_id = '') `;
+  const sql = `SELECT id, COALESCE(title,''), COALESCE(time_updated,0), COALESCE(time_created,0) FROM session ${where}ORDER BY COALESCE(time_updated, time_created, 0) DESC LIMIT ${safeLimit};`;
   const out = runSqliteTsv(sql);
   const lines = String(out || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const result = [];
