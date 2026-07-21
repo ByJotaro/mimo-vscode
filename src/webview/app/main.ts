@@ -888,6 +888,7 @@ function handleLocalSlash(full: string): boolean {
   const cmd = m[1].toLowerCase();
   const rest = (m[2] || '').trim();
   if (cmd === 'fork') {
+    showToast('forking…');
     post({ type: 'forkSession' });
     return true;
   }
@@ -897,6 +898,7 @@ function handleLocalSlash(full: string): boolean {
     return true;
   }
   if (cmd === 'home') {
+    showToast('Home');
     post({ type: 'goHome' });
     return true;
   }
@@ -1097,7 +1099,7 @@ function handleLocalSlash(full: string): boolean {
     const blob = parts.join('\n\n---\n\n');
     if (blob && navigator.clipboard?.writeText) {
       void navigator.clipboard.writeText(blob);
-      showToast('exported');
+      showToast('exported · ' + parts.length + ' msgs');
       if (statusLabel) {
         statusLabel.textContent = 'exported';
         statusLabel.classList.add('is-flash');
@@ -1114,9 +1116,10 @@ function handleLocalSlash(full: string): boolean {
         '**Local commands**\n' +
         '- `/home` `/new` `/fork` `/clear` `/sessions` `/history` `/stop`\n' +
         '- `/plan` `/build` `/compose` `/agent <mode>` `/model` `/models`\n' +
-        '- `/undo` `/redo` `/retry` `/details` `/cost` `/status` `/usage` `/help`\n' +
+        '- `/undo` `/redo` `/retry` `/details` `/cost` `/status` `/usage` `/mcp` `/memory` `/tasks` `/export` `/help`\n' +
         '- Hotkeys: `Ctrl+Shift+H` history · `Ctrl+Shift+N` new · `Ctrl+Shift+L` clear · `Ctrl+Shift+U` home · `Ctrl+Shift+Z` undo · `Ctrl+Shift+Y` redo · `Ctrl+.` abort\n\n' +
-        '**Agent skills:** type `/` for full catalog (arxiv, deep-research, …).',
+        '**Agent skills:** type `/` for full catalog (arxiv, deep-research, …).\n' +
+        '**Note:** visual polish (double arrows, nested tool boxes, jump-bottom, home layout) is queued AFTER full feature port (T21).',
     });
     return true;
   }
