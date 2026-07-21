@@ -165,6 +165,15 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
     dur ? `<span class="mimo-dur">${escHtml(dur)}</span>` : ''
   }</summary><div class="mimo-part-body"><div class="mimo-io mimo-io--flat">${bodyHtml}</div></div>`;
 
+  // Double-click IN path → ask host to open file
+  det.querySelectorAll('.mimo-io-line--in .mimo-io-v').forEach((pre) => {
+    pre.addEventListener('dblclick', () => {
+      const t = ((pre as HTMLElement).dataset.full || pre.textContent || '').trim().split('\n')[0];
+      if (t && (/[\\/]/.test(t) || /\.\w{1,8}$/.test(t))) {
+        post({ type: 'openFilePath', path: t });
+      }
+    });
+  });
   // Click clamped command to expand/collapse (v1)
   det.querySelectorAll('pre.mimo-io-v--cmd.is-clamped').forEach((pre) => {
     pre.addEventListener('click', (e) => {

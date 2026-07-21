@@ -1217,3 +1217,69 @@ body.mimo-busy #btn-abort {
   border-color: #FF6A00;
   color: #fff;
 }
+
+/* Tool cards denser 1:1 CLI */
+.mimo-part--flat {
+  margin: 4px 0 6px !important;
+  border: none !important;
+  background: transparent !important;
+}
+.mimo-part--flat > summary {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 2px 0 !important;
+  cursor: pointer;
+  list-style: none !important;
+  font-size: 12px !important;
+  color: #b0b0b0 !important;
+}
+.mimo-part--flat > summary::-webkit-details-marker { display: none; }
+.mimo-part-title {
+  color: #FF6A00 !important;
+  font-weight: 600 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 12px !important;
+}
+.mimo-part-meta {
+  color: #707070 !important;
+  font-size: 11px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+.mimo-part-body {
+  margin: 2px 0 4px 14px !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+}
+.mimo-io--flat {
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+.mimo-io-k {
+  color: #606060 !important;
+  font-size: 10px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  min-width: 28px !important;
+  display: inline-block !important;
+}
+.mimo-io-hr {
+  border: none !important;
+  border-top: 1px solid #2a2a2a !important;
+  margin: 4px 0 !important;
+}
+.mimo-io-v {
+  margin: 0 !important;
+  padding: 2px 0 !important;
+  background: transparent !important;
+  border: none !important;
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+  color: #c8c8c8 !important;
+}
