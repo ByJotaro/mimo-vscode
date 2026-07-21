@@ -2355,3 +2355,38 @@ a.mimo-ext-link:hover {
 .mimo-part--skill[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* Diff split under tool title strip — denser CLI sbs */
+.mimo-part-body .mimo-diff-split {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 0 !important;
+  margin: 4px 8px 6px !important;
+  border: 1px solid #2a2a2a !important;
+  border-left: 2px solid #3c3c3c !important;
+  background: #101010 !important;
+}
+.mimo-part-body .mimo-diff-col {
+  max-height: 240px !important;
+  overflow: auto !important;
+  margin: 0 !important;
+  padding: 4px 6px !important;
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+}
+.mimo-part-body .mimo-diff-col--del {
+  border-right: 1px solid #2a2a2a !important;
+  background: rgba(55, 34, 44, 0.35) !important;
+}
+.mimo-part-body .mimo-diff-col--add {
+  background: rgba(32, 48, 59, 0.35) !important;
+}
+.mimo-part-body .mimo-diff-col-label {
+  display: block !important;
+  font-size: 10px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  color: #707070 !important;
+  margin-bottom: 4px !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+}

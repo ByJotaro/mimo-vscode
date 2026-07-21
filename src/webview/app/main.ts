@@ -225,6 +225,7 @@ function renderPartCard(seg: ReturnType<typeof splitMimoParts>[number]): HTMLEle
     if (t && navigator.clipboard?.writeText) {
       void navigator.clipboard.writeText(t);
       if (statusLabel) {
+        showToast('copied');
         statusLabel.textContent = 'copied';
         statusLabel.classList.add('is-flash');
         setTimeout(() => statusLabel?.classList.remove('is-flash'), 500);
@@ -523,7 +524,8 @@ function renderMessages(
         if (navigator.clipboard?.writeText) {
           void navigator.clipboard.writeText(msg.text || '');
           if (statusLabel) {
-            statusLabel.textContent = 'copied';
+            showToast('copied');
+        statusLabel.textContent = 'copied';
             statusLabel.classList.add('is-flash');
             setTimeout(() => statusLabel?.classList.remove('is-flash'), 500);
           }
