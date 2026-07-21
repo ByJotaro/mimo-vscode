@@ -1864,3 +1864,31 @@ a.mimo-ext-link:hover {
 .message.user:hover {
   border-left-color: #FF6A00 !important;
 }
+
+/* Live spinner only when last tool is open (title strip chrome) */
+.message.is-streaming .mimo-part:not([open]):last-of-type > summary::after {
+  display: none !important;
+}
+.message.is-streaming .mimo-part[open]:last-of-type > summary {
+  background: #161616 !important;
+}
+/* Open running tool left bar brighter */
+.message.is-streaming .mimo-part[open] {
+  border-left-color: #FF6A00 !important;
+}
+
+.mimo-part--running > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
+.mimo-part--running > summary::after {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  border: 1.5px solid #333;
+  border-top-color: #FF6A00;
+  border-radius: 50%;
+  animation: mimo-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
