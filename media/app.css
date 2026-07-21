@@ -338,3 +338,31 @@ body.vscode-dark, body.vscode-light {
   border-color: #FF6A00;
   font-weight: 600;
 }
+
+/* denser CLI markdown */
+.message-content h1,.message-content h2,.message-content h3 {
+  color: #818CF8;
+  font-size: 1.02em;
+  margin: 0.2em 0 0.06em;
+  font-weight: 600;
+}
+.message-content pre {
+  background: #141414;
+  border: 1px solid #3c3c3c;
+  padding: 6px 8px;
+  border-radius: 4px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.2;
+  margin: 0.15em 0;
+}
+.message-content strong { color: #FBBF24; }
+.message-content blockquote {
+  border-left: 2px solid #e5c07b;
+  margin: 0.15em 0;
+  padding-left: 8px;
+  color: #e5c07b;
+}
+.message.bot { margin: 1px 0; }
+/* tool default closed look when only summary */
+.mimo-part[open] > summary { color: #eeeeee; }

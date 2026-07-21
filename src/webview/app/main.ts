@@ -137,14 +137,38 @@ function formatMarkdownLite(text: string): string {
   const lines = String(text || '').split(/\n/);
   const blocks: string[] = [];
   let buf: string[] = [];
+  let inCode = false;
+  let codeBuf: string[] = [];
   const flush = () => {
     if (!buf.length) return;
     blocks.push(`<p>${inlineMd(buf.join('\n'))}</p>`);
     buf = [];
   };
   for (const line of lines) {
+    if (/^```/.test(line)) {
+      if (inCode) {
+        blocks.push(`<pre><code>${escHtml(codeBuf.join('\n'))}</code></pre>`);
+        codeBuf = [];
+        inCode = false;
+      } else {
+        flush();
+        inCode = true;
+      }
+      continue;
+    }
+    if (inCode) {
+      codeBuf.push(line);
+      continue;
+    }
     if (line.trim() === '') {
       flush();
+      continue;
+    }
+    const hm = line.match(/^(#{1,3})\s+(.+)$/);
+    if (hm) {
+      flush();
+      const lvl = hm[1].length;
+      blocks.push(`<h${lvl}>${inlineMd(hm[2])}</h${lvl}>`);
       continue;
     }
     if (/^[-*]\s+/.test(line)) {
@@ -154,6 +178,7 @@ function formatMarkdownLite(text: string): string {
     }
     buf.push(line);
   }
+  if (inCode) blocks.push(`<pre><code>${escHtml(codeBuf.join('\n'))}</code></pre>`);
   flush();
   let html = blocks.join('\n');
   html = html.replace(/(?:<li>[\s\S]*?<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`);
