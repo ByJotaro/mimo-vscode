@@ -2031,7 +2031,10 @@ function showQuestion(req: {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'question-opt';
-      btn.innerHTML = `<span class="question-opt-label">${escHtml(opt.label)}</span>${
+      btn.dataset.qi = String(qi);
+      btn.dataset.oi = String(oi);
+      const kbd = oi < 9 ? `<kbd>${oi + 1}</kbd> ` : '';
+      btn.innerHTML = `${kbd}<span class="question-opt-label">${escHtml(opt.label)}</span>${
         opt.description
           ? `<span class="question-opt-desc">${escHtml(opt.description)}</span>`
           : ''
@@ -2106,6 +2109,41 @@ function showQuestion(req: {
   card.appendChild(actions);
   ov.appendChild(card);
   document.body.appendChild(ov);
+
+  // Number keys 1–9 pick option on first question (CLI-like); Enter submits
+  const onQKey = (e: KeyboardEvent) => {
+    if (!document.getElementById('question-overlay')) {
+      window.removeEventListener('keydown', onQKey);
+      return;
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      submit.click();
+      window.removeEventListener('keydown', onQKey);
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      cancel.click();
+      window.removeEventListener('keydown', onQKey);
+      return;
+    }
+    const n = parseInt(e.key, 10);
+    if (n >= 1 && n <= 9) {
+      const btn = card.querySelector(
+        `.question-opt[data-qi="0"][data-oi="${n - 1}"]`
+      ) as HTMLButtonElement | null;
+      if (btn) {
+        e.preventDefault();
+        btn.click();
+        if (!items[0]?.multiple) {
+          submit.click();
+          window.removeEventListener('keydown', onQKey);
+        }
+      }
+    }
+  };
+  window.addEventListener('keydown', onQKey);
 }
 
 post({ type: 'ready' });
