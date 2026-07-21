@@ -1427,6 +1427,42 @@ btnHistoryTop?.addEventListener('click', () => {
   post({ type: 'fetchSessions', history: true });
 });
 btnSend?.addEventListener('click', doSend);
+// Drag-drop file paths into prompt (functional port of CLI path paste)
+promptEl?.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+});
+promptEl?.addEventListener('drop', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  const dt = e.dataTransfer;
+  if (!dt) return;
+  const paths: string[] = [];
+  if (dt.files && dt.files.length) {
+    for (let i = 0; i < dt.files.length; i++) {
+      const f = dt.files[i] as File & { path?: string };
+      // VS Code webview may expose path on File
+      const p = (f as any).path || f.name;
+      if (p) paths.push(String(p));
+    }
+  }
+  const uri = dt.getData('text/uri-list') || dt.getData('text/plain') || '';
+  if (uri) {
+    uri.split(/\r?\n/).forEach((line) => {
+      const s = line.trim();
+      if (!s || s.startsWith('#')) return;
+      paths.push(s.replace(/^file:\/\/\//, '').replace(/^file:\/\//, ''));
+    });
+  }
+  if (!paths.length || !promptEl) return;
+  const insert = paths.map((p) => '' + p + '').join(' ');
+  const cur = promptEl.value || '';
+  const sep = cur && !cur.endsWith(' ') && !cur.endsWith('\n') ? ' ' : '';
+  promptEl.value = cur + sep + insert + ' ';
+  autoResizePrompt();
+  promptEl.focus();
+  showToast(paths.length + ' path(s)');
+});
 btnAbort?.addEventListener('click', () => post({ type: 'abort' }));
 function autoResizePrompt(): void {
   if (!promptEl) return;
