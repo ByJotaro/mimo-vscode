@@ -494,6 +494,7 @@ function enhanceCodeBlocks(root: HTMLElement): void {
       const t = pre.textContent || '';
       if (t && navigator.clipboard?.writeText) {
         void navigator.clipboard.writeText(t);
+        showToast('code copied');
         btn.textContent = 'ok';
         setTimeout(() => { btn.textContent = 'copy'; }, 700);
       }

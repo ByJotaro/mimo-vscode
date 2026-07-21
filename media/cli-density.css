@@ -3498,3 +3498,44 @@ header .title.is-live,
 .mimo-part--running > summary::after {
   margin-left: auto !important;
 }
+
+/* beta.179 denser code copy button on pre */
+.mimo-pre-copy {
+  position: absolute !important;
+  top: 4px !important;
+  right: 4px !important;
+  z-index: 2 !important;
+  border-left: 2px solid #3c3c3c !important;
+  background: #141414 !important;
+  color: #a0a0a0 !important;
+  border: 1px solid #2a2a2a !important;
+  border-left-width: 2px !important;
+  border-left-color: #3c3c3c !important;
+  border-radius: 0 3px 3px 0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 10px !important;
+  padding: 1px 6px !important;
+  cursor: pointer !important;
+  opacity: 0.75 !important;
+}
+.mimo-pre-copy:hover {
+  border-left-color: #FF6A00 !important;
+  color: #eeeeee !important;
+  opacity: 1 !important;
+}
+pre:hover .mimo-pre-copy {
+  opacity: 1 !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
