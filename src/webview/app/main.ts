@@ -5,6 +5,9 @@ import { splitMimoParts } from '../../host/format/mimoPart';
 import { collapseMessagesForDisplay } from '../../host/session/merge';
 import { paintLogo } from '../logo/logoEngine';
 import { startStarfield } from '../logo/starfield';
+
+let logoHandle: { destroy: () => void } | null = null;
+let starfieldHandle: { destroy: () => void } | null = null;
 import {
   pinBottomUntilSettled,
   preserveScrollOnPrepend,
@@ -359,7 +362,8 @@ function showStartup(sessions: Array<{ id: string; title: string; updated?: stri
 
   root.appendChild(listWrap);
   chat.appendChild(root);
-  paintLogo(logoHost);
+  try { logoHandle?.destroy(); } catch (_) {}
+  logoHandle = paintLogo(logoHost);
   listWrap.querySelector('#btn-refresh')?.addEventListener('click', () =>
     post({ type: 'fetchSessions' })
   );
@@ -591,7 +595,8 @@ if (Array.isArray(message.modes) && message.modes.length) {
   }
 });
 
-startStarfield(document.getElementById('starfield') as HTMLCanvasElement | null);
+try { starfieldHandle?.destroy(); } catch (_) {}
+starfieldHandle = startStarfield(document.getElementById('starfield') as HTMLCanvasElement | null);
 
 // ---- Slash palette ----
 let slashCatalog: Array<{ name: string; description: string }> = [];

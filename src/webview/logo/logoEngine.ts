@@ -1,6 +1,6 @@
 /**
- * Full interactive MIMO CODE logo — square mono cells + gather/burst particles
- * ported from v1 media/main.js (CLI logo.tsx physics).
+ * Interactive MIMO CODE logo + gather/burst particles.
+ * OOM-safe: MAX_PARTICLES, gather throttle, single instance, destroyable.
  */
 
 const LOGO_LEFT = [
@@ -23,10 +23,14 @@ const MIMO_GRAY = { r: 160, g: 160, b: 160 };
 const PEAK = { r: 255, g: 255, b: 255 };
 const CHARGE_MS = 3000;
 const HOLD_MS = 90;
-const LIFE_MS = 1020;
-const EXPAND = 1.62;
-const GAIN = 2.3;
+const LIFE_MS = 900;
+const EXPAND = 1.5;
+const GAIN = 2.0;
 const WIDTH = 0.76;
+/** Hard ceiling — OOM root was unbounded spawn per frame */
+const MAX_PARTICLES = 90;
+const GATHER_CAP = 45;
+const GATHER_SPAWN_EVERY_MS = 48;
 
 type Cell = {
   ch: string;
@@ -35,9 +39,7 @@ type Cell = {
   base: typeof MIMO_ORANGE;
   px: number;
   py: number;
-  side: 'left' | 'right';
 };
-
 type Particle = {
   x: number;
   y: number;
@@ -48,6 +50,10 @@ type Particle = {
   color: { r: number; g: number; b: number };
   size: number;
 };
+
+export type LogoHandle = { destroy: () => void };
+
+let activeLogo: LogoHandle | null = null;
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * Math.max(0, Math.min(1, t));
@@ -78,7 +84,6 @@ function noise(x: number, y: number, t: number): number {
   const n = Math.sin(x * 12.9898 + y * 78.233 + t * 0.001) * 43758.5453;
   return n - Math.floor(n);
 }
-
 function playUrl(url: string | undefined, volume: number): HTMLAudioElement | null {
   if (!url) return null;
   try {
@@ -112,20 +117,12 @@ function buildCells(): { cells: Cell[]; cols: number; rows: number } {
     for (let x = 0; x < leftW; x++) {
       const ch = L[x];
       if (ch && ch !== ' ')
-        cells.push({ ch, gx: x, gy, base: MIMO_ORANGE, px: 0, py: 0, side: 'left' });
+        cells.push({ ch, gx: x, gy, base: MIMO_ORANGE, px: 0, py: 0 });
     }
     for (let x = 0; x < R.length; x++) {
       const ch = R[x];
       if (ch && ch !== ' ')
-        cells.push({
-          ch,
-          gx: leftW + gap + x,
-          gy,
-          base: MIMO_GRAY,
-          px: 0,
-          py: 0,
-          side: 'right',
-        });
+        cells.push({ ch, gx: leftW + gap + x, gy, base: MIMO_GRAY, px: 0, py: 0 });
     }
   }
   const maxX = cells.reduce((m, c) => Math.max(m, c.gx), 0);
@@ -133,7 +130,16 @@ function buildCells(): { cells: Cell[]; cols: number; rows: number } {
   return { cells, cols: maxX + 1, rows: maxY + 1 };
 }
 
-export function paintLogo(host: HTMLElement): void {
+export function paintLogo(host: HTMLElement): LogoHandle {
+  if (activeLogo) {
+    try {
+      activeLogo.destroy();
+    } catch {
+      /* */
+    }
+    activeLogo = null;
+  }
+
   host.innerHTML = '';
   const wrap = document.createElement('div');
   wrap.className = 'mimo-welcome';
@@ -158,29 +164,26 @@ export function paintLogo(host: HTMLElement): void {
   host.appendChild(wrap);
 
   const grid = buildCells();
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
   let cellW = 12;
   let W = 0;
   let H = 0;
-  let hold: {
-    at: number;
-    cx: number;
-    cy: number;
-    vx: number;
-    vy: number;
-  } | null = null;
+  let hold: { at: number; cx: number; cy: number; vx: number; vy: number } | null =
+    null;
   let rings: Array<{ x: number; y: number; at: number; force: number }> = [];
   let particles: Particle[] = [];
   let glow: { at: number; force: number } | null = null;
   let hum = false;
   let running = false;
   let raf = 0;
+  let idleRaf = 0;
+  let lastGatherSpawn = 0;
+  let alive = true;
   let chargeAudio: HTMLAudioElement | null = null;
   let pulseShot = 0;
   const sfx = (window as any).__mimoSfx || {};
   const pulses = [sfx.pulseA, sfx.pulseB, sfx.pulseC].filter(Boolean);
 
-  // Full-viewport FX layer
   let fxCanvas = document.getElementById('mimo-logo-fx') as HTMLCanvasElement | null;
   if (!fxCanvas) {
     fxCanvas = document.createElement('canvas');
@@ -211,7 +214,7 @@ export function paintLogo(host: HTMLElement): void {
     return { x: logoOffX + lx * s.sx, y: logoOffY + ly * s.sy };
   }
   function logoZoneRadius() {
-    return Math.max(W, H) * 1.35 + 48;
+    return Math.max(W, H) * 1.2 + 40;
   }
   function cellAt(px: number, py: number): Cell | null {
     let best: Cell | null = null;
@@ -226,21 +229,32 @@ export function paintLogo(host: HTMLElement): void {
     return best;
   }
 
+  function pushParticle(p: Particle): void {
+    if (particles.length >= MAX_PARTICLES) {
+      // drop oldest non-ring first
+      const idx = particles.findIndex((x) => x.mode === 'gather');
+      if (idx >= 0) particles.splice(idx, 1);
+      else particles.shift();
+    }
+    particles.push(p);
+  }
+
   function layout(): void {
-    const avail = Math.max(220, (host.clientWidth || 360) - 8);
+    if (!alive) return;
+    const avail = Math.max(200, (host.clientWidth || 320) - 8);
     const probe = canvas.getContext('2d')!;
     const FONT = '"Cascadia Mono", Consolas, monospace';
     let fs = Math.floor(avail / Math.max(1, grid.cols));
-    fs = Math.max(14, Math.min(36, fs));
+    fs = Math.max(12, Math.min(32, fs));
     let advance = fs;
     let guard = 0;
-    while (guard++ < 48) {
+    while (guard++ < 40) {
       probe.font = `600 ${fs}px ${FONT}`;
       const pair = probe.measureText('██').width;
       advance = pair > 0 ? pair / 2 : probe.measureText('█').width;
       if (!advance || advance < 4) advance = fs * 0.55;
       advance = Math.max(1, Math.round(advance));
-      if (advance * grid.cols <= avail || fs <= 12) break;
+      if (advance * grid.cols <= avail || fs <= 11) break;
       fs -= 1;
     }
     cellW = advance;
@@ -270,67 +284,77 @@ export function paintLogo(host: HTMLElement): void {
     }
     fxW = Math.max(1, window.innerWidth || 400);
     fxH = Math.max(1, window.innerHeight || 600);
-    fxCanvas!.width = Math.floor(fxW * dpr);
-    fxCanvas!.height = Math.floor(fxH * dpr);
+    // Cap FX canvas size (sidebar is small; full 4K * dpr kills memory)
+    const maxFx = 1600;
+    const fxScale = Math.min(1, maxFx / Math.max(fxW, fxH));
+    const drawW = Math.floor(fxW * Math.min(dpr, 1.25) * fxScale);
+    const drawH = Math.floor(fxH * Math.min(dpr, 1.25) * fxScale);
+    fxCanvas!.width = Math.max(1, drawW);
+    fxCanvas!.height = Math.max(1, drawH);
     fxCanvas!.style.width = fxW + 'px';
     fxCanvas!.style.height = fxH + 'px';
     const fctx = fxCanvas!.getContext('2d')!;
-    fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    fctx.setTransform(drawW / fxW, 0, 0, drawH / fxH, 0, 0);
     syncLogoOffset();
   }
 
   function spawnGather(tx: number, ty: number, rise: number, n: number): void {
     const zone = logoZoneRadius();
-    const rMin = zone * lerp(0.35, 0.55, rise);
-    const rMax = zone * lerp(0.75, 1.05, rise);
-    for (let i = 0; i < n; i++) {
+    const rMin = zone * lerp(0.4, 0.55, rise);
+    const rMax = zone * lerp(0.7, 0.95, rise);
+    const room = Math.max(0, Math.min(n, GATHER_CAP - particles.filter((p) => p.mode === 'gather').length, MAX_PARTICLES - particles.length));
+    for (let i = 0; i < room; i++) {
       const ang = Math.random() * Math.PI * 2;
       const r = lerp(rMin, rMax, Math.random());
       const side = Math.random() < 0.58 ? MIMO_ORANGE : MIMO_GRAY;
-      particles.push({
+      pushParticle({
         x: tx + Math.cos(ang) * r,
         y: ty + Math.sin(ang) * r,
         vx: 0,
         vy: 0,
         life: 1,
         mode: 'gather',
-        color: tint(side, PEAK, rise * 0.45 + Math.random() * 0.25),
-        size: lerp(1.6, 3.6, Math.random() * (0.4 + rise)),
+        color: tint(side, PEAK, rise * 0.4 + Math.random() * 0.2),
+        size: lerp(1.4, 2.8, Math.random() * (0.4 + rise)),
       });
     }
   }
 
   function spawnBurst(cx: number, cy: number, level: number): void {
-    const reach = logoZoneRadius() * lerp(0.55, 0.95, level);
-    const count = Math.floor(lerp(55, 140, level));
+    const reach = logoZoneRadius() * lerp(0.5, 0.85, level);
+    const count = Math.min(
+      50,
+      Math.floor(lerp(28, 55, level)),
+      MAX_PARTICLES - particles.length
+    );
     for (let i = 0; i < count; i++) {
       const ang = Math.random() * Math.PI * 2;
-      const spd = lerp(reach * 0.04, reach * 0.16, level) * (0.45 + Math.random());
+      const spd = lerp(reach * 0.04, reach * 0.14, level) * (0.5 + Math.random());
       const side = Math.random() < 0.55 ? MIMO_ORANGE : MIMO_GRAY;
-      particles.push({
-        x: cx + (Math.random() - 0.5) * 8,
-        y: cy + (Math.random() - 0.5) * 8,
+      pushParticle({
+        x: cx + (Math.random() - 0.5) * 6,
+        y: cy + (Math.random() - 0.5) * 6,
         vx: Math.cos(ang) * spd,
         vy: Math.sin(ang) * spd,
         life: 1,
         mode: 'burst',
-        color: tint(side, PEAK, 0.45 + level * 0.55),
-        size: lerp(1.6, 3.8, Math.random() * level),
+        color: tint(side, PEAK, 0.4 + level * 0.5),
+        size: lerp(1.4, 3.0, Math.random() * level),
       });
     }
-    const ringN = Math.floor(lerp(28, 72, level));
+    const ringN = Math.min(36, Math.floor(lerp(16, 36, level)));
     for (let i = 0; i < ringN; i++) {
       const ang = (i / ringN) * Math.PI * 2;
-      const spd = lerp(reach * 0.06, reach * 0.14, level);
-      particles.push({
+      const spd = lerp(reach * 0.05, reach * 0.12, level);
+      pushParticle({
         x: cx,
         y: cy,
         vx: Math.cos(ang) * spd,
         vy: Math.sin(ang) * spd,
         life: 1,
         mode: 'ring',
-        color: tint(MIMO_ORANGE, PEAK, 0.75),
-        size: 2.4,
+        color: tint(MIMO_ORANGE, PEAK, 0.7),
+        size: 2.0,
       });
     }
   }
@@ -342,12 +366,11 @@ export function paintLogo(host: HTMLElement): void {
       const age = t - hold.at;
       const rise = ramp(age, HOLD_MS, CHARGE_MS);
       const dist = Math.hypot(c.px - hold.cx, c.py - hold.cy) / cellW;
-      const core = Math.exp(-(dist * dist) / Math.max(0.35, lerp(0.5, 14, rise)));
-      const shell = Math.exp(-Math.pow((dist - lerp(0.4, 6, rise)) / 1.4, 2));
-      const global = rise * 0.35;
-      boost += (core * 2.4 + shell * 1.2) * rise + global;
-      peak += core * rise * 1.15 + rise * 0.2;
-      boost += Math.max(0, noise(c.gx, c.gy, t) - 0.68) * rise * 2.1;
+      const core = Math.exp(-(dist * dist) / Math.max(0.35, lerp(0.5, 12, rise)));
+      const shell = Math.exp(-Math.pow((dist - lerp(0.4, 5, rise)) / 1.4, 2));
+      boost += (core * 2.2 + shell * 1.1) * rise + rise * 0.3;
+      peak += core * rise * 1.1 + rise * 0.15;
+      boost += Math.max(0, noise(c.gx, c.gy, t) - 0.7) * rise * 1.8;
     }
     for (const r of rings) {
       const age = t - r.at;
@@ -355,35 +378,30 @@ export function paintLogo(host: HTMLElement): void {
       const p = age / LIFE_MS;
       const dist = Math.hypot(c.px - r.x, c.py - r.y) / cellW;
       const radius =
-        Math.max(grid.cols, grid.rows) * 1.15 * (1 - Math.pow(1 - p, EXPAND));
+        Math.max(grid.cols, grid.rows) * 1.1 * (1 - Math.pow(1 - p, EXPAND));
       const fade = Math.pow(1 - p, 1.15);
       const edge =
         Math.exp(-Math.pow((dist - radius) / (WIDTH * 1.35), 2)) *
         GAIN *
-        1.35 *
         fade *
         r.force;
-      const trail =
-        dist < radius
-          ? Math.exp(-(radius - dist) / 2.1) * 0.42 * fade * r.force
-          : 0;
       const flash =
         Math.exp(-(dist * dist) / 4.5) *
-        2.6 *
+        2.2 *
         r.force *
         Math.max(0, 1 - age / 160);
-      boost += edge + trail + flash;
-      peak += flash * 0.95 + edge * 0.55;
+      boost += edge + flash;
+      peak += flash * 0.9 + edge * 0.5;
     }
     if (glow) {
       const age = t - glow.at;
-      if (age < 1600) {
-        const g = Math.exp(-age / 800) * glow.force;
-        boost += g * 0.35;
-        peak += g * 0.15;
+      if (age < 1200) {
+        const g = Math.exp(-age / 700) * glow.force;
+        boost += g * 0.3;
+        peak += g * 0.12;
       }
     }
-    return { boost: Math.min(4, boost), peak: Math.min(1.6, peak) };
+    return { boost: Math.min(3.5, boost), peak: Math.min(1.4, peak) };
   }
 
   function soundStart() {
@@ -395,7 +413,7 @@ export function paintLogo(host: HTMLElement): void {
     } catch {
       /* */
     }
-    chargeAudio = playUrl(sfx.charge, 0.24);
+    chargeAudio = playUrl(sfx.charge, 0.22);
   }
   function soundStop(delayMs: number) {
     const run = () => {
@@ -413,10 +431,10 @@ export function paintLogo(host: HTMLElement): void {
     else run();
   }
   function soundPulse(scale: number) {
-    soundStop(140);
+    soundStop(120);
     if (pulses.length) {
       const url = pulses[pulseShot++ % pulses.length];
-      setTimeout(() => playUrl(url, 0.26 + 0.14 * scale), 30);
+      setTimeout(() => playUrl(url, 0.24 + 0.12 * scale), 30);
     }
   }
 
@@ -433,27 +451,23 @@ export function paintLogo(host: HTMLElement): void {
       const dx = p.x - bx;
       const dy = p.y - by;
       const dist = Math.hypot(dx, dy) || 1;
-      const spd = lerp(3.5, 12, level);
-      p.vx = (dx / dist) * spd * (0.55 + Math.random() * 0.65);
-      p.vy = (dy / dist) * spd * (0.55 + Math.random() * 0.65);
+      const spd = lerp(3, 10, level);
+      p.vx = (dx / dist) * spd * (0.55 + Math.random() * 0.6);
+      p.vy = (dy / dist) * spd * (0.55 + Math.random() * 0.6);
       p.mode = 'burst';
-      p.color = tint(p.color, PEAK, 0.6);
+      p.color = tint(p.color, PEAK, 0.55);
       p.life = 1;
-      p.size *= 1.1;
     }
     spawnBurst(bx, by, level);
-    rings.push({
-      x: localCx,
-      y: localCy,
-      at: t,
-      force: lerp(1.0, 2.8, level),
-    });
-    glow = { at: t, force: lerp(0.35, 1.8, rise * level) };
-    soundPulse(lerp(0.8, 1, level));
+    rings.push({ x: localCx, y: localCy, at: t, force: lerp(0.9, 2.4, level) });
+    if (rings.length > 3) rings.shift();
+    glow = { at: t, force: lerp(0.3, 1.5, rise * level) };
+    soundPulse(lerp(0.75, 1, level));
     startLoop();
   }
 
   function draw(t: number): void {
+    if (!alive) return;
     const ctx = canvas.getContext('2d')!;
     ctx.clearRect(0, 0, W, H);
     const drawFs = Math.max(1, Math.round(cellW));
@@ -465,23 +479,16 @@ export function paintLogo(host: HTMLElement): void {
       const f = fieldBoost(c, t);
       let col = c.base;
       if (f.boost > 0.02) {
-        col = tint(c.base, MIMO_ORANGE, Math.min(0.65, f.boost * 0.28));
-        col = tint(col, PEAK, Math.min(1, f.peak * 0.9 + f.boost * 0.14));
-      }
-      if (!hold && !rings.length) {
+        col = tint(c.base, MIMO_ORANGE, Math.min(0.6, f.boost * 0.28));
+        col = tint(col, PEAK, Math.min(1, f.peak * 0.85 + f.boost * 0.12));
+      } else if (!hold && !rings.length) {
         const sh = 0.5 + 0.5 * Math.sin(t * 0.0015 + c.gx * 0.4 + c.gy);
         col = tint(c.base, PEAK, sh * 0.04);
       }
       ctx.fillStyle = css(col, 1);
-      if (f.boost > 0.35) {
-        ctx.shadowColor = css(tint(c.base, PEAK, 0.55), 0.55);
-        ctx.shadowBlur = 4 + f.boost * 10;
-      } else {
-        ctx.shadowBlur = 0;
-      }
-      const px = Math.round(c.px * dpr) / dpr;
-      const py = Math.round(c.py * dpr) / dpr;
-      ctx.fillText(c.ch, px, py);
+      ctx.shadowBlur = f.boost > 0.4 ? 3 + f.boost * 8 : 0;
+      if (f.boost > 0.4) ctx.shadowColor = css(tint(c.base, PEAK, 0.5), 0.45);
+      ctx.fillText(c.ch, Math.round(c.px * dpr) / dpr, Math.round(c.py * dpr) / dpr);
     }
     ctx.shadowBlur = 0;
 
@@ -490,13 +497,18 @@ export function paintLogo(host: HTMLElement): void {
     for (const p of particles) {
       const a = Math.max(0, Math.min(1, p.life));
       fctx.beginPath();
-      fctx.fillStyle = css(p.color, a * (p.mode === 'gather' ? 0.95 : 0.88));
-      fctx.arc(p.x, p.y, p.size * (0.55 + a * 0.55), 0, Math.PI * 2);
+      fctx.fillStyle = css(p.color, a * (p.mode === 'gather' ? 0.9 : 0.85));
+      fctx.arc(p.x, p.y, p.size * (0.55 + a * 0.5), 0, Math.PI * 2);
       fctx.fill();
     }
   }
 
   function tick(t: number): void {
+    if (!alive) return;
+    if (document.hidden) {
+      raf = requestAnimationFrame(tick);
+      return;
+    }
     if (hold && !hum && t - hold.at >= HOLD_MS) {
       hum = true;
       soundStart();
@@ -511,58 +523,61 @@ export function paintLogo(host: HTMLElement): void {
       const vt = localToViewport(hold.cx, hold.cy);
       hold.vx = vt.x;
       hold.vy = vt.y;
-      const gatherCount = particles.filter((p) => p.mode === 'gather').length;
-      const cap = Math.floor(lerp(50, 120, rise));
-      if (gatherCount < cap) {
-        spawnGather(hold.vx, hold.vy, rise, 4 + Math.floor(rise * 6));
+      if (t - lastGatherSpawn >= GATHER_SPAWN_EVERY_MS) {
+        lastGatherSpawn = t;
+        const gatherCount = particles.filter((p) => p.mode === 'gather').length;
+        if (gatherCount < GATHER_CAP && particles.length < MAX_PARTICLES) {
+          spawnGather(hold.vx, hold.vy, rise, 2 + Math.floor(rise * 2));
+        }
       }
     }
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
       if (p.mode === 'gather' && hold) {
-        const tx = hold.vx;
-        const ty = hold.vy;
-        const dx = tx - p.x;
-        const dy = ty - p.y;
+        const dx = hold.vx - p.x;
+        const dy = hold.vy - p.y;
         const dist = Math.hypot(dx, dy) || 1;
         const rise = ramp(t - hold.at, HOLD_MS, CHARGE_MS);
-        const speed = lerp(3.5, 14, rise) + dist * 0.04;
+        const speed = lerp(3.5, 12, rise) + dist * 0.035;
         p.vx = (dx / dist) * speed;
         p.vy = (dy / dist) * speed;
         p.x += p.vx;
         p.y += p.vy;
-        if (Math.hypot(tx - p.x, ty - p.y) < Math.max(10, cellW * 0.9)) p.life = 0;
-        else p.life -= 0.003;
+        if (Math.hypot(hold.vx - p.x, hold.vy - p.y) < Math.max(10, cellW * 0.9))
+          p.life = 0;
+        else p.life -= 0.004;
       } else {
-        p.vx *= 0.978;
-        p.vy *= 0.978;
+        p.vx *= 0.975;
+        p.vy *= 0.975;
         p.x += p.vx;
         p.y += p.vy;
-        p.life -= p.mode === 'ring' ? 0.014 : 0.011;
+        p.life -= p.mode === 'ring' ? 0.016 : 0.013;
       }
       if (p.life <= 0) particles.splice(i, 1);
     }
     rings = rings.filter((r) => t - r.at < LIFE_MS);
-    if (glow && t - glow.at >= 1600) glow = null;
+    if (glow && t - glow.at >= 1200) glow = null;
 
     draw(t);
 
-    const live = hold || rings.length || particles.length || glow;
+    const live = hold || rings.length > 0 || particles.length > 0 || glow;
     if (!live) {
       running = false;
       raf = 0;
+      // one idle frame already drawn; idleLoop handles shimmer
       return;
     }
     raf = requestAnimationFrame(tick);
   }
 
   function startLoop(): void {
-    if (running) return;
+    if (!alive || running) return;
     running = true;
     raf = requestAnimationFrame(tick);
   }
 
   function press(px: number, py: number): void {
+    if (!alive) return;
     const t = performance.now();
     if (hold) doBurst(hold.cx, hold.cy, t);
     const cell = cellAt(px, py);
@@ -572,11 +587,12 @@ export function paintLogo(host: HTMLElement): void {
     hold = { at: t, cx, cy, vx: vt.x, vy: vt.y };
     hum = false;
     particles = particles.filter((p) => p.mode !== 'gather');
+    lastGatherSpawn = 0;
     startLoop();
   }
 
   function release(): void {
-    if (!hold) return;
+    if (!hold || !alive) return;
     const t = performance.now();
     doBurst(hold.cx, hold.cy, t);
     hold = null;
@@ -587,20 +603,30 @@ export function paintLogo(host: HTMLElement): void {
     const rect = canvas.getBoundingClientRect();
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    const px = (clientX - rect.left) * (W / rect.width);
-    const py = (clientY - rect.top) * (H / rect.height);
+    const px = (clientX - rect.left) * (W / Math.max(1, rect.width));
+    const py = (clientY - rect.top) * (H / Math.max(1, rect.height));
     press(px, py);
   }
   function onPointerUp(e: Event): void {
     e.preventDefault();
     release();
   }
+  function onResize(): void {
+    layout();
+    draw(performance.now());
+  }
 
   layout();
   draw(performance.now());
-  let idleRaf = 0;
+
+  // Idle shimmer at ~20fps when not charging (not 60fps forever waste)
+  let lastIdle = 0;
   function idleLoop(t: number) {
-    if (!hold && !rings.length && particles.length === 0) draw(t);
+    if (!alive) return;
+    if (!running && !document.hidden && t - lastIdle > 50) {
+      lastIdle = t;
+      draw(t);
+    }
     idleRaf = requestAnimationFrame(idleLoop);
   }
   idleRaf = requestAnimationFrame(idleLoop);
@@ -612,8 +638,35 @@ export function paintLogo(host: HTMLElement): void {
   });
   canvas.addEventListener('touchstart', onPointerDown, { passive: false });
   canvas.addEventListener('touchend', onPointerUp);
-  window.addEventListener('resize', () => {
-    layout();
-    draw(performance.now());
-  });
+  window.addEventListener('resize', onResize);
+
+  const handle: LogoHandle = {
+    destroy() {
+      alive = false;
+      if (raf) cancelAnimationFrame(raf);
+      if (idleRaf) cancelAnimationFrame(idleRaf);
+      raf = 0;
+      idleRaf = 0;
+      running = false;
+      particles = [];
+      rings = [];
+      hold = null;
+      glow = null;
+      soundStop(0);
+      canvas.removeEventListener('mousedown', onPointerDown);
+      canvas.removeEventListener('mouseup', onPointerUp);
+      canvas.removeEventListener('touchstart', onPointerDown);
+      canvas.removeEventListener('touchend', onPointerUp);
+      window.removeEventListener('resize', onResize);
+      try {
+        const fctx = fxCanvas?.getContext('2d');
+        if (fctx && fxCanvas) fctx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+      } catch {
+        /* */
+      }
+      if (activeLogo === handle) activeLogo = null;
+    },
+  };
+  activeLogo = handle;
+  return handle;
 }

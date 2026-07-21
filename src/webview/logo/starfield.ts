@@ -1,44 +1,34 @@
 /**
- * MiMo Code CLI starfield 1:1 spirit:
- * density twinkle stars (✦✧✶), warm gold tint, diagonal meteors as braille beams.
- * Background void #0a0a0a.
+ * CLI-style starfield — OOM-safe:
+ * capped star count, one RAF, pause when tab hidden, destroyable.
  */
 
-const STAR_CHARS = ['✦', '✧', '✦', '✧', '✦', '✧', '·'];
+const STAR_CHARS = ['✦', '✧', '·', '✧', '✦'];
 const HOT_CHAR = '✶';
 const HOT_THRESHOLD = 0.88;
-const DENSITY = 0.0042;
-const TWINKLE_MS = 200;
-const METEOR_INTERVAL = 8000;
-const METEOR_DURATION = 3600;
+const MAX_STARS = 120;
+const TWINKLE_MS = 280;
+const METEOR_INTERVAL = 10000;
+const METEOR_DURATION = 2800;
 const METEOR_ANGLE = 0.36;
-const METEOR_TAIL = 32;
-const METEOR_STEP = 0.18;
+const METEOR_TAIL = 20;
+const METEOR_STEP = 0.35;
 const BG = '#0a0a0a';
 const GOLD = { r: 237, g: 220, b: 170 };
 const WHITE = { r: 255, g: 255, b: 255 };
 const BEAM_CORE = { r: 255, g: 255, b: 255 };
 const BEAM_GLOW = { r: 180, g: 215, b: 255 };
 
-type Star = {
-  x: number;
-  y: number;
-  ch: string;
-  b: number; // brightness 0..1
-  phase: number;
-};
+type Star = { x: number; y: number; ch: string; b: number; phase: number };
+type Meteor = { at: number; startX: number; startY: number; speed: number };
 
-type Meteor = {
-  at: number;
-  startX: number;
-  startY: number;
-  speed: number;
-};
+type StarfieldHandle = { destroy: () => void };
+
+let active: StarfieldHandle | null = null;
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * Math.max(0, Math.min(1, t));
 }
-
 function tint(
   a: { r: number; g: number; b: number },
   b: { r: number; g: number; b: number },
@@ -51,75 +41,92 @@ function tint(
     b: Math.round(a.b + (b.b - a.b) * k),
   };
 }
-
 function brailleBit(col: number, row: number): number {
   if (col === 0) return row === 3 ? 6 : row;
   return row === 3 ? 7 : 3 + row;
 }
 
-export function startStarfield(canvas: HTMLCanvasElement | null): void {
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+export function startStarfield(canvas: HTMLCanvasElement | null): StarfieldHandle {
+  if (active) {
+    try {
+      active.destroy();
+    } catch {
+      /* */
+    }
+    active = null;
+  }
+  if (!canvas) {
+    return { destroy: () => undefined };
+  }
+  const ctx = canvas.getContext('2d', { alpha: false });
+  if (!ctx) return { destroy: () => undefined };
+
+  // Cap DPR — full retina * huge canvas = OOM
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
   let W = 0;
   let H = 0;
-  let cell = 14; // mono cell px
+  let cell = 14;
   let cols = 0;
   let rows = 0;
   let stars: Star[] = [];
   let meteor: Meteor | null = null;
   let lastTwinkle = 0;
   let lastMeteor = 0;
+  let raf = 0;
+  let alive = true;
+  let paused = document.hidden;
 
   function resize(): void {
-    W = window.innerWidth || 400;
-    H = window.innerHeight || 600;
-    canvas!.width = Math.floor(W * dpr);
-    canvas!.height = Math.floor(H * dpr);
+    if (!alive) return;
+    W = Math.max(1, window.innerWidth || 400);
+    H = Math.max(1, window.innerHeight || 600);
+    // Slightly lower internal res than CSS for cheap paint
+    const scale = dpr;
+    canvas!.width = Math.floor(W * scale);
+    canvas!.height = Math.floor(H * scale);
     canvas!.style.width = W + 'px';
     canvas!.style.height = H + 'px';
-    ctx!.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // ~ terminal cell size
-    cell = Math.max(11, Math.min(16, Math.floor(W / 48)));
+    ctx!.setTransform(scale, 0, 0, scale, 0, 0);
+    cell = Math.max(12, Math.min(16, Math.floor(W / 42)));
     cols = Math.max(8, Math.floor(W / cell));
-    rows = Math.max(8, Math.floor(H / (cell * 1.15)));
+    rows = Math.max(8, Math.floor(H / (cell * 1.2)));
+    const target = Math.min(MAX_STARS, Math.floor(cols * rows * 0.018));
     stars = [];
-    const n = Math.floor(cols * rows * DENSITY * 12);
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < target; i++) {
       stars.push({
         x: Math.random() * cols,
         y: Math.random() * rows,
-        ch: STAR_CHARS[Math.floor(Math.random() * (STAR_CHARS.length - 1))],
-        b: 0.15 + Math.random() * 0.45,
+        ch: STAR_CHARS[Math.floor(Math.random() * STAR_CHARS.length)],
+        b: 0.2 + Math.random() * 0.45,
         phase: Math.random() * Math.PI * 2,
       });
     }
   }
 
   function twinkle(): void {
-    const count = Math.floor(cols * rows * 0.008);
+    const count = Math.min(8, Math.floor(stars.length * 0.08));
     for (let i = 0; i < count; i++) {
-      if (!stars.length) break;
       const s = stars[Math.floor(Math.random() * stars.length)];
+      if (!s) continue;
       const r = Math.random();
       s.b =
         r < 0.12
           ? 0.92 + Math.random() * 0.08
           : r < 0.8
-            ? 0.7 + Math.random() * 0.22
-            : 0.05 + Math.random() * 0.2;
-      if (s.b >= HOT_THRESHOLD) s.ch = HOT_CHAR;
-      else if (s.ch === HOT_CHAR)
-        s.ch = STAR_CHARS[Math.floor(Math.random() * (STAR_CHARS.length - 1))];
+            ? 0.65 + Math.random() * 0.25
+            : 0.08 + Math.random() * 0.2;
+      s.ch =
+        s.b >= HOT_THRESHOLD
+          ? HOT_CHAR
+          : STAR_CHARS[Math.floor(Math.random() * STAR_CHARS.length)];
     }
   }
 
   function spawnMeteor(now: number): void {
     const startY = Math.random() * 2;
     const speed = Math.max(
-      0.011,
-      Math.min(0.038, (rows - startY) / (Math.sin(METEOR_ANGLE) * METEOR_DURATION))
+      0.012,
+      Math.min(0.032, (rows - startY) / (Math.sin(METEOR_ANGLE) * METEOR_DURATION))
     );
     meteor = {
       at: now,
@@ -160,28 +167,14 @@ export function startStarfield(canvas: HTMLCanvasElement | null): void {
     for (let t = 0; t <= METEOR_TAIL; t += METEOR_STEP) {
       setDot(headX - t * dx, headY - t * dy, t);
     }
-    const headSubX = Math.floor(headX * 2);
-    const headSubY = Math.floor(headY * 4);
-    for (let dsx = -1; dsx <= 1; dsx++) {
-      for (let dsy = -1; dsy <= 1; dsy++) {
-        if (dsx * dsx + dsy * dsy > 1) continue;
-        const subX = headSubX + dsx;
-        const subY = headSubY + dsy;
-        const cx = subX >> 1;
-        const cy = subY >> 2;
-        if (cx < 0 || cx >= cols || cy < 0 || cy >= rows) continue;
-        const bit = brailleBit(subX & 1, subY & 3);
-        const key = `${cx},${cy}`;
-        const existing = cellAcc.get(key);
-        cellAcc.set(key, {
-          dots: (existing?.dots ?? 0) | (1 << bit),
-          minT: 0,
-        });
-      }
+    // hard cap meteor glyphs so Map never explodes
+    if (cellAcc.size > 80) {
+      const keys = [...cellAcc.keys()].slice(80);
+      for (const k of keys) cellAcc.delete(k);
     }
     const cw = W / cols;
     const ch = H / rows;
-    ctx!.font = `${Math.floor(cell * 0.95)}px "Cascadia Mono", Consolas, monospace`;
+    ctx!.font = `${Math.floor(cell * 0.9)}px "Cascadia Mono", Consolas, monospace`;
     ctx!.textAlign = 'center';
     ctx!.textBaseline = 'middle';
     for (const [key, val] of cellAcc) {
@@ -191,15 +184,23 @@ export function startStarfield(canvas: HTMLCanvasElement | null): void {
       const col = tint(
         { r: 10, g: 10, b: 10 },
         tint(BEAM_GLOW, BEAM_CORE, headBlend),
-        Math.max(0.08, fade)
+        Math.max(0.1, fade)
       );
-      const chStr = String.fromCharCode(0x2800 + val.dots);
       ctx!.fillStyle = `rgb(${col.r},${col.g},${col.b})`;
-      ctx!.fillText(chStr, (sx + 0.5) * cw, (sy + 0.5) * ch);
+      ctx!.fillText(
+        String.fromCharCode(0x2800 + val.dots),
+        (sx + 0.5) * cw,
+        (sy + 0.5) * ch
+      );
     }
   }
 
   function tick(now: number): void {
+    if (!alive) return;
+    if (paused) {
+      raf = requestAnimationFrame(tick);
+      return;
+    }
     if (now - lastTwinkle > TWINKLE_MS) {
       twinkle();
       lastTwinkle = now;
@@ -214,27 +215,49 @@ export function startStarfield(canvas: HTMLCanvasElement | null): void {
 
     const cw = W / cols;
     const ch = H / rows;
-    ctx!.font = `${Math.floor(cell * 0.9)}px "Cascadia Mono", Consolas, monospace`;
+    ctx!.font = `${Math.floor(cell * 0.85)}px "Cascadia Mono", Consolas, monospace`;
     ctx!.textAlign = 'center';
     ctx!.textBaseline = 'middle';
 
     for (const s of stars) {
-      const tw = 0.55 + 0.45 * Math.sin(now * 0.0018 + s.phase);
-      let b = s.b * tw;
+      const tw = 0.55 + 0.45 * Math.sin(now * 0.0015 + s.phase);
+      const b = s.b * tw;
       const isHot = b >= HOT_THRESHOLD;
       const peak = isHot ? Math.min(1, (b - HOT_THRESHOLD) / (1 - HOT_THRESHOLD)) : 0;
       let col = tint({ r: 10, g: 10, b: 10 }, GOLD, Math.min(1, b * 1.05));
       if (peak > 0) col = tint(col, WHITE, peak * 0.65);
-      const alpha = Math.max(0.12, Math.min(1, b * 1.1));
+      const alpha = Math.max(0.15, Math.min(1, b * 1.05));
       ctx!.fillStyle = `rgba(${col.r},${col.g},${col.b},${alpha})`;
       ctx!.fillText(isHot ? HOT_CHAR : s.ch, (s.x + 0.5) * cw, (s.y + 0.5) * ch);
     }
-
     drawMeteor(now);
-    requestAnimationFrame(tick);
+    raf = requestAnimationFrame(tick);
+  }
+
+  function onVis(): void {
+    paused = document.hidden;
+  }
+  function onResize(): void {
+    resize();
   }
 
   resize();
-  window.addEventListener('resize', resize);
-  requestAnimationFrame(tick);
+  document.addEventListener('visibilitychange', onVis);
+  window.addEventListener('resize', onResize);
+  raf = requestAnimationFrame(tick);
+
+  const handle: StarfieldHandle = {
+    destroy() {
+      alive = false;
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+      stars = [];
+      meteor = null;
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('resize', onResize);
+      if (active === handle) active = null;
+    },
+  };
+  active = handle;
+  return handle;
 }
