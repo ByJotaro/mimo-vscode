@@ -1493,7 +1493,10 @@ function showQuestion(req: {
   submit.type = 'button';
   submit.textContent = 'Submit';
   submit.addEventListener('click', () => {
-    const flat = answers.map((a) => (a.length ? a[0] : '')).filter(Boolean);
+    // Flatten: single-select → one value; multi → join with | for CLI-compat
+    const flat = answers
+      .map((a) => (a.length > 1 ? a.join('|') : a[0] || ''))
+      .filter(Boolean);
     if (!flat.length && items[0]?.options?.[0]) {
       flat.push(items[0].options[0].value || items[0].options[0].label);
     }
@@ -1505,6 +1508,11 @@ function showQuestion(req: {
       answers: flat,
     });
     ov.remove();
+    if (statusLabel) {
+      statusLabel.textContent = 'answered';
+      statusLabel.classList.add('is-flash');
+      setTimeout(() => statusLabel?.classList.remove('is-flash'), 600);
+    }
   });
   const cancel = document.createElement('button');
   cancel.type = 'button';

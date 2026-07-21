@@ -1365,3 +1365,41 @@ a.mimo-ext-link:hover {
 .input-meta {
   min-height: 28px !important;
 }
+
+.question-options {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  margin-top: 8px !important;
+}
+.question-opt {
+  text-align: left !important;
+  border: 1px solid #333 !important;
+  background: #161616 !important;
+  color: #d8d8d8 !important;
+  border-radius: 6px !important;
+  padding: 8px 10px !important;
+  cursor: pointer;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.question-opt:hover {
+  border-color: #FF6A00 !important;
+  background: #1a140f !important;
+}
+.question-opt.selected {
+  border-color: #FF6A00 !important;
+  background: #1f140c !important;
+  box-shadow: inset 2px 0 0 #FF6A00 !important;
+}
+.question-opt-label {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: #eee !important;
+}
+.question-opt-desc {
+  font-size: 11px !important;
+  color: #808080 !important;
+}
