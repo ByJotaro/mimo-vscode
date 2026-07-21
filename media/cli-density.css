@@ -1781,3 +1781,10 @@ a.mimo-ext-link:hover {
 .mimo-part--read[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+.mimo-session-card {
+  border-left: 2px solid transparent !important;
+}
+.mimo-session-card:hover {
+  border-left-color: #FF6A00 !important;
+}
