@@ -2012,3 +2012,41 @@ a.mimo-ext-link:hover {
 .message.bot .mimo-thinking + .mimo-part {
   margin-top: 6px !important;
 }
+
+/* MD tables / code — left bar family with tools */
+.mimo-md-table {
+  border-left: 2px solid #3c3c3c !important;
+  border-collapse: collapse !important;
+  background: #121212 !important;
+  margin: 6px 0 !important;
+}
+.mimo-md-table th {
+  background: #141414 !important;
+  border-bottom: 1px solid #2a2a2a !important;
+  color: #eeeeee !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+}
+.message.bot pre,
+.message.bot code {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+}
+.message.bot pre {
+  border-left: 2px solid #3c3c3c !important;
+  background: #121212 !important;
+  padding: 6px 10px !important;
+  border-radius: 0 4px 4px 0 !important;
+}
+.message.bot pre:hover {
+  border-left-color: #FF6A00 !important;
+}
+/* Ordered lists denser CLI-like */
+.message.bot ol,
+.message.bot ul {
+  padding-left: 1.25em !important;
+  margin: 4px 0 8px !important;
+}
+.message.bot li {
+  margin: 2px 0 !important;
+  line-height: 1.35 !important;
+}
