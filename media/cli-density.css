@@ -3382,3 +3382,32 @@ select#model {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.175 history close denser */
+.mimo-history-close {
+  border-left: 2px solid #3c3c3c !important;
+  background: #121212 !important;
+  color: #c0c0c0 !important;
+  border-radius: 0 3px 3px 0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  padding: 2px 8px !important;
+  cursor: pointer !important;
+}
+.mimo-history-close:hover {
+  border-left-color: #FF6A00 !important;
+  color: #eeeeee !important;
+}
+/* denser history empty */
+.mimo-history-empty {
+  border-left: 2px solid #3c3c3c !important;
+  padding: 10px 12px !important;
+  color: #808080 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  background: #141414 !important;
+  border-radius: 0 4px 4px 0 !important;
+}
+/* tool strip denser gap after bot text */
+.message.bot .mimo-text-seg + .mimo-part {
+  margin-top: 6px !important;
+}
