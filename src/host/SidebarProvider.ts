@@ -11,6 +11,7 @@ import { mergeSessionMessagesById } from './session/merge';
 import type { DisplayMessage } from './format/formatPart';
 import { MimoClient, getWorkspaceRoot } from './cli/MimoClient';
 import { getSlashCommandCatalog } from './cli/slashCatalog';
+import { GitUndoEngine } from './undo/GitUndoEngine';
 
 const HOME_RECENT_CAP = 6;
 const FIRST_LOAD_LIMIT = 36;
@@ -25,6 +26,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   private selectionGen = 0;
   private readonly log: vscode.OutputChannel;
   private readonly client: MimoClient;
+  private gitUndo: GitUndoEngine | null = null;
   private selectedMode = 'plan';
   private selectedModel = '';
   private modes: string[] = ['plan', 'build'];
@@ -40,6 +42,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     this.log = vscode.window.createOutputChannel('MiMo Code v2');
     this.client = new MimoClient(getWorkspaceRoot(), (s) => this.log.appendLine(s));
     this.client.onEvent((ev) => this.onCliEvent(ev));
+    try {
+      this.gitUndo = new GitUndoEngine(getWorkspaceRoot(), (m) => this.log.appendLine('[undo] ' + m));
+    } catch (e) {
+      this.log.appendLine('[undo] init fail ' + String(e).slice(0, 120));
+    }
   }
 
   resolveWebviewView(
@@ -112,10 +119,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           }
           break;
         case 'undoLast':
-          vscode.window.showInformationMessage('Git undo: full engine still porting from 0.6.13');
+          await this.runGitUndo();
           break;
         case 'redoLast':
-          vscode.window.showInformationMessage('Git redo: full engine still porting from 0.6.13');
+          vscode.window.showInformationMessage('Git redo: not yet wired — use CLI');
           break;
         case 'abort':
           if (this.currentSessionId) void this.client.abort(this.currentSessionId);
@@ -542,6 +549,38 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
     if (ev.type === 'questionCleared') {
       this.post({ type: 'questionCleared', callId: (ev as any).callId });
+    }
+  }
+
+  private async runGitUndo(): Promise<void> {
+    if (!this.gitUndo) {
+      vscode.window.showWarningMessage('Git undo unavailable');
+      return;
+    }
+    const sid = this.currentSessionId;
+    if (!sid) {
+      vscode.window.showInformationMessage('Open a session first');
+      return;
+    }
+    try {
+      const result = await this.gitUndo.undoFromMessage(sid, '', [], false);
+      const ok =
+        (result as any)?.applied ||
+        (result as any)?.ok ||
+        (result as any)?.status === 'ok';
+      if (ok) {
+        vscode.window.showInformationMessage('Undo applied');
+        await this.selectSession(sid);
+      } else {
+        const reason =
+          (result as any)?.reason ||
+          (result as any)?.status ||
+          JSON.stringify(result).slice(0, 120);
+        vscode.window.showWarningMessage('Undo: ' + reason);
+      }
+    } catch (e) {
+      vscode.window.showErrorMessage('Undo failed: ' + String(e).slice(0, 200));
+      this.log.appendLine('[undo] ' + String(e));
     }
   }
 
