@@ -5302,3 +5302,53 @@ body.is-streaming .header {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.218 denser skill tool accent + header selects row + FINAL strip */
+.mimo-part.mimo-part--flat[data-tool="skill"][open],
+.mimo-part.mimo-part--flat[data-kind="skill"][open],
+.mimo-part.mimo-part--flat[data-tool="Skill"][open] {
+  border-left-color: #c586c0 !important;
+}
+.mimo-part.mimo-part--flat[data-tool="skill"][open] > summary .mimo-part-title,
+.mimo-part.mimo-part--flat[data-kind="skill"][open] > summary .mimo-part-title {
+  color: #c586c0 !important;
+}
+.header-meta,
+.header-selects {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+}
+#model-select,
+#mode-select {
+  max-width: 140px !important;
+  height: 24px !important;
+  border: none !important;
+  border-left: 2px solid #3c3c3c !important;
+  background: #141414 !important;
+  color: #c0c0c0 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 11px !important;
+  padding: 0 6px !important;
+  border-radius: 0 3px 3px 0 !important;
+}
+#model-select:focus,
+#mode-select:focus {
+  border-left-color: #FF6A00 !important;
+  color: #eeeeee !important;
+  outline: none !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
