@@ -1032,15 +1032,30 @@ function handleLocalSlash(full: string): boolean {
     return true;
   }
   if (cmd === 'memory') {
-    showToast('memory: project + session checkpoints');
+    showToast('memory');
+    appendOrUpdateMessage({
+      id: 'sys_memory_' + Date.now(),
+      role: 'assistant',
+      text: '**Memory**\n- project + session checkpoints\n- full tree / inspect in CLI (/memory)\n- session notes under mimocode memory dir',
+    });
     return true;
   }
   if (cmd === 'mcp') {
-    showToast('MCP: tavily + playwright + windows-mcp');
+    showToast('mcp');
+    appendOrUpdateMessage({
+      id: 'sys_mcp_' + Date.now(),
+      role: 'assistant',
+      text: '**MCP**\n- tavily · playwright · windows-mcp\n- manage / enable servers in CLI config\n- full MCP inspector: CLI only for now',
+    });
     return true;
   }
   if (cmd === 'tasks') {
-    showToast('tasks: full tree in CLI');
+    showToast('tasks');
+    appendOrUpdateMessage({
+      id: 'sys_tasks_' + Date.now(),
+      role: 'assistant',
+      text: '**Tasks**\n- full task tree lives in CLI session\n- use CLI /tasks for create/start/done\n- extension shows work via tool cards live',
+    });
     return true;
   }
   if (cmd === 'cost' || cmd === 'status' || cmd === 'usage') {
