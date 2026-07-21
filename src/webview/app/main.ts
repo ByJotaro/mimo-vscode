@@ -1019,18 +1019,141 @@ function handleLocalSlash(full: string): boolean {
     return true;
   }
   if (cmd === 'undo' || cmd === 'redo') {
+    // Git engine only — do NOT also send /undo to agent (double-apply risk)
     showToast(cmd + '…');
     post({ type: cmd === 'undo' ? 'undoLast' : 'redoLast' });
-    // Also inform agent for session-aware undo when git engine incomplete
-    if (activeSessionId) {
-      post({
-        type: 'sendPrompt',
-        text: '/' + cmd + (rest ? ' ' + rest : ''),
-        sessionId: activeSessionId,
-        mode: selectedMode,
-        model: selectedModel || undefined,
-      });
+    return true;
+  }
+  if (cmd === 'agents' || cmd === 'modes') {
+    const modes = modeSelect
+      ? Array.from(modeSelect.options).map((o) => o.value || o.textContent || '').filter(Boolean)
+      : ['plan', 'build', 'compose'];
+    showToast(modes.length + ' agents');
+    appendOrUpdateMessage({
+      id: 'sys_agents_' + Date.now(),
+      role: 'assistant',
+      text:
+        '**Agents / modes**\n' +
+        modes.map((m) => '- `' + m + '`' + (m === selectedMode ? ' ← current' : '')).join('\n') +
+        '\n\nSwitch: `/agent <name>` or header select.',
+    });
+    if (modeSelect) modeSelect.focus();
+    return true;
+  }
+  if (cmd === 'skills') {
+    const skills = (slashCatalog || [])
+      .filter((c) => /^skill:/i.test(c.description || '') || /\bSkill:/i.test(c.description || ''))
+      .slice(0, 40);
+    showToast(skills.length ? skills.length + ' skills' : 'skills via /');
+    appendOrUpdateMessage({
+      id: 'sys_skills_' + Date.now(),
+      role: 'assistant',
+      text:
+        '**Skills** (type `/` to pick)\n' +
+        (skills.length
+          ? skills.map((s) => '- `/' + s.name + '` — ' + (s.description || '').replace(/^skill:\s*/i, '')).join('\n')
+          : '- Full skill catalog loads with slash overlay (`/`)'),
+    });
+    if (promptEl) {
+      promptEl.value = '/';
+      onPromptInput();
+      promptEl.focus();
     }
+    return true;
+  }
+  if (cmd === 'diff') {
+    const n = document.querySelectorAll('.mimo-part').length;
+    showToast(n ? n + ' tool cards' : 'no diffs in view');
+    appendOrUpdateMessage({
+      id: 'sys_diff_' + Date.now(),
+      role: 'assistant',
+      text:
+        '**Diff / tools in view**\n- open tool cards: `' +
+        n +
+        '`\n- expand bash/edit cards for FILE · DIFF · IN|OUT\n- full workspace diff: CLI `/diff`',
+    });
+    return true;
+  }
+  if (cmd === 'stash') {
+    const draft = rest || (promptEl?.value || '').trim();
+    if (!draft || draft.startsWith('/')) {
+      try {
+        const saved = localStorage.getItem('mimo.stash') || '';
+        if (saved) {
+          if (promptEl) promptEl.value = saved;
+          showToast('stash restored');
+        } else showToast('stash empty');
+      } catch {
+        showToast('stash unavailable');
+      }
+      return true;
+    }
+    try {
+      localStorage.setItem('mimo.stash', draft);
+      showToast('stashed');
+      if (promptEl && !rest) promptEl.value = '';
+    } catch {
+      showToast('stash failed');
+    }
+    return true;
+  }
+  if (cmd === 'resume') {
+    if (!rest) {
+      showToast('usage: /resume <sessionId>');
+      return true;
+    }
+    showToast('opening…');
+    post({ type: 'selectSession', sessionId: rest, soft: false });
+    return true;
+  }
+  if (cmd === 'rename') {
+    if (!rest) {
+      showToast('usage: /rename <title>');
+      return true;
+    }
+    // forward to agent/CLI surface for real rename
+    showToast('rename…');
+    post({
+      type: 'sendPrompt',
+      text: '/rename ' + rest,
+      sessionId: activeSessionId || undefined,
+      mode: selectedMode,
+      model: selectedModel || undefined,
+    });
+    return true;
+  }
+  if (
+    cmd === 'compact' ||
+    cmd === 'rebuild' ||
+    cmd === 'checkpoint' ||
+    cmd === 'dream' ||
+    cmd === 'distill' ||
+    cmd === 'goal' ||
+    cmd === 'btw' ||
+    cmd === 'loop' ||
+    cmd === 'loops' ||
+    cmd === 'never-ask' ||
+    cmd === 'skip-permissions' ||
+    cmd === 'permissions' ||
+    cmd === 'config' ||
+    cmd === 'connect' ||
+    cmd === 'login' ||
+    cmd === 'voice' ||
+    cmd === 'theme' ||
+    cmd === 'editor' ||
+    cmd === 'init' ||
+    cmd === 'review' ||
+    cmd === 'delete'
+  ) {
+    // Catalog cmds without local engine — forward slash to serve so CLI handlers run
+    showToast('/' + cmd + '…');
+    post({
+      type: 'sendPrompt',
+      text: '/' + cmd + (rest ? ' ' + rest : ''),
+      sessionId: activeSessionId || undefined,
+      mode: selectedMode,
+      model: selectedModel || undefined,
+    });
     return true;
   }
   if (cmd === 'memory') {
