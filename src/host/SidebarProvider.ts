@@ -190,7 +190,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           }
           break;
         case 'abort':
-          if (this.currentSessionId) void this.client.abort(this.currentSessionId);
+          if (this.currentSessionId) {
+            void this.client.abort(this.currentSessionId);
+            this.post({ type: 'toast', text: 'Stopped' });
+          }
           this.sendInFlight = false;
           this.post({ type: 'sendState', busy: false });
           break;

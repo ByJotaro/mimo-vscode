@@ -2050,3 +2050,8 @@ a.mimo-ext-link:hover {
   margin: 2px 0 !important;
   line-height: 1.35 !important;
 }
+
+#btn-abort:not([hidden]) {
+  border-left: 2px solid #FF6A00 !important;
+  color: #FF6A00 !important;
+}
