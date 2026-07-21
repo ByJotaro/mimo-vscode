@@ -51,6 +51,7 @@ let loadMoreInFlight = false;
 let loadMoreCooldown = 0;
 let busy = false;
 let lastUserPrompt = '';
+let workspaceRoot = '';
 let selectedMode = 'plan';
 let selectedModel = '';
 let autoScroll = true;
@@ -1143,6 +1144,17 @@ function handleLocalSlash(full: string): boolean {
     post({ type: 'insertEditorSelection' });
     return true;
   }
+  if (cmd === 'cwd' || cmd === 'pwd' || cmd === 'workspace') {
+    const root = workspaceRoot || '(unknown)';
+    showToast('cwd');
+    appendOrUpdateMessage({
+      id: 'sys_cwd_' + Date.now(),
+      role: 'assistant',
+      text: '**Workspace**\n- `' + root + '`',
+    });
+    if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(root);
+    return true;
+  }
   if (cmd === 'open') {
     if (!rest) {
       showToast('usage: /open <path>');
@@ -1592,6 +1604,7 @@ window.addEventListener('message', (event: MessageEvent) => {
   switch (message.type) {
     case 'init': {
       if (Array.isArray(message.slashCommands)) slashCatalog = message.slashCommands;
+      if (typeof message.workspaceRoot === 'string' && message.workspaceRoot) workspaceRoot = message.workspaceRoot;
       if (message.version && statusLabel && !busy) {
         statusLabel.dataset.server = String(message.version);
         if (!statusLabel.textContent || statusLabel.textContent === 'v2') {

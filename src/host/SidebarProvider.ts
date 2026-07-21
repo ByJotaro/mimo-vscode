@@ -270,6 +270,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       showStartupChooser: true,
       slashCommands: getSlashCommandCatalog(),
       version: this.context.extension.packageJSON?.version || 'v2',
+      workspaceRoot: getWorkspaceRoot(),
     });
     this.log.appendLine(
       `[INIT] sessions=${sessions.length} ms=${Date.now() - t0} db=${dbAvailable()}`

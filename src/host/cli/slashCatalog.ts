@@ -58,6 +58,8 @@ export function getSlashCommandCatalog(): SlashCommand[] {
     { name: 'usage', description: 'Token / context usage' },
     { name: 'fork', description: 'Fork current session' },
     { name: 'open', description: 'Open file path in editor' },
+    { name: 'cwd', description: 'Show workspace root path' },
+    { name: 'pwd', description: 'Show workspace root path' },
     { name: 'sel', description: 'Insert active editor selection into prompt' },
     { name: 'selection', description: 'Insert active editor selection into prompt' },
     { name: 'agents', description: 'List agents / modes' },
