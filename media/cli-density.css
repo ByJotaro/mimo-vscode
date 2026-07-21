@@ -1353,3 +1353,15 @@ a.mimo-ext-link:hover {
   color: #FFB080 !important;
   border-bottom-color: #FF6A00 !important;
 }
+
+.mimo-session-card:focus-visible {
+  outline: 1px solid #FF6A00 !important;
+  outline-offset: 1px !important;
+}
+.mimo-empty-session {
+  opacity: 0.9;
+}
+/* Slightly denser footer */
+.input-meta {
+  min-height: 28px !important;
+}
