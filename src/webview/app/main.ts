@@ -546,6 +546,18 @@ function isJunkClientTitle(title: string): boolean {
   return false;
 }
 
+function relTime(u?: string): string {
+  if (!u) return '';
+  const t = Date.parse(u);
+  if (!Number.isFinite(t)) return String(u).slice(0, 16);
+  const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (sec < 60) return 'just now';
+  if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+  if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
+  if (sec < 86400 * 14) return Math.floor(sec / 86400) + 'd ago';
+  return new Date(t).toLocaleDateString();
+}
+
 function showHistoryPanel(sessions: Array<{ id: string; title: string; updated?: string }>): void {
   document.getElementById('mimo-history-panel')?.remove();
   const panel = document.createElement('div');
@@ -601,7 +613,8 @@ function showHistoryPanel(sessions: Array<{ id: string; title: string; updated?:
       btn.className = 'mimo-session-card';
       const title = (s.title || s.id).replace(/\s+/g, ' ').trim();
       btn.title = s.id;
-      btn.innerHTML = `<div class="mimo-session-title">${escHtml(title)}</div><div class="mimo-session-id">${escHtml(s.id)}</div>`;
+      const when = relTime(s.updated);
+      btn.innerHTML = `<div class="mimo-session-title">${escHtml(title)}</div><div class="mimo-session-meta"><span class="mimo-session-id">${escHtml(s.id)}</span>${when ? <span class="mimo-session-when">${escHtml(when)}</span> : ''}</div>`;
       btn.addEventListener('click', () => {
         panel.remove();
         showLoading(title);
@@ -656,7 +669,8 @@ function showStartup(sessions: Array<{ id: string; title: string; updated?: stri
     btn.className = 'mimo-session-card';
     const title = (s.title || s.id).replace(/\s+/g, ' ').trim();
     btn.title = s.id;
-    btn.innerHTML = `<div class="mimo-session-title">${escHtml(title)}</div><div class="mimo-session-id">${escHtml(s.id)}</div>`;
+    const when = relTime(s.updated);
+    btn.innerHTML = `<div class="mimo-session-title">${escHtml(title)}</div>${when ? <div class="mimo-session-when">${escHtml(when)}</div> : ''}`;
     btn.addEventListener('click', () => {
       showLoading(title);
       post({ type: 'selectSession', sessionId: s.id });

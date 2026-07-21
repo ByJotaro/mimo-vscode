@@ -1283,3 +1283,21 @@ body.mimo-busy #btn-abort {
   line-height: 1.35 !important;
   color: #c8c8c8 !important;
 }
+
+.mimo-session-meta {
+  display: flex !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+  align-items: center !important;
+  margin-top: 2px !important;
+}
+.mimo-session-when {
+  color: #606060 !important;
+  font-size: 10px !important;
+  flex-shrink: 0 !important;
+  font-variant-numeric: tabular-nums;
+}
+.mimo-startup-list .mimo-session-when {
+  display: block !important;
+  margin-top: 2px !important;
+}
