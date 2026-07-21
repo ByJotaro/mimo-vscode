@@ -5250,3 +5250,55 @@ body.is-streaming .header {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.217 denser slash overlay panel + FINAL strip */
+.slash-overlay,
+#slash-overlay,
+.mimo-slash {
+  border-left: 2px solid #FF6A00 !important;
+  background: rgba(14,14,14,0.97) !important;
+  border-radius: 0 4px 4px 0 !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.55) !important;
+  max-height: min(40vh, 320px) !important;
+  overflow: auto !important;
+  z-index: 45 !important;
+}
+.slash-head,
+.mimo-slash-head {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 10px !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: #707070 !important;
+  padding: 6px 10px !important;
+  border-bottom: 1px solid #242424 !important;
+  background: #141414 !important;
+}
+.slash-item .slash-keys,
+.mimo-slash-item .slash-keys {
+  margin-left: auto !important;
+  color: #555 !important;
+  font-size: 10px !important;
+}
+/* denser footer hotkey strip */
+.composer-meta,
+.input-meta {
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  font-size: 10px !important;
+  color: #555 !important;
+  padding: 2px 8px 4px !important;
+  border-left: 2px solid #2a2a2a !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
