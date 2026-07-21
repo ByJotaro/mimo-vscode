@@ -3910,3 +3910,42 @@ canvas#starfield {
 .mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
   color: #FF6A00 !important;
 }
+
+/* beta.191 denser clamped OUT expand cue + FINAL strip */
+.mimo-io-v.is-clamped {
+  cursor: pointer !important;
+  position: relative !important;
+}
+.mimo-io-v.is-clamped::after {
+  content: 'click to expand' !important;
+  position: absolute !important;
+  right: 6px !important;
+  bottom: 4px !important;
+  font-size: 9px !important;
+  letter-spacing: 0.04em !important;
+  text-transform: uppercase !important;
+  color: #707070 !important;
+  font-family: "Cascadia Mono", Consolas, monospace !important;
+  background: rgba(14,14,14,0.9) !important;
+  padding: 1px 5px !important;
+  border-left: 2px solid #3c3c3c !important;
+  pointer-events: none !important;
+}
+.mimo-io-v.is-clamped.is-expanded::after {
+  content: 'click to collapse' !important;
+  border-left-color: #FF6A00 !important;
+  color: #a0a0a0 !important;
+}
+/* FINAL tool strip */
+.mimo-part.mimo-part--flat {
+  border-left: 2px solid #3c3c3c !important;
+}
+.mimo-part.mimo-part--flat > summary {
+  background: #141414 !important;
+}
+.mimo-part.mimo-part--flat[open] {
+  border-left-color: #FF6A00 !important;
+}
+.mimo-part.mimo-part--flat[open] > summary .mimo-part-title {
+  color: #FF6A00 !important;
+}
