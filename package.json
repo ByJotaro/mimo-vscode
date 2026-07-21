@@ -53,7 +53,7 @@
     "test:unit": "node --test tests/unit/*.test.mjs",
     "test:e2e": "node --test tests/e2e/*.test.mjs",
     "package": "npm run compile && npx --yes @vscode/vsce package --no-dependencies",
-    "vscode:prepublish": "node -e \"process.exit(0)\""
+    "vscode:prepublish": "node -e \"process.exit(0)\""process.exit(0)\""
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

@@ -490,9 +490,52 @@ function fillSelect(
   }
 }
 
+
+function handleLocalSlash(full: string): boolean {
+  const m = full.trim().match(/^\/([a-zA-Z0-9_-]+)(?:\s+(.*))?$/);
+  if (!m) return false;
+  const cmd = m[1].toLowerCase();
+  const rest = (m[2] || '').trim();
+  if (cmd === 'new') {
+    post({ type: 'newSession' });
+    return true;
+  }
+  if (cmd === 'clear') {
+    chat.innerHTML = '';
+    return true;
+  }
+  if (cmd === 'sessions' || cmd === 'history') {
+    post({ type: 'fetchSessions', history: true });
+    return true;
+  }
+  if (cmd === 'stop' || cmd === 'abort') {
+    post({ type: 'abort' });
+    return true;
+  }
+  if (cmd === 'plan' || cmd === 'build' || cmd === 'compose') {
+    selectedMode = cmd;
+    if (modeSelect) modeSelect.value = cmd;
+    post({ type: 'setMode', mode: cmd });
+    if (rest) {
+      post({ type: 'sendPrompt', text: rest, sessionId: activeSessionId || undefined, mode: cmd, model: selectedModel || undefined });
+    }
+    return true;
+  }
+  if (cmd === 'help') {
+    appendOrUpdateMessage({
+      id: 'sys_help_' + Date.now(),
+      role: 'assistant',
+      text: 'Slash: /new /clear /sessions /history /stop /plan /build /help — and skills like /arxiv, /deep-research (sent to agent).',
+    });
+    return true;
+  }
+  // unknown slash still sent to agent with leading /
+  return false;
+}
 function doSend(): void {
   const text = (promptEl?.value || '').trim();
   if (!text || busy) return;
+  if (handleLocalSlash(text)) { promptEl.value = ''; hideSlash(); return; }
   promptEl.value = '';
   post({
     type: 'sendPrompt',
@@ -507,14 +550,15 @@ function onScroll(): void {
   autoScroll = isNearBottom(chat);
   if (!activeSessionId) return;
   const older = Number((window as any).__mimoOlderCount || 0);
-  // Trigger near top — spacer height or plain scrollTop
-  const nearTop = chat.scrollTop < 160;
-  if (nearTop && !loadMoreInFlight && older > 0) {
+  const exhausted = (window as any).__mimoLoadMoreExhausted === true;
+  // Trigger near top — spacer or plain scrollTop; keep trying until host says exhausted
+  const nearTop = chat.scrollTop < 200;
+  if (nearTop && !loadMoreInFlight && !exhausted && (older > 0 || loadedCount >= 20)) {
     const now = Date.now();
     if (now - loadMoreCooldown < 600) return;
     loadMoreCooldown = now;
     loadMoreInFlight = true;
-    updateHistoryTopSpacer(chat, older, true);
+    updateHistoryTopSpacer(chat, Math.max(older, 1), true);
     post({
       type: 'loadMoreSession',
       sessionId: activeSessionId,
@@ -596,13 +640,15 @@ if (Array.isArray(message.modes) && message.modes.length) {
       titleEl.textContent = message.title || sid;
       document.getElementById('mimo-startup')?.remove();
       const meta = message.meta || {};
-      (window as any).__mimoOlderCount = meta.olderCount || 0;
+      const older = Number(meta.olderCount || 0);
+      (window as any).__mimoOlderCount = older;
+      (window as any).__mimoLoadMoreExhausted = older <= 0;
       renderMessages(message.messages || [], {
         loadMore: meta.loadMore === true || meta.source === 'loadMore',
-        olderCount: meta.olderCount || 0,
+        olderCount: older,
         pinBottom: meta.pinBottom !== false && meta.source !== 'loadMore',
       });
-      if (meta.loadMore) loadMoreInFlight = false;
+      loadMoreInFlight = false;
       setInputEnabled(true);
       break;
     }
@@ -638,7 +684,12 @@ if (Array.isArray(message.modes) && message.modes.length) {
       loadMoreInFlight = message.loading === true;
       if (typeof message.olderCount === 'number') {
         (window as any).__mimoOlderCount = message.olderCount;
+        (window as any).__mimoLoadMoreExhausted = message.olderCount <= 0;
         updateHistoryTopSpacer(chat, message.olderCount, message.loading === true);
+      }
+      if (message.loading === false && message.error) {
+        loadMoreInFlight = false;
+        (window as any).__mimoLoadMoreExhausted = true;
       }
       break;
     case 'sessionLoadFailed':
