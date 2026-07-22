@@ -634,6 +634,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     mode?: string,
     model?: string
   ): Promise<void> {
+    if (!String(text || '').trim()) {
+      this.post({ type: 'toast', text: 'empty' }); // EMPTY_HOST_SEND
+      return;
+    }
     const prompt = text.trim();
     if (!prompt) return;
     if (this.sendInFlight) {

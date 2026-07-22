@@ -737,6 +737,11 @@ function showHistoryPanel(sessions: Array<{ id: string; title: string; updated?:
     }
   };
   window.addEventListener('keydown', onKey);
+  setTimeout(() => {
+    const s = document.querySelector('#hist-search, .hist-search, .history-search, input[type="search"]') as HTMLInputElement | null;
+    s?.focus();
+  }, 40); // HIST_FOCUS_SEARCH
+
 }
 function showStartup(sessions: Array<{ id: string; title: string; updated?: string }>): void {
   activeSessionId = '';
