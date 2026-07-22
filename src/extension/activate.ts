@@ -77,6 +77,9 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand('mimo.exportSession', () =>
       runHost(() => provider.runCommand('requestExport'))
+    ),
+    vscode.commands.registerCommand('mimo.forkSession', () =>
+      runHost(() => provider.runCommand('forkSession'))
     )
   );
 }
