@@ -109,6 +109,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           await this.newSession();
           break;
         case 'forkSession':
+          // FORK_BUSY_GUARD
+          if (this.sendInFlight) {
+            this.post({ type: 'toast', text: 'wait — still running' });
+            break;
+          }
           await this.forkSession();
           break;
         case 'refreshUsage':
