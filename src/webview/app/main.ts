@@ -941,6 +941,11 @@ function handleLocalSlash(full: string): boolean {
     post({ type: 'goHome' });
     return true;
   }
+  if (cmd === 'reopen' || cmd === 'lastsession') {
+    showToast('reopen…');
+    post({ type: 'reopenLast' });
+    return true;
+  }
   if (cmd === 'home') {
     showToast('Home');
     lastUserPrompt = '';
@@ -1467,7 +1472,7 @@ function handleLocalSlash(full: string): boolean {
     if (statusLabel) statusLabel.textContent = msg;
     return true;
   }
-  if (cmd === 'copy-last' || cmd === 'last') {
+  if (cmd === 'copy-last' || cmd === 'copylast') {
     const msgs = chat.querySelectorAll('.msg.assistant, .message.assistant, [data-role="assistant"]');
     const last = msgs[msgs.length - 1] as HTMLElement | undefined;
     const t = (last?.innerText || last?.textContent || '').trim();

@@ -3,7 +3,7 @@
   "displayName": "MiMo Code",
   "publisher": "mimo",
   "description": "MiMo Code VS Code sidebar — modular rewrite (v2). Fast DB-first history, CLI-faithful tools & theme.",
-  "version": "1.0.0-beta.300",
+  "version": "1.0.0-beta.301",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -40,7 +40,8 @@
     "onCommand:mimo.doctor",
     "onCommand:mimo.focusPrompt",
     "onCommand:mimo.refreshModels",
-    "onCommand:mimo.openSettings"
+    "onCommand:mimo.openSettings",
+    "onCommand:mimo.reopenLast"
   ],
   "main": "./out/extension/activate.js",
   "contributes": {
@@ -138,6 +139,10 @@
       {
         "command": "mimo.openSettings",
         "title": "MiMo Code: Open Settings"
+      },
+      {
+        "command": "mimo.reopenLast",
+        "title": "MiMo Code: Reopen Last Session"
       }
     ],
     "menus": {

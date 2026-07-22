@@ -181,6 +181,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           this.post({ type: 'toast', text: 'workspace updated' });
           await this.sendInit();
           break;
+                case 'reopenLast': {
+          const last = this.context.globalState.get<string>('mimo.lastSessionId');
+          if (!last) {
+            this.post({ type: 'toast', text: 'no last session' });
+            break;
+          }
+          this.post({ type: 'toast', text: 'reopen…' });
+          await this.selectSession(last);
+          break;
+        }
         case 'goHome':
           // GO_HOME_ABORT
           if (this.sendInFlight && this.currentSessionId) {
@@ -543,6 +553,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
     const gen = ++this.selectionGen;
     this.currentSessionId = sessionId;
+    if (sessionId) void this.context.globalState.update('mimo.lastSessionId', sessionId); // LAST_SESSION_PERSIST
     if (!opts?.soft) this.post({ type: 'sessionLoadStatus', sessionId, loading: true });
 
     try {

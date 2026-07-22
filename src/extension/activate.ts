@@ -105,6 +105,9 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand('mimo.openSettings', () =>
       runHost(() => provider.runCommand('openSettings'))
+    ),
+    vscode.commands.registerCommand('mimo.reopenLast', () =>
+      runHost(() => provider.runCommand('reopenLast'))
     )
   );
 }
