@@ -999,6 +999,10 @@ function handleLocalSlash(full: string): boolean {
       if (statusLabel) statusLabel.textContent = 'nothing to retry';
       return true;
     }
+    if (busy) {
+      showToast('wait — still running');
+      return true;
+    }
     showToast('retrying…');
     post({
       type: 'sendPrompt',
