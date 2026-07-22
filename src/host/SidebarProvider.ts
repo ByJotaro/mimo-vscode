@@ -1036,6 +1036,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   }
 
   dispose(): void {
+    // DISPOSE_ABORT
+    if (this.sendInFlight && this.currentSessionId) {
+      void this.client.abort(this.currentSessionId).catch(() => undefined);
+      this.sendInFlight = false;
+    }
     try {
       this.client.dispose();
     } catch {
