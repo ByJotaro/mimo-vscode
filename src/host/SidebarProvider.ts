@@ -213,6 +213,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case 'openTheme':
           void vscode.commands.executeCommand('workbench.action.selectTheme');
           break;
+        case 'showLog':
+          this.log.show(true);
+          break;
         case 'openSettings':
           void vscode.commands.executeCommand('workbench.action.openSettings', 'mimo');
           break;
@@ -462,6 +465,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
   private async selectSession(sessionId: string, opts?: { soft?: boolean }): Promise<void> {
     if (this.lastUndoSnap && this.lastUndoSnap.sessionId !== sessionId) this.lastUndoSnap = null; // clear redo snap on session switch
+    // ABORT_ON_SWITCH
+    if (!opts?.soft && this.sendInFlight && this.currentSessionId && this.currentSessionId !== sessionId) {
+      void this.client.abort(this.currentSessionId).catch(() => undefined);
+      this.sendInFlight = false;
+      this.post({ type: 'sendState', busy: false });
+    }
     const gen = ++this.selectionGen;
     this.currentSessionId = sessionId;
     if (!opts?.soft) this.post({ type: 'sessionLoadStatus', sessionId, loading: true });

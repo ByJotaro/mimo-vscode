@@ -57,6 +57,8 @@ export function getSlashCommandCatalog(): SlashCommand[] {
     { name: 'mcp', description: 'MCP servers status' },
     { name: 'permissions', description: 'Permission settings' },
     { name: 'config', description: 'Open MiMo VS Code settings' },
+    { name: 'log', description: 'Show MiMo extension output channel' },
+    { name: 'output', description: 'Show MiMo extension output channel' },
     { name: 'checkpoint', description: 'Checkpoint status / rebuild' },
     { name: 'memory', description: 'Browse project memory' },
     { name: 'usage', description: 'Token / context usage' },

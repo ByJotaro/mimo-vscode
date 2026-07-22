@@ -1270,6 +1270,11 @@ function handleLocalSlash(full: string): boolean {
     post({ type: 'openTheme' });
     return true;
   }
+  if (cmd === 'log' || cmd === 'output') {
+    showToast('log…');
+    post({ type: 'showLog' });
+    return true;
+  }
   if (cmd === 'config') {
     showToast('settings…');
     post({ type: 'openSettings' });

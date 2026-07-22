@@ -90,6 +90,9 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand('mimo.copySessionId', () =>
       runHost(() => provider.runCommand('copySessionId'))
+    ),
+    vscode.commands.registerCommand('mimo.showLog', () =>
+      runHost(() => provider.runCommand('showLog'))
     )
   );
 }
