@@ -957,6 +957,34 @@ function handleLocalSlash(full: string): boolean {
     showToast('prompt');
     return true;
   }
+  if (cmd === 'find' || cmd === 'search') {
+    const q = (rest || '').trim().toLowerCase();
+    if (!q) {
+      showToast('usage: /find <text>');
+      return true;
+    }
+    const nodes = Array.from(chat.querySelectorAll('.msg, .message, [data-role]'));
+    let hits = 0;
+    let first: HTMLElement | null = null;
+    for (const n of nodes) {
+      const el = n as HTMLElement;
+      const t = (el.innerText || el.textContent || '').toLowerCase();
+      if (t.includes(q)) {
+        hits++;
+        if (!first) first = el;
+        el.classList.add('mimo-find-hit');
+      } else {
+        el.classList.remove('mimo-find-hit');
+      }
+    }
+    if (first) {
+      first.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      autoScroll = false;
+      ensureJumpBottom();
+    }
+    showToast(hits ? hits + ' hit(s)' : 'no matches');
+    return true;
+  }
   if (cmd === 'top') {
     autoScroll = false;
     if (chat) chat.scrollTop = 0;

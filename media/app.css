@@ -1055,3 +1055,6 @@ html, body, .chat-area {
 }
 .mimo-diff-sbs .mimo-diff-col--del { background: #37222c; color: #e26a75; }
 .mimo-diff-sbs .mimo-diff-col--add { background: #20303b; color: #b8db87; }
+
+/* functional find highlight */
+.mimo-find-hit { outline: 1px solid var(--vscode-focusBorder, #3794ff); outline-offset: 2px; }
