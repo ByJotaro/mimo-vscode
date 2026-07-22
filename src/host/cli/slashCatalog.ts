@@ -70,6 +70,7 @@ export function getSlashCommandCatalog(): SlashCommand[] {
     { name: 'selection', description: 'Insert active editor selection into prompt' },
     { name: 'agents', description: 'List agents / modes' },
     { name: 'modes', description: 'List modes' },
+    { name: 'title', description: 'Show session title (or /title <name> rename)' },
     { name: 'rename', description: 'Rename current session' },
     { name: 'delete', description: 'Delete a session' },
     { name: 'resume', description: 'Resume a session by id' },

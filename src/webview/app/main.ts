@@ -1186,6 +1186,28 @@ function handleLocalSlash(full: string): boolean {
     post({ type: 'openFolder', path: p });
     return true;
   }
+  if (cmd === 'title') {
+    if (rest) {
+      showToast('rename…');
+      post({
+        type: 'sendPrompt',
+        text: '/rename ' + rest,
+        sessionId: activeSessionId || undefined,
+        mode: selectedMode,
+        model: selectedModel || undefined,
+      });
+      return true;
+    }
+    const id = activeSessionId || '(home)';
+    const t = (titleEl?.textContent || '').trim() || id;
+    showToast('title');
+    appendOrUpdateMessage({
+      id: 'sys_title_' + Date.now(),
+      role: 'assistant',
+      text: '**Title**\n- ' + t + '\n- id: `' + id + '`\n\nRename: `/title New name` or `/rename …`',
+    });
+    return true;
+  }
   if (cmd === 'id' || cmd === 'session') {
     const id = activeSessionId || '';
     if (!id) {
@@ -1800,6 +1822,7 @@ if (Array.isArray(message.modes) && message.modes.length) {
       break;
     case 'streamUpdate':
       if (message.sessionId && activeSessionId && message.sessionId !== activeSessionId) break;
+      if (!busy) setBusy(true); // STREAM_BUSY_MARK
       appendOrUpdateMessage({
         id: message.messageId || 'live',
         role: 'assistant',
