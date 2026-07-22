@@ -40,6 +40,8 @@ export function getSlashCommandCatalog(): SlashCommand[] {
     { name: 'diff', description: 'Show pending diffs' },
     { name: 'cost', description: 'Show token / cost usage' },
     { name: 'status', description: 'Show session status' },
+    { name: 'port', description: 'Show serve status / workspace' },
+    { name: 'server', description: 'Show serve status / workspace' },
     { name: 'editor', description: 'Open external editor' },
     { name: 'theme', description: 'Theme settings' },
     { name: 'exit', description: 'Exit session' },

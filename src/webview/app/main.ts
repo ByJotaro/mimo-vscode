@@ -1339,6 +1339,27 @@ function handleLocalSlash(full: string): boolean {
     });
     return true;
   }
+  if (cmd === 'port' || cmd === 'spawn' || cmd === 'server') {
+    const srv = statusLabel?.dataset.server || statusLabel?.textContent || '—';
+    const ver = statusLabel?.dataset.version || '—';
+    const usage = statusLabel?.dataset.usage || '—';
+    showToast('server');
+    appendOrUpdateMessage({
+      id: 'sys_srv_' + Date.now(),
+      role: 'assistant',
+      text:
+        '**Server**\n- status: `' +
+        srv +
+        '`\n- version: `' +
+        ver +
+        '`\n- usage: `' +
+        usage +
+        '`\n- workspace: `' +
+        (workspaceRoot || '—') +
+        '`',
+    });
+    return true;
+  }
   if (cmd === 'cost' || cmd === 'status' || cmd === 'usage') {
     if (activeSessionId) post({ type: 'refreshUsage', sessionId: activeSessionId });
     const tools = document.querySelectorAll('.mimo-part').length;
@@ -1773,6 +1794,7 @@ if (Array.isArray(message.modes) && message.modes.length) {
       if (message.showStartupChooser === true) {
         activeSessionId = '';
         lastUserPrompt = '';
+        if (statusLabel) delete statusLabel.dataset.usage; // HOME_CLEAR_USAGE
         titleEl.textContent = 'MiMo Code';
         showStartup(Array.isArray(message.sessions) ? message.sessions : []);
       } else if (message.showStartupChooser !== false && !activeSessionId) {
