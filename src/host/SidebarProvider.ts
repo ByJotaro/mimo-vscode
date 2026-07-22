@@ -719,6 +719,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         permission: (ev as any).permission,
         patterns: (ev as any).patterns,
       });
+      if (!this.view?.visible) {
+        const perm = String((ev as any).permission || 'tool').slice(0, 80);
+        void vscode.window
+          .showInformationMessage('MiMo permission: ' + perm, 'Open chat')
+          .then((c) => {
+            if (c === 'Open chat') void vscode.commands.executeCommand('mimo.openSidebar');
+          });
+      }
     }
     if (ev.type === 'permissionReplied') {
       this.post({ type: 'permissionCleared', permissionId: (ev as any).permissionId });
@@ -734,6 +742,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         options: (ev as any).options,
         questions: (ev as any).questions,
       });
+      if (!this.view?.visible) {
+        const title = String((ev as any).title || (ev as any).prompt || 'question').slice(0, 80);
+        void vscode.window
+          .showInformationMessage('MiMo question: ' + title, 'Open chat')
+          .then((c) => {
+            if (c === 'Open chat') void vscode.commands.executeCommand('mimo.openSidebar');
+          });
+      }
     }
     if (ev.type === 'questionCleared') {
       this.post({ type: 'questionCleared', callId: (ev as any).callId });
