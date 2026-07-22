@@ -772,7 +772,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       // refresh from DB for full tool fidelity
       if (sid) {
         setTimeout(() => {
-          if (this.currentSessionId === sid) void this.selectSession(sid, { soft: true });
+          if (this.currentSessionId === sid) {
+            void this.selectSession(sid, { soft: true }); // SOFT_DONE_USAGE
+            void this.client.fetchSessionUsage(sid).then((u) => {
+              if (u && this.currentSessionId === sid)
+                this.post({ type: 'sessionUsage', sessionId: sid, used: u.used, size: u.size, amount: u.amount });
+            });
+          }
         }, 400);
       }
       return;
@@ -914,7 +920,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         }
         this.post({ type: 'toast', text: 'Undo applied' });
         vscode.window.showInformationMessage('Undo applied');
-        await this.selectSession(sid);
+        await this.selectSession(sid, { soft: true }); // SOFT_AFTER_UNDO
       } else {
         const reason =
           (result as any)?.reason ||
@@ -955,7 +961,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         this.lastUndoSnap = null;
         this.post({ type: 'toast', text: 'Redo applied' });
         vscode.window.showInformationMessage('Redo applied');
-        await this.selectSession(snap.sessionId);
+        await this.selectSession(snap.sessionId, { soft: true }) // SOFT_AFTER_REDO;
       } else {
         const reason = (result as any)?.reason || JSON.stringify(result).slice(0, 100);
         this.post({ type: 'toast', text: 'Redo: ' + String(reason).slice(0, 80) });
