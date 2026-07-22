@@ -1245,7 +1245,7 @@ function handleLocalSlash(full: string): boolean {
     });
     return true;
   }
-  if (cmd === 'id' || cmd === 'session') {
+  if (cmd === 'id' || cmd === 'session' || cmd === 'who') {
     const id = activeSessionId || '';
     if (!id) {
       showToast('no session');
@@ -1865,6 +1865,9 @@ if (Array.isArray(message.modes) && message.modes.length) {
       }
       if (message.showStartupChooser === true) {
         setBusy(false); // HOME_CLEAR_BUSY
+        document.getElementById('mimo-permission')?.remove();
+        document.getElementById('mimo-question')?.remove();
+        document.querySelectorAll('.mimo-perm, .mimo-question, .permission-panel, .question-panel').forEach((el) => el.remove()); // HOME_CLEAR_PANELS
         activeSessionId = '';
         lastUserPrompt = '';
         if (statusLabel) delete statusLabel.dataset.usage; // HOME_CLEAR_USAGE
