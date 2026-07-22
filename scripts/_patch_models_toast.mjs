@@ -1,61 +1,54 @@
-import fs from 'fs';
-
-const p = 'src/webview/app/main.ts';
-let c = fs.readFileSync(p, 'utf8');
-
-if (!c.includes("showToast('models…')") && !c.includes('showToast("models')) {
-  const a = `  if (cmd === 'models' || (cmd === 'model' && !rest)) {
-    post({ type: 'refreshModels' });
-    if (statusLabel) statusLabel.textContent = 'models…';
-    return true;
-  }`;
-  const an = `  if (cmd === 'models' || (cmd === 'model' && !rest)) {
-    showToast('models…');
-    post({ type: 'refreshModels' });
-    if (statusLabel) statusLabel.textContent = 'models…';
-    return true;
-  }`;
-  if (c.includes(a)) {
-    c = c.replace(a, an);
-    console.log('models ok');
-  } else if (c.includes(a.replace(/\n/g, '\r\n'))) {
-    c = c.replace(a.replace(/\n/g, '\r\n'), an.replace(/\n/g, '\r\n'));
-    console.log('models ok crlf');
-  } else console.log('models miss');
-}
-
-if (!c.includes("showToast('model ·")) {
-  const b = `    post({ type: 'setModel', model: selectedModel });
-    return true;
+import fs from "fs";
+const p = "src/host/SidebarProvider.ts";
+let c = fs.readFileSync(p, "utf8");
+if (c.includes("models refreshed") || c.includes("no models")) {
+  console.log("already");
+} else {
+  const old = `              this.post({
+                type: 'init',
+                sessions: [],
+                models: this.models,
+                modes: this.modes,
+                selectedModel: this.selectedModel,
+                selectedMode: this.selectedMode,
+                metadataOnly: true,
+                showStartupChooser: false,
+                slashCommands: getSlashCommandCatalog(),
+              });
+            } catch (e) {
+              this.log.appendLine('[refreshModels] ' + String(e).slice(0, 120));
+            }`;
+  const neu = `              this.post({
+                type: 'init',
+                sessions: [],
+                models: this.models,
+                modes: this.modes,
+                selectedModel: this.selectedModel,
+                selectedMode: this.selectedMode,
+                metadataOnly: true,
+                showStartupChooser: false,
+                slashCommands: getSlashCommandCatalog(),
+              });
+              this.post({
+                type: 'toast',
+                text: this.models.length
+                  ? 'models · ' + this.models.length
+                  : 'no models from serve',
+              });
+            } catch (e) {
+              this.log.appendLine('[refreshModels] ' + String(e).slice(0, 120));
+              this.post({ type: 'toast', text: 'models refresh failed' });
+            }`;
+  if (c.includes(old)) {
+    c = c.replace(old, neu);
+    console.log("ok");
+  } else {
+    const old2 = old.replace(/\n/g, "\r\n");
+    const neu2 = neu.replace(/\n/g, "\r\n");
+    if (c.includes(old2)) {
+      c = c.replace(old2, neu2);
+      console.log("ok crlf");
+    } else console.log("miss");
   }
-  if (cmd === 'undo' || cmd === 'redo') {`;
-  const bn = `    post({ type: 'setModel', model: selectedModel });
-    showToast('model · ' + selectedModel);
-    return true;
-  }
-  if (cmd === 'undo' || cmd === 'redo') {`;
-  if (c.includes(b)) {
-    c = c.replace(b, bn);
-    console.log('set model ok');
-  } else if (c.includes(b.replace(/\n/g, '\r\n'))) {
-    c = c.replace(b.replace(/\n/g, '\r\n'), bn.replace(/\n/g, '\r\n'));
-    console.log('set model ok crlf');
-  } else console.log('set model miss');
+  fs.writeFileSync(p, c);
 }
-
-// undo/redo toast soft
-const u = `  if (cmd === 'undo' || cmd === 'redo') {
-    post({ type: cmd === 'undo' ? 'undoLast' : 'redoLast' });`;
-const un = `  if (cmd === 'undo' || cmd === 'redo') {
-    showToast(cmd + '…');
-    post({ type: cmd === 'undo' ? 'undoLast' : 'redoLast' });`;
-if (c.includes(u) && !c.includes("showToast(cmd + '…')")) {
-  c = c.replace(u, un);
-  console.log('undo redo toast ok');
-} else if (c.includes(u.replace(/\n/g, '\r\n'))) {
-  c = c.replace(u.replace(/\n/g, '\r\n'), un.replace(/\n/g, '\r\n'));
-  console.log('undo redo toast ok crlf');
-}
-
-fs.writeFileSync(p, c);
-console.log('done');

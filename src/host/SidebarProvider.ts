@@ -144,8 +144,15 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                 showStartupChooser: false,
                 slashCommands: getSlashCommandCatalog(),
               });
+              this.post({
+                type: 'toast',
+                text: this.models.length
+                  ? 'models · ' + this.models.length
+                  : 'no models from serve',
+              });
             } catch (e) {
               this.log.appendLine('[refreshModels] ' + String(e).slice(0, 120));
+              this.post({ type: 'toast', text: 'models refresh failed' });
             }
           })();
           break;
