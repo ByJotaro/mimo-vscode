@@ -115,7 +115,11 @@ export function getSlashCommandCatalog(): SlashCommand[] {
     'super-research',
     'xlsx-official',
   ].map((name) => ({ name, description: `Skill: ${name}` }));
-  return [...core, ...skills];
+  return [
+    ...core,
+    ...skills,
+    { name: 'copy-last', description: 'Copy last assistant message' },
+  ];
 }
 
 export function filterSlashCommands(query: string, catalog: SlashCommand[]): SlashCommand[] {

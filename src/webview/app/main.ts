@@ -1085,9 +1085,6 @@ function handleLocalSlash(full: string): boolean {
     return true;
   }
   if (cmd === 'models' || (cmd === 'model' && !rest)) {
-    showToast('models…');
-    post({ type: 'refreshModels' });
-    if (statusLabel) statusLabel.textContent = 'models…';
     const models = modelSelect
       ? Array.from(modelSelect.options).map((o) => o.value || o.textContent || '').filter(Boolean)
       : [];
@@ -1499,7 +1496,7 @@ function handleLocalSlash(full: string): boolean {
         '- `/home` `/exit` `/new` `/fork` `/clear` `/sessions` `/history` `/stop` `/pin` `/jump` `/focus`\n' +
         '- `/plan` `/build` `/compose` `/agent` `/agents` `/model` `/models` `/skills`\n' +
         '- `/undo` `/redo` `/retry` `/reload` `/details` `/diff` `/stash` `/resume` `/rename` `/open` `/sel`\n' +
-        '- `/cost` `/status` `/usage` `/port` `/doctor` `/version` `/id` `/title` `/log` `/config` `/export` `/help`\n' +
+        '- `/cost` `/status` `/usage` `/port` `/doctor` `/version` `/copy-last` `/pin` `/jump` `/focus` `/id` `/title` `/log` `/config` `/export` `/help`\n' +
         '- `/mcp` `/memory` `/tasks` `/questions` + server-forwarded: `/compact` `/rebuild` `/goal` `/btw` `/loop` …\n' +
         '- Hotkeys: `Ctrl+Shift+H` history · `Ctrl+Shift+N` new · `Ctrl+Shift+L` clear · `Ctrl+Shift+U` home · `Ctrl+Shift+Z` undo · `Ctrl+Shift+Y` redo · `Ctrl+Shift+S` selection · `Ctrl+.` abort\n\n' +
         '**Agent skills:** type `/` for full catalog.\n' +
