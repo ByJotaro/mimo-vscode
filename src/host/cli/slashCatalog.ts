@@ -123,6 +123,7 @@ export function getSlashCommandCatalog(): SlashCommand[] {
     { name: 'collapse', description: 'Collapse all tool cards' },
     { name: 'top', description: 'Scroll chat to top' },
     { name: 'find', description: 'Find text in current chat' },
+    { name: 'count', description: 'Count messages/tools in view' },
     { name: 'search', description: 'Find text in current chat' },
     { name: 'lastsession', description: 'Reopen last session' },
   ];

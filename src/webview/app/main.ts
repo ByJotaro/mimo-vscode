@@ -957,6 +957,30 @@ function handleLocalSlash(full: string): boolean {
     showToast('prompt');
     return true;
   }
+  if (cmd === 'count') {
+    const users = chat.querySelectorAll('.msg.user, .message.user, [data-role="user"]').length;
+    const asst = chat.querySelectorAll('.msg.assistant, .message.assistant, [data-role="assistant"]').length;
+    const tools = chat.querySelectorAll('.mimo-part, details.tool').length;
+    const total = chat.querySelectorAll('.msg, .message, [data-role]').length || users + asst;
+    showToast(total + ' msgs');
+    appendOrUpdateMessage({
+      id: 'sys_count_' + Date.now(),
+      role: 'assistant',
+      text:
+        '**Count**\n- messages: `' +
+        total +
+        '`\n- user: `' +
+        users +
+        '`\n- assistant: `' +
+        asst +
+        '`\n- tool cards: `' +
+        tools +
+        '`\n- loaded: `' +
+        loadedCount +
+        '`',
+    });
+    return true;
+  }
   if (cmd === 'find' || cmd === 'search') {
     const q = (rest || '').trim().toLowerCase();
     if (!q) {
@@ -1582,6 +1606,7 @@ function handleLocalSlash(full: string): boolean {
   return false;
 }
 function doSend(): void {
+  document.querySelectorAll('.mimo-find-hit').forEach((el) => el.classList.remove('mimo-find-hit')); // CLEAR_FIND_HITS
   const text = (promptEl?.value || '').trim();
   if (!text) { showToast('empty'); return; } // EMPTY_SEND_GUARD
   if (busy) { showToast('wait — still running'); return; }
