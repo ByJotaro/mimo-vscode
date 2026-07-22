@@ -957,6 +957,21 @@ function handleLocalSlash(full: string): boolean {
     showToast('prompt');
     return true;
   }
+  if (cmd === 'uptime') {
+    const ms = typeof performance !== 'undefined' && performance.now ? Math.floor(performance.now()) : 0;
+    const sec = Math.floor(ms / 1000);
+    const h = Math.floor(sec / 3600);
+    const min = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    const label = h + 'h ' + min + 'm ' + s + 's';
+    showToast(label);
+    appendOrUpdateMessage({
+      id: 'sys_uptime_' + Date.now(),
+      role: 'assistant',
+      text: '**Uptime (webview)**\n- `' + label + '` (since webview load)\n- tip: host process uptime via /doctor',
+    });
+    return true;
+  }
   if (cmd === 'time' || cmd === 'now') {
     const d = new Date();
     const iso = d.toISOString();

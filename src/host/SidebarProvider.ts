@@ -264,6 +264,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             '- model: `' + (this.selectedModel || '—') + '`',
             '- models cached: ' + this.models.length,
             '- busy: ' + (this.sendInFlight ? 'yes' : 'no'),
+            '- host uptime: `' + Math.floor(process.uptime()) + 's`', // DOCTOR_UPTIME
             '- serve: `' + String((this.client as any).baseUrl || (this.client as any).url || (this.client as any).port || '—') + '`', // DOCTOR_URL
           ];
           this.post({
@@ -485,6 +486,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       `[SESSIONS] history=${historyPanel} raw=${raw.length} out=${sessions.length}`
     );
     this.post({ type: 'sessionsList', sessions, historyPanel });
+    if (!sessions.length) this.post({ type: 'toast', text: 'no sessions' }); // EMPTY_SESSIONS_TOAST
   }
 
   private async forkSession(): Promise<void> {

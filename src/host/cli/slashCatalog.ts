@@ -125,6 +125,7 @@ export function getSlashCommandCatalog(): SlashCommand[] {
     { name: 'find', description: 'Find text in current chat' },
     { name: 'count', description: 'Count messages/tools in view' },
     { name: 'time', description: 'Show local/UTC time' },
+    { name: 'uptime', description: 'Show webview uptime' },
     { name: 'now', description: 'Show local/UTC time' },
     { name: 'search', description: 'Find text in current chat' },
     { name: 'lastsession', description: 'Reopen last session' },
