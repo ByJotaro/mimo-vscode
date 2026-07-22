@@ -554,6 +554,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const gen = ++this.selectionGen;
     this.currentSessionId = sessionId;
     if (sessionId) void this.context.globalState.update('mimo.lastSessionId', sessionId); // LAST_SESSION_PERSIST
+    if (!opts?.soft && sessionId) {
+      this.post({ type: 'toast', text: 'session · ' + sessionId.slice(0, 12) }); // OPEN_SESSION_TOAST
+    }
     if (!opts?.soft) this.post({ type: 'sessionLoadStatus', sessionId, loading: true });
 
     try {

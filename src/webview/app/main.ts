@@ -957,6 +957,13 @@ function handleLocalSlash(full: string): boolean {
     showToast('prompt');
     return true;
   }
+  if (cmd === 'top') {
+    autoScroll = false;
+    if (chat) chat.scrollTop = 0;
+    ensureJumpBottom();
+    showToast('↑ top');
+    return true;
+  }
   if (cmd === 'jump' || cmd === 'bottom') {
     autoScroll = true;
     scrollToBottom(chat, true);
