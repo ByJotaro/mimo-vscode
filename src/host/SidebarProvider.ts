@@ -167,6 +167,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           await this.sendInit();
           break;
         case 'goHome':
+          // GO_HOME_ABORT
+          if (this.sendInFlight && this.currentSessionId) {
+            void this.client.abort(this.currentSessionId).catch(() => undefined);
+            this.sendInFlight = false;
+            this.post({ type: 'sendState', busy: false });
+          }
           this.post({ type: 'toast', text: 'Home' });
           this.currentSessionId = '';
           await this.sendInit();

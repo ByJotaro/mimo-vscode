@@ -939,11 +939,16 @@ function handleLocalSlash(full: string): boolean {
     post({ type: 'goHome' });
     return true;
   }
+  if (cmd === 'focus' || cmd === 'prompt') {
+    promptEl?.focus();
+    showToast('prompt');
+    return true;
+  }
   if (cmd === 'pin' || cmd === 'scroll') {
-    // toggle pinBottom-ish: flip auto-scroll preference stored on dataset
-    const on = chatEl?.dataset.pinBottom !== '0';
-    if (chatEl) chatEl.dataset.pinBottom = on ? '0' : '1';
-    showToast(on ? 'scroll free' : 'scroll pin');
+    autoScroll = !autoScroll;
+    if (autoScroll) scrollToBottom(chat, true);
+    ensureJumpBottom();
+    showToast(autoScroll ? 'scroll pin' : 'scroll free');
     return true;
   }
   if (cmd === 'clear') {
