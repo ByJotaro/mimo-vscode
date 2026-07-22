@@ -957,6 +957,25 @@ function handleLocalSlash(full: string): boolean {
     showToast('prompt');
     return true;
   }
+  if (cmd === 'time' || cmd === 'now') {
+    const d = new Date();
+    const iso = d.toISOString();
+    const local = d.toLocaleString();
+    showToast(local);
+    appendOrUpdateMessage({
+      id: 'sys_time_' + Date.now(),
+      role: 'assistant',
+      text:
+        '**Time**\n- local: `' +
+        local +
+        '`\n- utc: `' +
+        iso +
+        '`\n- session: `' +
+        (activeSessionId || '(home)') +
+        '`',
+    });
+    return true;
+  }
   if (cmd === 'count') {
     const users = chat.querySelectorAll('.msg.user, .message.user, [data-role="user"]').length;
     const asst = chat.querySelectorAll('.msg.assistant, .message.assistant, [data-role="assistant"]').length;
