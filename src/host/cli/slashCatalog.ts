@@ -20,6 +20,7 @@ export function getSlashCommandCatalog(): SlashCommand[] {
     { name: 'skills', description: 'Browse / invoke skills' },
     { name: 'help', description: 'Show help' },
     { name: 'doctor', description: 'Extension diagnostics (bin/db/sqlite)' },
+    { name: 'version', description: 'Show extension package version' },
     { name: 'new', description: 'Start a new session' },
     { name: 'clear', description: 'Clear the current chat view' },
     { name: 'sessions', description: 'Open session history' },

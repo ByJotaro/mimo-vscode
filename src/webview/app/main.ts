@@ -1359,6 +1359,16 @@ function handleLocalSlash(full: string): boolean {
     });
     return true;
   }
+  if (cmd === 'version' || cmd === 'ver') {
+    const v = statusLabel?.dataset.version || '—';
+    showToast('v' + v);
+    appendOrUpdateMessage({
+      id: 'sys_ver_' + Date.now(),
+      role: 'assistant',
+      text: '**Version**\n- extension: `' + v + '`',
+    });
+    return true;
+  }
   if (cmd === 'doctor') {
     showToast('doctor…');
     post({ type: 'doctor' });
