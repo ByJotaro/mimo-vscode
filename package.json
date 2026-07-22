@@ -3,7 +3,7 @@
   "displayName": "MiMo Code",
   "publisher": "mimo",
   "description": "MiMo Code VS Code sidebar — modular rewrite (v2). Fast DB-first history, CLI-faithful tools & theme.",
-  "version": "1.0.0-beta.255",
+  "version": "1.0.0-beta.256",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -30,7 +30,8 @@
     "onCommand:mimo.insertSelection",
     "onCommand:mimo.abort",
     "onStartupFinished",
-    "onCommand:mimo.openSidebar"
+    "onCommand:mimo.openSidebar",
+    "onCommand:mimo.exportSession"
   ],
   "main": "./out/extension/activate.js",
   "contributes": {
@@ -88,6 +89,10 @@
       {
         "command": "mimo.abort",
         "title": "MiMo Code: Stop Turn"
+      },
+      {
+        "command": "mimo.exportSession",
+        "title": "MiMo Code: Export Session"
       }
     ],
     "menus": {

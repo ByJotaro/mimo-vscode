@@ -69,6 +69,9 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand('mimo.abort', () =>
       runHost(() => provider.runCommand('abort'))
+    ),
+    vscode.commands.registerCommand('mimo.exportSession', () =>
+      runHost(() => provider.runCommand('requestExport'))
     )
   );
 }

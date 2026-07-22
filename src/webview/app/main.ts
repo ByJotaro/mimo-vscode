@@ -1922,6 +1922,9 @@ if (Array.isArray(message.modes) && message.modes.length) {
         showToast('selection inserted');
       }
       break;
+    case 'requestExport':
+      handleLocalSlash('/export');
+      break;
     case 'focusPrompt':
       promptEl?.focus();
       break;
