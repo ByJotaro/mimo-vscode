@@ -1850,6 +1850,7 @@ if (Array.isArray(message.modes) && message.modes.length) {
         break;
       }
       if (message.showStartupChooser === true) {
+        setBusy(false); // HOME_CLEAR_BUSY
         activeSessionId = '';
         lastUserPrompt = '';
         if (statusLabel) delete statusLabel.dataset.usage; // HOME_CLEAR_USAGE

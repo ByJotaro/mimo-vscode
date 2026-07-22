@@ -106,6 +106,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           }
           break;
         case 'newSession':
+          // NEW_BUSY_ABORT
+          if (this.sendInFlight && this.currentSessionId) {
+            void this.client.abort(this.currentSessionId).catch(() => undefined);
+            this.sendInFlight = false;
+            this.post({ type: 'sendState', busy: false });
+          }
           await this.newSession();
           break;
         case 'forkSession':
