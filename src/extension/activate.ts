@@ -96,6 +96,9 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand('mimo.doctor', () =>
       runHost(() => provider.runCommand('doctor'))
+    ),
+    vscode.commands.registerCommand('mimo.focusPrompt', () =>
+      runHost(() => provider.runCommand('focusPrompt'))
     )
   );
 }

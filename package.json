@@ -3,7 +3,7 @@
   "displayName": "MiMo Code",
   "publisher": "mimo",
   "description": "MiMo Code VS Code sidebar — modular rewrite (v2). Fast DB-first history, CLI-faithful tools & theme.",
-  "version": "1.0.0-beta.281",
+  "version": "1.0.0-beta.282",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -37,7 +37,8 @@
     "onCommand:mimo.redo",
     "onCommand:mimo.copySessionId",
     "onCommand:mimo.showLog",
-    "onCommand:mimo.doctor"
+    "onCommand:mimo.doctor",
+    "onCommand:mimo.focusPrompt"
   ],
   "main": "./out/extension/activate.js",
   "contributes": {
@@ -123,6 +124,10 @@
       {
         "command": "mimo.doctor",
         "title": "MiMo Code: Doctor"
+      },
+      {
+        "command": "mimo.focusPrompt",
+        "title": "MiMo Code: Focus Prompt"
       }
     ],
     "menus": {
@@ -195,6 +200,11 @@
         "command": "mimo.goHome",
         "key": "ctrl+shift+alt+u",
         "mac": "cmd+shift+alt+u"
+      },
+      {
+        "command": "mimo.focusPrompt",
+        "key": "ctrl+shift+alt+p",
+        "mac": "cmd+shift+alt+p"
       }
     ],
     "configuration": {

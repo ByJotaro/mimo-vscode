@@ -23,6 +23,8 @@ export function getSlashCommandCatalog(): SlashCommand[] {
     { name: 'version', description: 'Show extension package version' },
     { name: 'pin', description: 'Toggle auto-scroll pin to bottom' },
     { name: 'focus', description: 'Focus the prompt input' },
+    { name: 'jump', description: 'Scroll chat to bottom and pin' },
+    { name: 'bottom', description: 'Scroll chat to bottom and pin' },
     { name: 'new', description: 'Start a new session' },
     { name: 'clear', description: 'Clear the current chat view' },
     { name: 'sessions', description: 'Open session history' },
