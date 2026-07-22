@@ -673,6 +673,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         messageId: this.liveAssistantId,
         text: this.liveBuffer,
       });
+      if (!this.view?.visible) {
+        void vscode.window
+          .showInformationMessage('MiMo turn finished', 'Open chat')
+          .then((choice) => {
+            if (choice === 'Open chat') void vscode.commands.executeCommand('mimo.openSidebar');
+          });
+      }
       if (sid && this.liveAssistantId && this.gitUndo) {
         void this.gitUndo
           .finalizeBinding(sid, this.liveAssistantId, this.liveAssistantId, undefined, { allowNoCommitTerminal: true })
@@ -681,7 +688,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
       // refresh from DB for full tool fidelity
       if (sid) {
         setTimeout(() => {
-          if (this.currentSessionId === sid) void this.selectSession(sid);
+          if (this.currentSessionId === sid) void this.selectSession(sid, { soft: true });
         }, 400);
       }
       return;
