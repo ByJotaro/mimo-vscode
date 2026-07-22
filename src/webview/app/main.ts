@@ -1452,6 +1452,18 @@ function handleLocalSlash(full: string): boolean {
     if (statusLabel) statusLabel.textContent = msg;
     return true;
   }
+  if (cmd === 'copy-last' || cmd === 'last') {
+    const msgs = chat.querySelectorAll('.msg.assistant, .message.assistant, [data-role="assistant"]');
+    const last = msgs[msgs.length - 1] as HTMLElement | undefined;
+    const t = (last?.innerText || last?.textContent || '').trim();
+    if (!t) {
+      showToast('no assistant msg');
+      return true;
+    }
+    if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(t);
+    showToast('copied last');
+    return true;
+  }
   if (cmd === 'export' || cmd === 'copy' || cmd === 'share') {
     const parts: string[] = [];
     document.querySelectorAll('.message').forEach((el) => {
