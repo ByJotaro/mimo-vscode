@@ -1506,6 +1506,25 @@ function handleLocalSlash(full: string): boolean {
     });
     return true;
   }
+  if (cmd === 'quiet' || cmd === 'mute') {
+    (window as any).__mimoQuiet = true;
+    // allow this one toast
+    const prev = (window as any).__mimoQuiet;
+    (window as any).__mimoQuiet = false;
+    showToast('toasts muted');
+    (window as any).__mimoQuiet = true;
+    return true;
+  }
+  if (cmd === 'noisy' || cmd === 'unmute') {
+    (window as any).__mimoQuiet = false;
+    showToast('toasts on');
+    return true;
+  }
+  if (cmd === 'paths') {
+    showToast('paths…');
+    post({ type: 'doctor' });
+    return true;
+  }
   if (cmd === 'doctor') {
     showToast('doctor…');
     post({ type: 'doctor' });
