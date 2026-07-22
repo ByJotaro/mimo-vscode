@@ -1352,11 +1352,18 @@ function handleLocalSlash(full: string): boolean {
     return true;
   }
   if (cmd === 'memory') {
+    // MEMORY_OPEN
+    if (rest === 'open' || rest === 'folder') {
+      showToast('memory folder…');
+      post({ type: 'openMemoryDir' });
+      return true;
+    }
     showToast('memory');
     appendOrUpdateMessage({
       id: 'sys_memory_' + Date.now(),
       role: 'assistant',
-      text: '**Memory**\n- project + session checkpoints\n- full tree / inspect in CLI (/memory)\n- session notes under mimocode memory dir',
+      text:
+        '**Memory**\n- project + session checkpoints\n- `/memory open` → reveal mimocode memory dir\n- full tree: CLI `/memory`',
     });
     return true;
   }

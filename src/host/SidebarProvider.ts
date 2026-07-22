@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import {
   querySessionFromDb,
   listSessionsFromSqlite,
@@ -314,7 +315,20 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           this.post({ type: 'insertPromptText', text: header + '\n```\n' + sel + '\n```\n' });
           break;
         }
-                case 'openFolder': {
+                        case 'openMemoryDir': {
+          const home = process.env.USERPROFILE || process.env.HOME || '';
+          const mem = path.join(home, '.local', 'share', 'mimocode', 'memory');
+          try {
+            if (!fs.existsSync(mem)) fs.mkdirSync(mem, { recursive: true });
+            void vscode.commands.executeCommand('revealFileInOS', vscode.Uri.file(mem));
+            this.post({ type: 'toast', text: 'memory dir' });
+          } catch (e) {
+            this.post({ type: 'toast', text: 'memory dir failed' });
+            this.log.appendLine('[openMemoryDir] ' + String(e).slice(0, 120));
+          }
+          break;
+        }
+        case 'openFolder': {
           try {
             const p = typeof msg.path === 'string' && msg.path.trim()
               ? msg.path.trim()
