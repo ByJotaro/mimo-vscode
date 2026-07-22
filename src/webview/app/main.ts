@@ -1494,6 +1494,8 @@ function handleLocalSlash(full: string): boolean {
   return false;
 }
 function doSend(): void {
+  const _raw = (promptEl?.value || '').trim();
+  if (!_raw) { showToast('empty'); return; } // EMPTY_SEND_GUARD
   const text = (promptEl?.value || '').trim();
   if (!text) return;
   if (busy) { showToast('wait — still running'); return; }
