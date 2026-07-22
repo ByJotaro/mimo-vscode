@@ -1429,7 +1429,7 @@ function handleLocalSlash(full: string): boolean {
         '- `/home` `/exit` `/new` `/fork` `/clear` `/sessions` `/history` `/stop`\n' +
         '- `/plan` `/build` `/compose` `/agent` `/agents` `/model` `/models` `/skills`\n' +
         '- `/undo` `/redo` `/retry` `/details` `/diff` `/stash` `/resume` `/rename` `/open` `/sel`\n' +
-        '- `/cost` `/status` `/usage` `/mcp` `/memory` `/tasks` `/questions` `/export` `/help`\n' +
+        '- `/cost` `/status` `/usage` `/mcp` `/memory` `/tasks` `/questions` `/export` `/log` `/port` `/id` `/reload` `/help`\n' +
         '- Server-forwarded: `/compact` `/rebuild` `/goal` `/btw` `/loop` `/permissions` …\n' +
         '- Hotkeys: `Ctrl+Shift+H` history · `Ctrl+Shift+N` new · `Ctrl+Shift+L` clear · `Ctrl+Shift+U` home · `Ctrl+Shift+Z` undo · `Ctrl+Shift+Y` redo · `Ctrl+Shift+S` selection · `Ctrl+.` abort\n\n' +
         '**Agent skills:** type `/` for full catalog.\n' +

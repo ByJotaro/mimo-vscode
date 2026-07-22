@@ -454,6 +454,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         },
       });
       this.post({ type: 'toast', text: 'New session' });
+      this.sendInFlight = false; // NEW_SESSION_CLEAR_BUSY
+      this.post({ type: 'sendState', busy: false });
       this.log.appendLine(`[NEW_SESSION] ${s.id}`);
     } catch (e) {
       this.post({ type: 'error', error: `newSession: ${String(e).slice(0, 200)}` });
