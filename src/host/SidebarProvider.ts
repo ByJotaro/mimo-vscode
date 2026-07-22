@@ -203,12 +203,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           if (typeof msg.mode === 'string' && msg.mode) {
             this.selectedMode = msg.mode;
             void this.context.globalState.update('mimo.mode', msg.mode);
+            this.post({ type: 'toast', text: 'mode · ' + msg.mode }); // SET_MODE_TOAST
           }
           break;
         case 'setModel':
           if (typeof msg.model === 'string' && msg.model) {
             this.selectedModel = msg.model;
             void this.context.globalState.update('mimo.model', msg.model);
+            this.post({ type: 'toast', text: 'model · ' + msg.model }); // SET_MODEL_TOAST
           }
           break;
         case 'undoLast':

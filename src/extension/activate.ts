@@ -102,6 +102,9 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand('mimo.refreshModels', () =>
       runHost(() => provider.runCommand('refreshModels'))
+    ),
+    vscode.commands.registerCommand('mimo.openSettings', () =>
+      runHost(() => provider.runCommand('openSettings'))
     )
   );
 }

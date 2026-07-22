@@ -1361,11 +1361,18 @@ function handleLocalSlash(full: string): boolean {
     return true;
   }
   if (cmd === 'mcp') {
+    // MCP_OPEN_SETTINGS
+    if (rest === 'settings' || rest === 'config') {
+      showToast('mcp settings…');
+      post({ type: 'openSettings' });
+      return true;
+    }
     showToast('mcp');
     appendOrUpdateMessage({
       id: 'sys_mcp_' + Date.now(),
       role: 'assistant',
-      text: '**MCP**\n- tavily · playwright · windows-mcp\n- manage / enable servers in CLI config\n- full MCP inspector: CLI only for now',
+      text:
+        '**MCP**\n- tavily · playwright · windows-mcp\n- manage servers in mimocode config\n- `/mcp settings` opens VS Code settings\n- full MCP inspector: CLI',
     });
     return true;
   }
