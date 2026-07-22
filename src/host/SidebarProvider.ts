@@ -160,6 +160,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           this.post({ type: 'toast', text: 'history' });
           await this.sendSessionsList(true);
           break;
+        case 'workspaceChanged':
+          this.client.setWorkspaceRoot(getWorkspaceRoot());
+          this.post({ type: 'toast', text: 'workspace updated' });
+          await this.sendInit();
+          break;
         case 'goHome':
           this.post({ type: 'toast', text: 'Home' });
           this.currentSessionId = '';
