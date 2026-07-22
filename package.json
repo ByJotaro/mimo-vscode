@@ -3,7 +3,7 @@
   "displayName": "MiMo Code",
   "publisher": "mimo",
   "description": "MiMo Code VS Code sidebar — modular rewrite (v2). Fast DB-first history, CLI-faithful tools & theme.",
-  "version": "1.0.0-beta.288",
+  "version": "1.0.0-beta.289",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -210,6 +210,11 @@
         "command": "mimo.focusPrompt",
         "key": "ctrl+shift+alt+p",
         "mac": "cmd+shift+alt+p"
+      },
+      {
+        "command": "mimo.refreshModels",
+        "key": "ctrl+shift+alt+r",
+        "mac": "cmd+shift+alt+r"
       }
     ],
     "configuration": {
