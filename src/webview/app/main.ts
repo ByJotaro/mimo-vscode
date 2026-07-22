@@ -732,6 +732,9 @@ function showHistoryPanel(sessions: Array<{ id: string; title: string; updated?:
   });
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
+    // ESC_CLOSE_HISTORY
+    const hist = document.getElementById('mimo-history') || document.querySelector('.history-panel, .mimo-history, #history-panel');
+    if (hist) { hist.remove(); e.preventDefault(); return; }
       panel.remove();
       window.removeEventListener('keydown', onKey);
     }
@@ -1064,6 +1067,7 @@ function handleLocalSlash(full: string): boolean {
     return true;
   }
   if (cmd === 'stop' || cmd === 'abort') {
+    if (!busy) { showToast('not running'); return true; } // STOP_IDLE
     showToast('stopping…');
     post({ type: 'abort' });
     return true;
