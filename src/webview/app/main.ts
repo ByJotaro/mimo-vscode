@@ -1479,11 +1479,11 @@ function handleLocalSlash(full: string): boolean {
       role: 'assistant',
       text:
         '**Local commands**\n' +
-        '- `/home` `/exit` `/new` `/fork` `/clear` `/sessions` `/history` `/stop`\n' +
+        '- `/home` `/exit` `/new` `/fork` `/clear` `/sessions` `/history` `/stop` `/pin` `/jump` `/focus`\n' +
         '- `/plan` `/build` `/compose` `/agent` `/agents` `/model` `/models` `/skills`\n' +
-        '- `/undo` `/redo` `/retry` `/details` `/diff` `/stash` `/resume` `/rename` `/open` `/sel`\n' +
-        '- `/cost` `/status` `/usage` `/mcp` `/memory` `/tasks` `/questions` `/export` `/log` `/port` `/id` `/reload` `/help`\n' +
-        '- Server-forwarded: `/compact` `/rebuild` `/goal` `/btw` `/loop` `/permissions` …\n' +
+        '- `/undo` `/redo` `/retry` `/reload` `/details` `/diff` `/stash` `/resume` `/rename` `/open` `/sel`\n' +
+        '- `/cost` `/status` `/usage` `/port` `/doctor` `/version` `/id` `/title` `/log` `/config` `/export` `/help`\n' +
+        '- `/mcp` `/memory` `/tasks` `/questions` + server-forwarded: `/compact` `/rebuild` `/goal` `/btw` `/loop` …\n' +
         '- Hotkeys: `Ctrl+Shift+H` history · `Ctrl+Shift+N` new · `Ctrl+Shift+L` clear · `Ctrl+Shift+U` home · `Ctrl+Shift+Z` undo · `Ctrl+Shift+Y` redo · `Ctrl+Shift+S` selection · `Ctrl+.` abort\n\n' +
         '**Agent skills:** type `/` for full catalog.\n' +
         '**Note:** visual polish (T21) runs AFTER full feature port + verify.',
@@ -1494,10 +1494,8 @@ function handleLocalSlash(full: string): boolean {
   return false;
 }
 function doSend(): void {
-  const _raw = (promptEl?.value || '').trim();
-  if (!_raw) { showToast('empty'); return; } // EMPTY_SEND_GUARD
   const text = (promptEl?.value || '').trim();
-  if (!text) return;
+  if (!text) { showToast('empty'); return; } // EMPTY_SEND_GUARD
   if (busy) { showToast('wait — still running'); return; }
   if (handleLocalSlash(text)) { promptEl.value = ''; hideSlash(); return; }
   lastUserPrompt = text;
