@@ -220,13 +220,14 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case 'openTheme':
           void vscode.commands.executeCommand('workbench.action.selectTheme');
           break;
-                case 'doctor': {
+        case 'doctor': {
           const bin = getMimoBin();
           const db = getMimoDbPath();
           const sql = findSqlite3Bin() || '(missing)';
           const root = getWorkspaceRoot();
           const lines = [
             '**Doctor**',
+            '- extension: `' + String(this.context.extension.packageJSON?.version || '-') + '`',
             '- workspace: `' + root + '`',
             '- mimo bin: `' + bin + '`',
             '- db: `' + db + '`',

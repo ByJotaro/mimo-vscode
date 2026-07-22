@@ -1,35 +1,43 @@
 import fs from 'fs';
 
 let h = fs.readFileSync('src/host/SidebarProvider.ts', 'utf8');
-if (h.includes("- extension: `")) {
-  console.log('already has extension line');
+if (h.includes("'- extension: `'")) {
+  console.log('already');
   process.exit(0);
 }
 
-const needle = "            '- workspace: `' + root + '`,";
-const insert =
+const old =
+  "            '- workspace: `' + root + '`,\n            '- mimo bin: `' + bin + '`,";
+const neu =
   "            '- extension: `' + String(this.context.extension.packageJSON?.version || '—') + '`,\n" +
-  needle;
+  "            '- workspace: `' + root + '`,\n" +
+  "            '- mimo bin: `' + bin + '`,";
 
-// doctor block only — first occurrence after **Doctor**
-const doc = h.indexOf("'**Doctor**'");
-if (doc < 0) {
-  console.error('no doctor');
-  process.exit(1);
+if (!h.includes(old)) {
+  // try with \r\n
+  const old2 = old.replace(/\n/g, '\r\n');
+  if (h.includes(old2)) {
+    h = h.replace(old2, neu.replace(/\n/g, '\r\n'));
+    console.log('crlf ok');
+  } else {
+    // index-based insert after **Doctor** line
+    const marker = "'**Doctor**',\n";
+    const idx = h.indexOf(marker);
+    if (idx < 0) {
+      console.error('marker miss');
+      process.exit(1);
+    }
+    const at = idx + marker.length;
+    const ext =
+      "            '- extension: `' + String(this.context.extension.packageJSON?.version || '—') + '`,\n";
+    h = h.slice(0, at) + ext + h.slice(at);
+    console.log('insert after Doctor');
+  }
+} else {
+  h = h.replace(old, neu);
+  console.log('replace ok');
 }
-const sub = h.slice(doc, doc + 800);
-const rel = sub.indexOf(needle);
-if (rel < 0) {
-  // try without trailing comma variance
-  console.log(JSON.stringify(sub.slice(0, 300)));
-  process.exit(1);
-}
-const abs = doc + rel;
-h = h.slice(0, abs) + insert + h.slice(abs + needle.length);
-// fix double workspace if insert included needle and we also left original — insert replaces by prepending before needle so original needle stays once after extension. Wait: insert = extension + needle, we replace needle with insert so one workspace remains. Good.
 
-// also fix weird indentation on case 'doctor'
 h = h.replace(/[ \t]+case 'doctor': \{/, "        case 'doctor': {");
-
 fs.writeFileSync('src/host/SidebarProvider.ts', h);
-console.log('doctor extension line patched');
+console.log('has', h.includes("'- extension: `'"));
