@@ -45,6 +45,7 @@ for (const e of old) {
 
 // Prefer disk folder for mimo
 const preferred = [
+  'mimo.mimo-vscode-1.0.0-beta.309',
   'mimo.mimo-vscode-1.0.0-beta.308',
   'mimo.mimo-vscode-1.0.0-beta.307',
   'mimo.mimo-vscode-1.0.0-beta.306',

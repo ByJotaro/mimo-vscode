@@ -869,6 +869,7 @@ function setInputEnabled(on: boolean): void {
 }
 
 function showToast(msg: string, ms = 1400): void {
+  if ((window as any).__mimoQuiet) return; // TOAST_MUTE
   document.getElementById('mimo-toast')?.remove();
   const t = document.createElement('div');
   t.id = 'mimo-toast';
@@ -1347,7 +1348,7 @@ function handleLocalSlash(full: string): boolean {
     });
     return true;
   }
-  if (cmd === 'id' || cmd === 'session' || cmd === 'who') {
+  if (cmd === 'id' || cmd === 'session' || cmd === 'who' || cmd === 'copy-id') {
     const id = activeSessionId || '';
     if (!id) {
       showToast('no session');
@@ -1507,9 +1508,6 @@ function handleLocalSlash(full: string): boolean {
     return true;
   }
   if (cmd === 'quiet' || cmd === 'mute') {
-    (window as any).__mimoQuiet = true;
-    // allow this one toast
-    const prev = (window as any).__mimoQuiet;
     (window as any).__mimoQuiet = false;
     showToast('toasts muted');
     (window as any).__mimoQuiet = true;
