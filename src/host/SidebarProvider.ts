@@ -570,7 +570,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const prompt = text.trim();
     if (!prompt) return;
     if (this.sendInFlight) {
-      this.post({ type: 'error', error: 'Wait for previous response' });
+      this.post({ type: 'toast', text: 'wait — still running' });
       return;
     }
     let sid = sessionId || this.currentSessionId;
