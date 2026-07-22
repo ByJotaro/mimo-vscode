@@ -1191,6 +1191,16 @@ function handleLocalSlash(full: string): boolean {
     });
     return true;
   }
+  if (cmd === 'editor') {
+    showToast('editor…');
+    post({ type: 'focusEditor' });
+    return true;
+  }
+  if (cmd === 'theme') {
+    showToast('theme…');
+    post({ type: 'openTheme' });
+    return true;
+  }
   if (cmd === 'config') {
     showToast('settings…');
     post({ type: 'openSettings' });
@@ -1212,8 +1222,6 @@ function handleLocalSlash(full: string): boolean {
     cmd === 'connect' ||
     cmd === 'login' ||
     cmd === 'voice' ||
-    cmd === 'theme' ||
-    cmd === 'editor' ||
     cmd === 'init' ||
     cmd === 'review' ||
     cmd === 'delete'

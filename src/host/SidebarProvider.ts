@@ -187,6 +187,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case 'focusPrompt':
           this.post({ type: 'focusPrompt' });
           break;
+        case 'focusEditor':
+          await vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
+          break;
+        case 'openTheme':
+          void vscode.commands.executeCommand('workbench.action.selectTheme');
+          break;
         case 'openSettings':
           void vscode.commands.executeCommand('workbench.action.openSettings', 'mimo');
           break;
