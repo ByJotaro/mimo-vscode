@@ -1491,6 +1491,33 @@ btnHistoryTop?.addEventListener('click', () => {
   post({ type: 'fetchSessions', history: true });
 });
 btnSend?.addEventListener('click', doSend);
+promptEl?.addEventListener('paste', (e) => {
+  const text = e.clipboardData?.getData('text/plain') || '';
+  if (!text) return;
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const pathLike = lines.filter(
+    (l) =>
+      /^[A-Za-z]:[\\/]/.test(l) ||
+      l.startsWith('\\\\') ||
+      l.startsWith('file:') ||
+      (l.startsWith('/') && l.includes('/') && !/\s/.test(l))
+  );
+  if (pathLike.length >= 1 && pathLike.length === lines.length && lines.length <= 12) {
+    e.preventDefault();
+    const insert = pathLike
+      .map((p) => '`' + p.replace(/^file:\/\/\//, '').replace(/^file:\/\//, '') + '`')
+      .join(' ');
+    const el = promptEl!;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    el.value = el.value.slice(0, start) + insert + el.value.slice(end);
+    const caret = start + insert.length;
+    el.setSelectionRange(caret, caret);
+    autoResizePrompt();
+    showToast(pathLike.length + ' path(s)');
+  }
+});
+
 chat.addEventListener('dblclick', (e) => {
   const msg = (e.target as HTMLElement)?.closest?.('.message.user') as HTMLElement | null;
   if (!msg) return;
