@@ -1713,14 +1713,16 @@ if (Array.isArray(message.modes) && message.modes.length) {
     case 'sessionData': {
       hideLoading();
       const sid = message.sessionId as string;
+      const meta = message.meta || {};
+      const soft = meta.source === 'db-soft' || meta.soft === true;
+      // hard open/switch away from a streaming session — drop busy chrome
+      if (!soft && busy) setBusy(false);
       activeSessionId = sid;
       titleEl.textContent = message.title || sid;
       document.getElementById('mimo-startup')?.remove();
-      const meta = message.meta || {};
       const older = Number(meta.olderCount || 0);
       (window as any).__mimoOlderCount = older;
       (window as any).__mimoLoadMoreExhausted = older <= 0;
-      const soft = meta.source === 'db-soft' || meta.soft === true;
       renderMessages(message.messages || [], {
         loadMore: meta.loadMore === true || meta.source === 'loadMore',
         olderCount: older,
