@@ -1359,6 +1359,11 @@ function handleLocalSlash(full: string): boolean {
     });
     return true;
   }
+  if (cmd === 'doctor') {
+    showToast('doctor…');
+    post({ type: 'doctor' });
+    return true;
+  }
   if (cmd === 'port' || cmd === 'spawn' || cmd === 'server') {
     const srv = statusLabel?.dataset.server || statusLabel?.textContent || '—';
     const ver = statusLabel?.dataset.version || '—';

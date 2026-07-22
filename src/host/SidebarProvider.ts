@@ -11,6 +11,7 @@ import { cssVariablesDark } from './theme/tokens';
 import { mergeSessionMessagesById } from './session/merge';
 import type { DisplayMessage } from './format/formatPart';
 import { MimoClient, getWorkspaceRoot } from './cli/MimoClient';
+import { getMimoBin, getMimoDbPath, findSqlite3Bin } from './db/paths';
 import { getSlashCommandCatalog } from './cli/slashCatalog';
 import { GitUndoEngine } from './undo/GitUndoEngine';
 
@@ -213,6 +214,35 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case 'openTheme':
           void vscode.commands.executeCommand('workbench.action.selectTheme');
           break;
+                case 'doctor': {
+          const bin = getMimoBin();
+          const db = getMimoDbPath();
+          const sql = findSqlite3Bin() || '(missing)';
+          const root = getWorkspaceRoot();
+          const lines = [
+            '**Doctor**',
+            '- workspace: `' + root + '`',
+            '- mimo bin: `' + bin + '`',
+            '- db: `' + db + '`',
+            '- sqlite3: `' + sql + '`',
+            '- session: `' + (this.currentSessionId || '(home)') + '`',
+            '- mode: `' + this.selectedMode + '`',
+            '- model: `' + (this.selectedModel || '—') + '`',
+            '- models cached: ' + this.models.length,
+            '- busy: ' + (this.sendInFlight ? 'yes' : 'no'),
+          ];
+          this.post({
+            type: 'appendMessage',
+            sessionId: this.currentSessionId || undefined,
+            message: {
+              id: 'sys_doctor_' + Date.now(),
+              role: 'assistant',
+              text: lines.join('\n'),
+            },
+          });
+          this.post({ type: 'toast', text: 'doctor' });
+          break;
+        }
         case 'showLog':
           this.log.show(true);
           break;
