@@ -1463,6 +1463,22 @@ function handleLocalSlash(full: string): boolean {
     showToast(msgs + ' msgs · ' + tools + ' tools', 1400);
     return true;
   }
+  if (cmd === 'collapse') {
+    let n = 0;
+    document.querySelectorAll('details.mimo-part, details.tool, .mimo-part details').forEach((d) => {
+      const el = d as HTMLDetailsElement;
+      if ('open' in el && el.open) {
+        el.open = false;
+        n++;
+      }
+    });
+    document.querySelectorAll('details[open]').forEach((d) => {
+      (d as HTMLDetailsElement).open = false;
+      n++;
+    });
+    showToast(n ? 'collapsed · ' + n : 'nothing open');
+    return true;
+  }
   if (cmd === 'details') {
     const parts = Array.from(document.querySelectorAll('details.mimo-part')) as HTMLDetailsElement[];
     const anyClosed = parts.some((p) => !p.open);
@@ -1516,7 +1532,7 @@ function handleLocalSlash(full: string): boolean {
       role: 'assistant',
       text:
         '**Local commands**\n' +
-        '- `/home` `/exit` `/new` `/fork` `/clear` `/sessions` `/history` `/stop` `/pin` `/jump` `/focus`\n' +
+        '- `/home` `/exit` `/new` `/fork` `/clear` `/sessions` `/history` `/stop` `/pin` `/jump` `/focus` `/reopen` `/collapse`\n' +
         '- `/plan` `/build` `/compose` `/agent` `/agents` `/model` `/models` `/skills`\n' +
         '- `/undo` `/redo` `/retry` `/reload` `/details` `/diff` `/stash` `/resume` `/rename` `/open` `/sel`\n' +
         '- `/cost` `/status` `/usage` `/port` `/doctor` `/version` `/copy-last` `/pin` `/jump` `/focus` `/id` `/title` `/log` `/config` `/export` `/help`\n' +

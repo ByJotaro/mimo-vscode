@@ -120,6 +120,7 @@ export function getSlashCommandCatalog(): SlashCommand[] {
     ...skills,
     { name: 'copy-last', description: 'Copy last assistant message' },
     { name: 'reopen', description: 'Reopen last session' },
+    { name: 'collapse', description: 'Collapse all tool cards' },
     { name: 'lastsession', description: 'Reopen last session' },
   ];
 }
