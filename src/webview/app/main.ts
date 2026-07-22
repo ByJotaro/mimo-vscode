@@ -795,6 +795,24 @@ function showStartup(sessions: Array<{ id: string; title: string; updated?: stri
     <button type="button" id="btn-new" class="primary">New session</button>`;
   listWrap.appendChild(actions);
 
+  if (workspaceRoot) {
+    const cwd = document.createElement('div');
+    cwd.className = 'mimo-startup-cwd';
+    cwd.title = workspaceRoot;
+    const short =
+      workspaceRoot.length > 52
+        ? '…' + workspaceRoot.slice(-50)
+        : workspaceRoot;
+    cwd.textContent = short;
+    cwd.addEventListener('click', () => {
+      if (navigator.clipboard?.writeText) {
+        void navigator.clipboard.writeText(workspaceRoot);
+        showToast('cwd copied');
+      }
+    });
+    root.appendChild(cwd);
+  }
+
   root.appendChild(listWrap);
   chat.appendChild(root);
   try { logoHandle?.destroy(); } catch (_) {}
