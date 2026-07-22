@@ -87,6 +87,9 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand('mimo.redo', () =>
       runHost(() => provider.runCommand('redoLast'))
+    ),
+    vscode.commands.registerCommand('mimo.copySessionId', () =>
+      runHost(() => provider.runCommand('copySessionId'))
     )
   );
 }

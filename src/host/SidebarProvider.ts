@@ -198,6 +198,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           await this.runGitRedo();
           this.post({ type: 'toast', text: 'redone' });
           break;
+        case 'copySessionId':
+          this.post({ type: 'copySessionId' });
+          break;
         case 'requestExport':
           this.post({ type: 'requestExport' });
           break;

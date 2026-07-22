@@ -1186,6 +1186,21 @@ function handleLocalSlash(full: string): boolean {
     post({ type: 'openFolder', path: p });
     return true;
   }
+  if (cmd === 'id' || cmd === 'session') {
+    const id = activeSessionId || '';
+    if (!id) {
+      showToast('no session');
+      return true;
+    }
+    if (navigator.clipboard?.writeText) void navigator.clipboard.writeText(id);
+    showToast('session id');
+    appendOrUpdateMessage({
+      id: 'sys_sid_' + Date.now(),
+      role: 'assistant',
+      text: '**Session**\n- `' + id + '`',
+    });
+    return true;
+  }
   if (cmd === 'cwd' || cmd === 'pwd' || cmd === 'workspace') {
     const root = workspaceRoot || '(unknown)';
     showToast('cwd');
@@ -1982,6 +1997,9 @@ if (Array.isArray(message.modes) && message.modes.length) {
         promptEl.focus();
         showToast('selection inserted');
       }
+      break;
+    case 'copySessionId':
+      handleLocalSlash('/id');
       break;
     case 'requestExport':
       handleLocalSlash('/export');

@@ -59,6 +59,8 @@ export function getSlashCommandCatalog(): SlashCommand[] {
     { name: 'memory', description: 'Browse project memory' },
     { name: 'usage', description: 'Token / context usage' },
     { name: 'fork', description: 'Fork current session' },
+    { name: 'id', description: 'Copy current session id' },
+    { name: 'session', description: 'Show / copy current session id' },
     { name: 'open', description: 'Open file path in editor' },
     { name: 'cwd', description: 'Show workspace root path' },
     { name: 'folder', description: 'Reveal workspace/folder in OS' },
