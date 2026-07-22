@@ -2109,6 +2109,10 @@ if (Array.isArray(message.modes) && message.modes.length) {
     case 'requestExport':
       handleLocalSlash('/export');
       break;
+    case 'openHistory':
+      if (typeof showHistoryPanel === 'function') showHistoryPanel();
+      else handleLocalSlash('/history');
+      break;
     case 'focusPrompt':
       promptEl?.focus();
       break;

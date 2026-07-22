@@ -155,6 +155,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
                 metadataOnly: true,
                 showStartupChooser: false,
                 slashCommands: getSlashCommandCatalog(),
+                workspaceRoot: getWorkspaceRoot(),
+                version: this.context.extension.packageJSON?.version || 'v2',
               });
               this.post({
                 type: 'toast',
@@ -169,6 +171,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           })();
           break;
         case 'openHistory':
+          this.post({ type: 'openHistory' });
           this.post({ type: 'toast', text: 'history' });
           await this.sendSessionsList(true);
           break;
