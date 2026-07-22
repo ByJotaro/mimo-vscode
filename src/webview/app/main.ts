@@ -52,6 +52,7 @@ let loadMoreCooldown = 0;
 let busy = false;
 let lastUserPrompt = '';
 let workspaceRoot = '';
+let lastReconnectToast = 0;
 let selectedMode = 'plan';
 let selectedModel = '';
 let autoScroll = true;
@@ -1930,7 +1931,11 @@ if (Array.isArray(message.modes) && message.modes.length) {
         if (!busy) {
           statusLabel.textContent = t || 'v2';
           statusLabel.classList.toggle('is-reconnect', st === 'reconnecting');
-          if (st === 'reconnecting') statusLabel.classList.add('is-flash');
+          if (st === 'reconnecting') {
+            statusLabel.classList.add('is-flash');
+            const now = Date.now();
+            if (now - lastReconnectToast > 8000) { lastReconnectToast = now; showToast('reconnecting…', 1800); }
+          }
           else statusLabel.classList.remove('is-flash');
         }
       }

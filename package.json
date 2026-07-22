@@ -3,7 +3,7 @@
   "displayName": "MiMo Code",
   "publisher": "mimo",
   "description": "MiMo Code VS Code sidebar — modular rewrite (v2). Fast DB-first history, CLI-faithful tools & theme.",
-  "version": "1.0.0-beta.253",
+  "version": "1.0.0-beta.254",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -29,7 +29,8 @@
     "onCommand:mimo.openHistory",
     "onCommand:mimo.insertSelection",
     "onCommand:mimo.abort",
-    "onStartupFinished"
+    "onStartupFinished",
+    "onCommand:mimo.openSidebar"
   ],
   "main": "./out/extension/activate.js",
   "contributes": {
