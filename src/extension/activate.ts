@@ -93,6 +93,9 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand('mimo.showLog', () =>
       runHost(() => provider.runCommand('showLog'))
+    ),
+    vscode.commands.registerCommand('mimo.doctor', () =>
+      runHost(() => provider.runCommand('doctor'))
     )
   );
 }

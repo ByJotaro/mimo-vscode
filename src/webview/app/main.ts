@@ -2001,6 +2001,7 @@ if (Array.isArray(message.modes) && message.modes.length) {
     }
     case 'error':
       setBusy(false);
+      document.querySelectorAll('.is-streaming').forEach((el) => el.classList.remove('is-streaming')); // CLEAR_STREAM_ON_ERROR
       {
         const err = String(message.error || 'error');
         showToast(err.slice(0, 80), 2200);

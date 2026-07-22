@@ -3,7 +3,7 @@
   "displayName": "MiMo Code",
   "publisher": "mimo",
   "description": "MiMo Code VS Code sidebar — modular rewrite (v2). Fast DB-first history, CLI-faithful tools & theme.",
-  "version": "1.0.0-beta.278",
+  "version": "1.0.0-beta.279",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -36,7 +36,8 @@
     "onCommand:mimo.undo",
     "onCommand:mimo.redo",
     "onCommand:mimo.copySessionId",
-    "onCommand:mimo.showLog"
+    "onCommand:mimo.showLog",
+    "onCommand:mimo.doctor"
   ],
   "main": "./out/extension/activate.js",
   "contributes": {
@@ -118,6 +119,10 @@
       {
         "command": "mimo.showLog",
         "title": "MiMo Code: Show Output Log"
+      },
+      {
+        "command": "mimo.doctor",
+        "title": "MiMo Code: Doctor"
       }
     ],
     "menus": {
@@ -146,6 +151,11 @@
           "command": "mimo.openHistory",
           "when": "view == mimo.sidebar",
           "group": "navigation"
+        },
+        {
+          "command": "mimo.doctor",
+          "when": "view == mimo.sidebar",
+          "group": "navigation@9"
         }
       ],
       "editor/context": [
