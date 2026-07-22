@@ -992,6 +992,22 @@ function handleLocalSlash(full: string): boolean {
     post({ type: 'fetchSessions', history: true });
     return true;
   }
+  if (cmd === 'btw') {
+    const q = rest || '';
+    if (!q) {
+      showToast('usage: /btw <side question>');
+      return true;
+    }
+    showToast('btw…');
+    post({
+      type: 'sendPrompt',
+      text: '/btw ' + q,
+      sessionId: activeSessionId || undefined,
+      mode: selectedMode,
+      model: selectedModel || undefined,
+    });
+    return true;
+  }
   if (cmd === 'reload' || cmd === 'refresh') {
     if (!activeSessionId) {
       showToast('no session');
@@ -1287,7 +1303,6 @@ function handleLocalSlash(full: string): boolean {
     cmd === 'dream' ||
     cmd === 'distill' ||
     cmd === 'goal' ||
-    cmd === 'btw' ||
     cmd === 'loop' ||
     cmd === 'loops' ||
     cmd === 'never-ask' ||
@@ -1363,6 +1378,10 @@ function handleLocalSlash(full: string): boolean {
         (workspaceRoot || '—') +
         '`',
     });
+    return true;
+  }
+  if (cmd === 'about') {
+    handleLocalSlash('/port');
     return true;
   }
   if (cmd === 'cost' || cmd === 'status' || cmd === 'usage') {
