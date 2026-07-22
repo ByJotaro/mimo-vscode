@@ -81,6 +81,12 @@ export function activate(context: vscode.ExtensionContext): void {
     ),
     vscode.commands.registerCommand('mimo.forkSession', () =>
       runHost(() => provider.runCommand('forkSession'))
+    ),
+    vscode.commands.registerCommand('mimo.undo', () =>
+      runHost(() => provider.runCommand('undoLast'))
+    ),
+    vscode.commands.registerCommand('mimo.redo', () =>
+      runHost(() => provider.runCommand('redoLast'))
     )
   );
 }

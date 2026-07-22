@@ -3,7 +3,7 @@
   "displayName": "MiMo Code",
   "publisher": "mimo",
   "description": "MiMo Code VS Code sidebar — modular rewrite (v2). Fast DB-first history, CLI-faithful tools & theme.",
-  "version": "1.0.0-beta.267",
+  "version": "1.0.0-beta.268",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -32,7 +32,9 @@
     "onStartupFinished",
     "onCommand:mimo.openSidebar",
     "onCommand:mimo.exportSession",
-    "onCommand:mimo.forkSession"
+    "onCommand:mimo.forkSession",
+    "onCommand:mimo.undo",
+    "onCommand:mimo.redo"
   ],
   "main": "./out/extension/activate.js",
   "contributes": {
@@ -98,6 +100,14 @@
       {
         "command": "mimo.forkSession",
         "title": "MiMo Code: Fork Session"
+      },
+      {
+        "command": "mimo.undo",
+        "title": "MiMo Code: Undo Last Changes"
+      },
+      {
+        "command": "mimo.redo",
+        "title": "MiMo Code: Redo"
       }
     ],
     "menus": {
