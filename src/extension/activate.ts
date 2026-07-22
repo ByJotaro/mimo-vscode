@@ -14,7 +14,8 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
   const status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 50);
-  status.text = '$(chip) MiMo';
+  const verShort = String(context.extension.packageJSON?.version || '').replace(/^1\.0\.0-/, '');
+  status.text = verShort ? `$(chip) MiMo ${verShort}` : '$(chip) MiMo';
   status.tooltip = 'MiMo Code — open chat (Ctrl+Shift+M)';
   status.command = 'mimo.openSidebar';
   status.show();
