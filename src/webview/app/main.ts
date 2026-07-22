@@ -992,6 +992,16 @@ function handleLocalSlash(full: string): boolean {
     post({ type: 'fetchSessions', history: true });
     return true;
   }
+  if (cmd === 'reload' || cmd === 'refresh') {
+    if (!activeSessionId) {
+      showToast('no session');
+      return true;
+    }
+    showToast('reload…');
+    post({ type: 'selectSession', sessionId: activeSessionId, soft: true });
+    post({ type: 'refreshUsage', sessionId: activeSessionId });
+    return true;
+  }
   if (cmd === 'retry') {
     const t = lastUserPrompt || rest;
     if (!t) {

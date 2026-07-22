@@ -32,6 +32,8 @@ export function getSlashCommandCatalog(): SlashCommand[] {
     { name: 'share', description: 'Share session' },
     { name: 'stop', description: 'Stop current turn' },
     { name: 'retry', description: 'Retry last message' },
+    { name: 'reload', description: 'Soft-reload current session from DB' },
+    { name: 'refresh', description: 'Soft-reload current session from DB' },
     { name: 'plan', description: 'Enter plan mode' },
     { name: 'build', description: 'Enter build mode' },
     { name: 'compose', description: 'Enter compose mode' },
