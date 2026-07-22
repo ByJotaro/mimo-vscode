@@ -1631,6 +1631,14 @@ btnHistoryTop?.addEventListener('click', () => {
   post({ type: 'fetchSessions', history: true });
 });
 btnSend?.addEventListener('click', doSend);
+statusLabel?.addEventListener('dblclick', () => {
+  const v = statusLabel.dataset.version || statusLabel.textContent || '';
+  if (v && navigator.clipboard?.writeText) {
+    void navigator.clipboard.writeText(v);
+    showToast('version copied');
+  }
+}); // STATUS_DBLCLICK_VER
+
 promptEl?.addEventListener('paste', (e) => {
   const text = e.clipboardData?.getData('text/plain') || '';
   if (!text) return;

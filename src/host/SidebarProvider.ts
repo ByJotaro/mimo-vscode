@@ -251,6 +251,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             '- model: `' + (this.selectedModel || '—') + '`',
             '- models cached: ' + this.models.length,
             '- busy: ' + (this.sendInFlight ? 'yes' : 'no'),
+            '- serve: `' + String((this.client as any).baseUrl || (this.client as any).url || (this.client as any).port || '—') + '`', // DOCTOR_URL
           ];
           this.post({
             type: 'appendMessage',
